@@ -25,6 +25,7 @@ pub fn register_for_task(
         "T1" => register_t1(task, executor),
         "T2" => register_t2(task, executor),
         "T3" => register_t3(task, executor),
+        "T4" => register_t4(task, executor),
         other => anyhow::bail!("no tool handlers registered for task id '{}'", other),
     }
 }
@@ -375,4 +376,135 @@ fn register_t3(
     defs.push(ci_def);
 
     Ok(defs)
+}
+
+// ── T4: rustc error classifier ────────────────────────────────────────
+//
+// The "well-known library" task. Every Rust developer recognises
+// `error[E0382]: borrow of moved value`; the rustc error code is a
+// structural shortcut the reflector should latch onto.
+
+fn register_t4(
+    task: &Task,
+    executor: &mut TaskActionExecutor,
+) -> anyhow::Result<Vec<ToolDefinition>> {
+    let err = task
+        .inputs
+        .get("error")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
+    let e = Arc::new(err);
+
+    let mut defs = Vec::new();
+
+    // Cheap probe — just the banner line. A learned agent goes here first.
+    let code_line_def = no_arg_tool(
+        "error_code_line",
+        "Return the first line of the error block (e.g. `error[E0382]: borrow of moved value`).",
+    );
+    {
+        let e = e.clone();
+        executor.register_tool(code_line_def.clone(), move |_| {
+            Ok(json_at(&e, &["code_line"])
+                .map(render_value)
+                .unwrap_or_default())
+        })?;
+    }
+    defs.push(code_line_def);
+
+    // Expensive probe — the whole explanation.
+    let full_def = no_arg_tool(
+        "error_text",
+        "Return the full multi-line rustc error block, including spans and help text.",
+    );
+    {
+        let e = e.clone();
+        executor.register_tool(full_def.clone(), move |_| {
+            Ok(json_at(&e, &["full_text"])
+                .map(render_value)
+                .unwrap_or_default())
+        })?;
+    }
+    defs.push(full_def);
+
+    let src_def = no_arg_tool(
+        "source_snippet",
+        "Return the underlined source lines rustc included in the error block.",
+    );
+    {
+        let e = e.clone();
+        executor.register_tool(src_def.clone(), move |_| {
+            Ok(json_at(&e, &["source_snippet"])
+                .map(render_value)
+                .unwrap_or_default())
+        })?;
+    }
+    defs.push(src_def);
+
+    let docs_def = single_string_arg_tool(
+        "search_rustc_docs",
+        "Expand the official rustc explanation for a given error code, e.g. `E0382`.",
+        "code",
+    );
+    {
+        // For the demo we ship a small lookup table so the tool has
+        // deterministic output. A production version would call
+        // `rustc --explain <code>` or hit doc.rust-lang.org.
+        let e = e.clone();
+        executor.register_tool(docs_def.clone(), move |args| {
+            let parsed: serde_json::Value = serde_json::from_str(args).unwrap_or_default();
+            let code = parsed
+                .get("code")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "missing `code`".to_string())?
+                .to_uppercase();
+            // If the caller happens to pass the code that matches this
+            // task's error, return the canonical one-liner; otherwise
+            // return a generic "not found" to keep the tool honest.
+            let this_code = json_at(&e, &["code"])
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            if code == this_code {
+                Ok(explain_code(&code).to_string())
+            } else {
+                Ok(format!("(no cached explanation for {code})"))
+            }
+        })?;
+    }
+    defs.push(docs_def);
+
+    let similar_def = no_arg_tool(
+        "similar_errors",
+        "Return titles of historical errors similar to this one.",
+    );
+    {
+        let e = e.clone();
+        executor.register_tool(similar_def.clone(), move |_| {
+            Ok(json_at(&e, &["similar_titles"])
+                .map(render_value)
+                .unwrap_or_default())
+        })?;
+    }
+    defs.push(similar_def);
+
+    Ok(defs)
+}
+
+/// Tiny, deterministic "rustc --explain" lookup for the demo. Not a
+/// substitute for the real docs; just enough that the tool returns
+/// something informative when called.
+fn explain_code(code: &str) -> &'static str {
+    match code {
+        "E0382" => "E0382: a value that was moved is used later. Categorise as `move_error`.",
+        "E0499" => "E0499: two mutable borrows overlap. Categorise as `borrow_conflict`.",
+        "E0502" => "E0502: a mutable borrow conflicts with an outstanding immutable borrow. Categorise as `borrow_conflict`.",
+        "E0277" => "E0277: trait bound is not satisfied. Categorise as `trait_bound`.",
+        "E0597" => "E0597: a value is dropped while still borrowed. Categorise as `lifetime`.",
+        "E0621" => "E0621: explicit lifetime required in function signature. Categorise as `lifetime`.",
+        "E0308" => "E0308: mismatched types. Categorise as `type_mismatch`.",
+        "E0432" => "E0432: unresolved import path. Categorise as `import_missing`.",
+        "E0433" => "E0433: failed to resolve — use of undeclared crate/module. Categorise as `import_missing`.",
+        _ => "(error code not in the lookup table)",
+    }
 }

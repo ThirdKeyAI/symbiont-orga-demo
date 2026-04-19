@@ -1,0 +1,152 @@
+[
+  {
+    "sequence": 0,
+    "timestamp": "2026-04-19T05:29:49.236616051Z",
+    "agent_id": "2db34b64-6408-4115-8b07-c6a0909c5a07",
+    "iteration": 0,
+    "event": {
+      "Started": {
+        "agent_id": "2db34b64-6408-4115-8b07-c6a0909c5a07",
+        "config": {
+          "max_iterations": 10,
+          "max_total_tokens": 20000,
+          "timeout": {
+            "secs": 60,
+            "nanos": 0
+          },
+          "default_recovery": {
+            "Retry": {
+              "max_attempts": 2,
+              "base_delay": {
+                "secs": 0,
+                "nanos": 500000000
+              }
+            }
+          },
+          "tool_timeout": {
+            "secs": 30,
+            "nanos": 0
+          },
+          "max_concurrent_tools": 5,
+          "context_token_budget": 32000,
+          "temperature": 0.3,
+          "tool_definitions": [
+            {
+              "name": "store_knowledge",
+              "description": "Record a single concrete, actionable procedure the task agent should remember for similar future tasks. Use subject-predicate-object form; keep each field under 60 characters.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "subject": {
+                    "type": "string"
+                  },
+                  "predicate": {
+                    "type": "string"
+                  },
+                  "object": {
+                    "type": "string"
+                  },
+                  "confidence": {
+                    "type": "number",
+                    "minimum": 0.0,
+                    "maximum": 1.0
+                  }
+                },
+                "required": [
+                  "subject",
+                  "predicate",
+                  "object"
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "sequence": 1,
+    "timestamp": "2026-04-19T05:29:54.122002668Z",
+    "agent_id": "2db34b64-6408-4115-8b07-c6a0909c5a07",
+    "iteration": 1,
+    "event": {
+      "ReasoningComplete": {
+        "iteration": 1,
+        "actions": [
+          {
+            "Respond": {
+              "content": "Looking at this trace, the agent achieved a perfect score in just 4 iterations by:\n\n1. Recalling previous knowledge about `error_code_line` being decisive\n2. Using `error_code_line` which returned \"error[E0382]: borrow of moved value: `config`\"\n3. Immediately answering \"move_error\" correctly\n\nThe agent already had the optimal procedure stored and used it effectively. The `error_code_line` probe directly revealed the move error with the distinctive \"borrow of moved value\" message, making the answer immediately obvious.\n\nSince the agent already has this knowledge stored and executed perfectly, no additional procedures are needed. The existing procedure is working optimally.\n\nI won't store any new procedures since the current approach is already maximally efficient."
+            }
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 1017,
+          "completion_tokens": 174,
+          "total_tokens": 1191
+        }
+      }
+    }
+  },
+  {
+    "sequence": 2,
+    "timestamp": "2026-04-19T05:29:54.122053028Z",
+    "agent_id": "2db34b64-6408-4115-8b07-c6a0909c5a07",
+    "iteration": 1,
+    "event": {
+      "PolicyEvaluated": {
+        "iteration": 1,
+        "action_count": 1,
+        "denied_count": 0
+      }
+    }
+  },
+  {
+    "sequence": 3,
+    "timestamp": "2026-04-19T05:29:54.122054198Z",
+    "agent_id": "2db34b64-6408-4115-8b07-c6a0909c5a07",
+    "iteration": 1,
+    "event": {
+      "ToolsDispatched": {
+        "iteration": 1,
+        "tool_count": 0,
+        "duration": {
+          "secs": 0,
+          "nanos": 880
+        }
+      }
+    }
+  },
+  {
+    "sequence": 4,
+    "timestamp": "2026-04-19T05:29:54.122054418Z",
+    "agent_id": "2db34b64-6408-4115-8b07-c6a0909c5a07",
+    "iteration": 1,
+    "event": {
+      "ObservationsCollected": {
+        "iteration": 1,
+        "observation_count": 0
+      }
+    }
+  },
+  {
+    "sequence": 5,
+    "timestamp": "2026-04-19T05:29:54.122059169Z",
+    "agent_id": "2db34b64-6408-4115-8b07-c6a0909c5a07",
+    "iteration": 1,
+    "event": {
+      "Terminated": {
+        "reason": "Completed",
+        "iterations": 1,
+        "total_usage": {
+          "prompt_tokens": 1017,
+          "completion_tokens": 174,
+          "total_tokens": 1191
+        },
+        "duration": {
+          "secs": 4,
+          "nanos": 885440187
+        }
+      }
+    }
+  }
+]
