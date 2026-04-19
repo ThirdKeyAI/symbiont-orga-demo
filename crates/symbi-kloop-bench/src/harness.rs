@@ -129,6 +129,19 @@ impl Ctx {
 
     /// Run one iteration of a task (task agent then reflector).
     pub async fn run_iteration(&self, task_id: &str, n: u32) -> Result<IterationResult> {
+        self.run_iteration_with(task_id, n, reflector::ReflectorPrompt::Default)
+            .await
+    }
+
+    /// Same as `run_iteration` but lets the caller choose which
+    /// reflector system prompt to use. The adversarial variant is for
+    /// stress-testing Cedar on cloud runs.
+    pub async fn run_iteration_with(
+        &self,
+        task_id: &str,
+        n: u32,
+        prompt: reflector::ReflectorPrompt,
+    ) -> Result<IterationResult> {
         let task = self.task(task_id)?;
 
         let task_outcome = self
@@ -140,32 +153,52 @@ impl Ctx {
         // reflect on. If the task run aborted with no iterations, skip.
         if task_outcome.iterations == 0 {
             tracing::warn!("task agent produced no iterations; skipping reflector");
-        } else {
-            if let Err(e) = reflector::run_reflector(
-                self,
-                &task,
-                &task_outcome,
-                task_outcome.run_id,
-            )
-            .await
-            {
-                tracing::error!(task = %task_id, error = %e, "reflector pass failed");
-            }
+        } else if let Err(e) =
+            reflector::run_reflector(self, &task, &task_outcome, task_outcome.run_id, prompt).await
+        {
+            tracing::error!(task = %task_id, error = %e, "reflector pass failed");
         }
 
         Ok(task_outcome)
     }
 
-    /// Run the full demo (WI-4).
+    /// Run the full demo. Convenience wrapper around
+    /// `run_demo_filtered(iterations, None, false)`.
+    #[allow(dead_code)]
     pub async fn run_demo(&self, iterations: u32) -> Result<DemoSummary> {
-        let mut task_ids: Vec<&String> = self.tasks.keys().collect();
-        task_ids.sort();
-        let task_count = task_ids.len();
-        let mut total_runs = 0u32;
+        self.run_demo_filtered(iterations, None, false).await
+    }
 
+    /// Run the demo with optional task filter and adversarial-reflector
+    /// flag. `only = Some("T4")` restricts to a single task id; `None`
+    /// means every loaded task in sorted order. `adversarial` swaps in
+    /// the reflector prompt that tempts the LLM to call forbidden tools.
+    pub async fn run_demo_filtered(
+        &self,
+        iterations: u32,
+        only: Option<&str>,
+        adversarial: bool,
+    ) -> Result<DemoSummary> {
+        let mut task_ids: Vec<String> =
+            self.tasks.keys().cloned().collect();
+        task_ids.sort();
+        if let Some(target) = only {
+            task_ids.retain(|id| id == target);
+            if task_ids.is_empty() {
+                anyhow::bail!("--only '{}' matched no loaded task", target);
+            }
+        }
+        let task_count = task_ids.len();
+        let prompt = if adversarial {
+            reflector::ReflectorPrompt::Adversarial
+        } else {
+            reflector::ReflectorPrompt::Default
+        };
+
+        let mut total_runs = 0u32;
         for n in 1..=iterations {
             for id in &task_ids {
-                match self.run_iteration(id, n).await {
+                match self.run_iteration_with(id, n, prompt).await {
                     Ok(_) => total_runs += 1,
                     Err(e) => tracing::error!(task = %id, error = %e, "iteration failed"),
                 }

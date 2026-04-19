@@ -1,0 +1,24 @@
+{
+  "id": "T4",
+  "title": "rustc compile-error classifier",
+  "prompt": "task_id=T4\nA single rustc error block is waiting for classification. Decide which category it belongs to, chosen from EXACTLY this set:\n\n- `move_error`         — moved-value errors (e.g. E0382)\n- `borrow_conflict`    — simultaneous borrow-check violations (e.g. E0502, E0499)\n- `trait_bound`        — missing trait implementation (e.g. E0277)\n- `lifetime`           — reference outlives its data (e.g. E0597, E0621)\n- `import_missing`     — unresolved name / import / module (e.g. E0432, E0433)\n- `type_mismatch`      — mismatched types (e.g. E0308)\n\nAvailable tools:\n- error_text()          — the full multi-line error block as rustc printed it.\n- error_code_line()     — ONLY the first line of the error (the banner like `error[E0382]: use of moved value`).\n- source_snippet()      — the underlined source lines rustc included in the block.\n- search_rustc_docs(code) — expand the official explanation for an error code.\n- similar_errors(text)  — look up one-line titles of similar past errors.\n\nYou do NOT need all of them. Call recall_knowledge(task_id=\"T4\") first; if a prior run learned a procedure, use it. Otherwise probe what you need.\n\nAnswer via `answer(content=\"<category>\")` with ONLY the category token — no quotes, no extra prose.",
+  "grader": {
+    "kind": "keyword_coverage",
+    "must_contain": ["move_error"]
+  },
+  "inputs": {
+    "error": {
+      "code": "E0382",
+      "code_line": "error[E0382]: borrow of moved value: `config`",
+      "full_text": "error[E0382]: borrow of moved value: `config`\n  --> src/main.rs:14:18\n   |\n12 |     let config = load_config(&path)?;\n   |         ------ move occurs because `config` has type `Config`, which does not implement the `Copy` trait\n13 |     apply_config(config);\n   |                  ------ value moved here\n14 |     println!(\"{}\", config.name);\n   |                    ^^^^^^^^^^^^ value borrowed here after move\n   |\nhelp: consider cloning the value if the performance cost is acceptable\n   |\n13 |     apply_config(config.clone());\n   |                  ~~~~~~~~~~~~~~",
+      "source_snippet": "    let config = load_config(&path)?;\n    apply_config(config);\n    println!(\"{}\", config.name);",
+      "similar_titles": [
+        "E0382: borrow of moved value `session`",
+        "E0382: use of moved value `buf` in for-loop body",
+        "E0382: value used after partial move"
+      ]
+    },
+    "learned_marker": "e_code_table"
+  },
+  "target_iterations": 3
+}

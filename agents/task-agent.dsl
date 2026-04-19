@@ -44,4 +44,11 @@ capabilities {
     tool "breaking_changes_flag"
     tool "usage_count"
     tool "run_tests"
+
+    // T4 — rustc error classifier
+    tool "error_code_line"
+    tool "error_text"
+    tool "source_snippet"
+    tool "search_rustc_docs"
+    tool "similar_errors"
 }

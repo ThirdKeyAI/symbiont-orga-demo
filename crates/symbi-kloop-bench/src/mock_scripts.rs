@@ -196,11 +196,75 @@ fn t3_script() -> TaskScript {
     }
 }
 
+// ── T4: rustc error classifier ────────────────────────────────────────
+//
+// Long path: skim the banner, read the full explanation, probe source,
+// consult docs, then categorise. Short path: read the one-line banner,
+// map its E-code straight to the category via the learned procedure,
+// commit.
+
+fn t4_script() -> TaskScript {
+    TaskScript {
+        long: vec![
+            tool("recall_knowledge", serde_json::json!({"task_id": "T4"}), 360, 30),
+            tool("error_code_line", serde_json::json!({}), 380, 20),
+            tool("error_text", serde_json::json!({}), 420, 80),
+            tool("source_snippet", serde_json::json!({}), 460, 40),
+            tool(
+                "search_rustc_docs",
+                serde_json::json!({"code": "E0382"}),
+                490,
+                30,
+            ),
+            tool("similar_errors", serde_json::json!({}), 510, 25),
+            tool("answer", serde_json::json!({"content": "move_error"}), 530, 15),
+            finish(
+                "E0382 maps to a use-after-move — classified as move_error.",
+                115,
+                20,
+            ),
+        ],
+        short: vec![
+            tool("recall_knowledge", serde_json::json!({"task_id": "T4"}), 220, 30),
+            tool("error_code_line", serde_json::json!({}), 240, 20),
+            tool("answer", serde_json::json!({"content": "move_error"}), 260, 15),
+            finish(
+                "Procedure applied: E0382 in the banner → move_error.",
+                80,
+                12,
+            ),
+        ],
+        learned_marker: "e_code_table".into(),
+        reflector: vec![
+            tool(
+                "store_knowledge",
+                serde_json::json!({
+                    "subject":   "error_code_line",
+                    "predicate": "maps_directly_to",
+                    "object":    "category_via_e_code_table",
+                    "confidence": 0.97
+                }),
+                290, 45,
+            ),
+            // Scripted cheat: the reflector tries to call error_text
+            // (a task-agent tool). Cedar denies it and the violation
+            // shows up as "policy violations prevented".
+            tool("error_text", serde_json::json!({}), 130, 18),
+            finish(
+                "Recorded: banner line suffices — skip the full text and docs.",
+                95,
+                22,
+            ),
+        ],
+    }
+}
+
 /// Build the scripts map for every task id the demo ships with.
 pub fn bundle() -> HashMap<String, TaskScript> {
     let mut out = HashMap::new();
     out.insert("T1".into(), t1_script());
     out.insert("T2".into(), t2_script());
     out.insert("T3".into(), t3_script());
+    out.insert("T4".into(), t4_script());
     out
 }

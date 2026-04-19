@@ -128,6 +128,34 @@ permit(
     resource
 );
 
+// ── T4: rustc error classifier tools ──────────────────────────────────
+
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::error_code_line",
+    resource
+);
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::error_text",
+    resource
+);
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::source_snippet",
+    resource
+);
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::search_rustc_docs",
+    resource
+);
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::similar_errors",
+    resource
+);
+
 // ── Forbids ────────────────────────────────────────────────────────────
 
 // Never let the task agent write knowledge. This is the half of the
