@@ -69,12 +69,32 @@ pub async fn run_reflector(
         .journal(journal.clone())
         .build();
 
-    let system = "You are the REFLECTOR agent for the Symbiont Karpathy-loop demo. \
-                  Your ONLY tool is store_knowledge. After reading the run summary \
-                  below, record between zero and five concrete procedures the task \
-                  agent should remember for similar future tasks. Procedures must be \
-                  in subject-predicate-object form, each field under 60 characters. \
-                  Do NOT invoke any other tool.";
+    let system = "You are the REFLECTOR agent in a Karpathy-style learning loop. \
+                  Your ONLY tool is store_knowledge; do NOT invoke any other tool. \
+                  \n\
+                  A task agent just finished one run. Your job is to write \
+                  procedures the SAME agent will read via recall_knowledge on its \
+                  next attempt at the SAME task_id, and use to shortcut work. \
+                  \n\
+                  Write procedures in SUBJECT-PREDICATE-OBJECT form where: \
+                  - `subject` names the cheapest decisive probe, e.g. \
+                    `container_exit`, `ticket_title`, `leading_digit_of_version`. \
+                  - `predicate` is an action verb like `is_decisive_for`, \
+                    `short_circuits`, `beats_reading`. \
+                  - `object` names what the probe answers or what can then be \
+                    SKIPPED, e.g. `oom_kill_vs_other`, \
+                    `skip_body_search_runbook`, `major_vs_minor_bump`. \
+                  Keep each field under 60 characters. \
+                  \n\
+                  Good procedure: subject=`container_exit` predicate=`is_decisive_for` \
+                  object=`oom_kill_vs_other` — tells the next run to call \
+                  container_exit first and skip the broad probe pass. \
+                  Bad procedure: subject=`the_task_was_about_kubernetes` — \
+                  generic description with no action hint. \
+                  \n\
+                  Prefer zero procedures over vague ones. One sharp procedure \
+                  that saves the next run three tool calls is worth more than \
+                  five generic observations.";
     let mut conv = Conversation::with_system(system);
 
     // Feed the reflector the task agent's run summary. The `task_id=` line
@@ -89,7 +109,14 @@ pub async fn run_reflector(
          - final answer: {answer}\n\
          - termination: {term}\n\
          \n\
-         Propose 0–5 procedures the next run of this task should remember.",
+         Tool-call trace (numbered by dispatch order):\n\
+         {trace}\n\
+         \n\
+         Using that trace, propose 0–5 procedures the next run of this \
+         task should remember. The trace shows exactly which probes the \
+         agent made and what they returned; use it to identify the ONE \
+         probe whose result made the answer obvious, so the next run can \
+         skip the others.",
         id = task.id,
         n = task_result.run_number,
         score = task_result.score,
@@ -97,6 +124,7 @@ pub async fn run_reflector(
         tokens = task_result.total_tokens,
         answer = task_result.answer.as_deref().unwrap_or("(none)"),
         term = task_result.termination,
+        trace = task_result.tool_trace,
     );
     conv.push(ConversationMessage::user(&user));
 

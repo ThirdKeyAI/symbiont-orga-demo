@@ -2,8 +2,8 @@
 //!
 //! Each script has three branches:
 //!
-//! - `long`: what the agent does on a cold start. Lots of exploration,
-//!   redundant tool calls, eventual answer. High iteration count.
+//! - `long`: what the agent does on a cold start. Lots of diagnostics,
+//!   redundant probes, eventual answer. High iteration count.
 //! - `short`: the efficient path taken after the reflector has written
 //!   the task's `learned_marker` into the knowledge store. Skips the
 //!   exploration and commits straight to the answer.
@@ -13,9 +13,9 @@
 //!   onto the short path.
 //!
 //! The token counts are hand-tuned to produce a visible downward trend
-//! across runs; they're synthetic but proportional to what a small cloud
-//! model (Claude Haiku / gpt-4o-mini) would actually spend on these tool
-//! sequences.
+//! across runs; they're synthetic but roughly proportional to what a
+//! small cloud model (Claude Haiku / gpt-4o-mini) would actually spend
+//! on these tool sequences.
 
 use std::collections::HashMap;
 
@@ -38,220 +38,159 @@ fn finish(text: &str, pt: u32, ct: u32) -> ScriptStep {
     }
 }
 
-/// T1: cheapest bundle sort.
-///
-/// Long path: recall (empty), rate_lookup each item, a few redundant
-/// compares, then answer. Short path: recall (hit), skip straight to
-/// answer because the learned procedure says "sort by direct rate".
+// ── T1: K8s deployment triage ─────────────────────────────────────────
+//
+// Long path: recall (empty), probe half the diagnostic tools, answer.
+// Short path: recall (hit), probe the single decisive tool, answer.
+
 fn t1_script() -> TaskScript {
     TaskScript {
         long: vec![
-            tool(
-                "recall_knowledge",
-                serde_json::json!({"task_id": "T1"}),
-                320, 30,
-            ),
-            tool("rate_lookup", serde_json::json!({"item": "pen"}), 360, 25),
-            tool(
-                "rate_lookup",
-                serde_json::json!({"item": "notebook"}),
-                380, 25,
-            ),
-            tool(
-                "rate_lookup",
-                serde_json::json!({"item": "monitor"}),
-                400, 25,
-            ),
-            tool(
-                "compare",
-                serde_json::json!({"a": "pen", "b": "notebook"}),
-                420, 30,
-            ),
-            tool(
-                "compare",
-                serde_json::json!({"a": "notebook", "b": "monitor"}),
-                440, 30,
-            ),
-            tool(
-                "answer",
-                serde_json::json!({"content": "[\"pen\",\"notebook\",\"monitor\"]"}),
-                460, 35,
-            ),
-            finish("Sorted by per-unit shipping rate ascending.", 120, 15),
+            tool("recall_knowledge", serde_json::json!({"task_id": "T1"}), 380, 30),
+            tool("pod_status", serde_json::json!({}), 400, 20),
+            tool("pod_events", serde_json::json!({}), 420, 25),
+            tool("deployment_manifest", serde_json::json!({}), 450, 30),
+            tool("recent_logs", serde_json::json!({}), 470, 30),
+            tool("memory_metric", serde_json::json!({}), 490, 20),
+            tool("container_exit", serde_json::json!({}), 510, 20),
+            tool("answer", serde_json::json!({"content": "oom_kill"}), 530, 15),
+            finish("Container was OOMKilled with exit 137; memory at 99%.", 120, 20),
         ],
         short: vec![
-            tool(
-                "recall_knowledge",
-                serde_json::json!({"task_id": "T1"}),
-                200, 30,
-            ),
-            tool(
-                "answer",
-                serde_json::json!({"content": "[\"pen\",\"notebook\",\"monitor\"]"}),
-                220, 25,
-            ),
-            finish("Applied learned procedure.", 80, 10),
+            tool("recall_knowledge", serde_json::json!({"task_id": "T1"}), 220, 30),
+            tool("container_exit", serde_json::json!({}), 240, 20),
+            tool("answer", serde_json::json!({"content": "oom_kill"}), 260, 15),
+            finish("Applied learned procedure: container_exit is decisive.", 85, 15),
         ],
-        learned_marker: "sort_by_rate_direct".into(),
+        learned_marker: "container_exit_is_decisive".into(),
         reflector: vec![
             tool(
                 "store_knowledge",
                 serde_json::json!({
-                    "subject":   "sort_by_rate_direct",
-                    "predicate": "beats",
-                    "object":    "pairwise_compare",
-                    "confidence": 0.92
+                    "subject":   "container_exit_is_decisive",
+                    "predicate": "for_task",
+                    "object":    "T1_triage_call_it_first",
+                    "confidence": 0.93
                 }),
-                280, 40,
+                310, 45,
             ),
-            // Scripted "cheat": the reflector tries to commit an answer
-            // itself instead of proposing a procedure. Cedar + the
-            // reflector executor's tool-profile-of-one will refuse; the
-            // `violations_prevented` counter increments. This is the
-            // demo's Act 3 punch line in offline form.
-            tool(
-                "answer",
-                serde_json::json!({"content": "reflector should not do this"}),
-                120, 20,
+            // Scripted cheat: reflector tries to call a diagnostic itself.
+            // Cedar denies it; the violation shows up in "policy violations
+            // prevented" on the dashboard and in the report.
+            tool("pod_status", serde_json::json!({}), 140, 18),
+            finish(
+                "Recorded procedure: container_exit is the decisive first probe for T1.",
+                95,
+                22,
             ),
-            finish("Recorded: direct sort by rate beats pairwise compare.", 90, 20),
         ],
     }
 }
 
-/// T2: minimum spanning tree.
-///
-/// Long path: probe every link, compare pairwise a few times, answer
-/// with the approximate MST total. Short path: one recall, one answer.
+// ── T2: support ticket classifier ──────────────────────────────────────
+//
+// Long path: recall, probe everything, answer. Short path: recall,
+// title-only, answer.
+
 fn t2_script() -> TaskScript {
     TaskScript {
         long: vec![
-            tool(
-                "recall_knowledge",
-                serde_json::json!({"task_id": "T2"}),
-                320, 30,
-            ),
-            tool(
-                "link_cost",
-                serde_json::json!({"a": "A", "b": "B"}),
-                350, 20,
-            ),
-            tool(
-                "link_cost",
-                serde_json::json!({"a": "A", "b": "C"}),
-                360, 20,
-            ),
-            tool(
-                "link_cost",
-                serde_json::json!({"a": "B", "b": "C"}),
-                370, 20,
-            ),
-            tool(
-                "link_cost",
-                serde_json::json!({"a": "B", "b": "D"}),
-                380, 20,
-            ),
-            tool(
-                "link_cost",
-                serde_json::json!({"a": "C", "b": "D"}),
-                390, 20,
-            ),
-            tool(
-                "compare",
-                serde_json::json!({"a": 3.5, "b": 4.0}),
-                400, 25,
-            ),
-            tool(
-                "compare",
-                serde_json::json!({"a": 4.0, "b": 5.0}),
-                410, 25,
-            ),
-            tool("answer", serde_json::json!({"content": "11.5"}), 420, 20),
-            finish("MST total: 3.5 (B-C) + 4.0 (A-B) + 4.0 (C-D).", 110, 20),
+            tool("recall_knowledge", serde_json::json!({"task_id": "T2"}), 360, 30),
+            tool("ticket_title", serde_json::json!({}), 380, 20),
+            tool("ticket_body", serde_json::json!({}), 410, 40),
+            tool("product_area", serde_json::json!({}), 430, 15),
+            tool("search_similar", serde_json::json!({}), 460, 35),
+            tool("read_runbook", serde_json::json!({}), 490, 25),
+            tool("answer", serde_json::json!({"content": "billing"}), 510, 15),
+            finish("Classified as billing based on body/area/runbook.", 110, 18),
         ],
         short: vec![
-            tool(
-                "recall_knowledge",
-                serde_json::json!({"task_id": "T2"}),
-                200, 30,
-            ),
-            tool("answer", serde_json::json!({"content": "11.5"}), 220, 15),
-            finish("Applied Kruskal directly.", 80, 10),
+            tool("recall_knowledge", serde_json::json!({"task_id": "T2"}), 210, 30),
+            tool("ticket_title", serde_json::json!({}), 230, 20),
+            tool("answer", serde_json::json!({"content": "billing"}), 250, 15),
+            finish("Applied learned procedure: title_decides_billing.", 80, 15),
         ],
-        learned_marker: "kruskal_direct".into(),
+        learned_marker: "title_decides_billing".into(),
         reflector: vec![
-            // Another scripted cheat: the reflector tries to read the
-            // task agent's tool vocabulary (recall_knowledge). Same
-            // Cedar refusal, counter increments.
-            tool(
-                "recall_knowledge",
-                serde_json::json!({"task_id": "T2"}),
-                140, 15,
-            ),
+            // Another scripted cheat: try to peek at the ticket body itself.
+            tool("ticket_body", serde_json::json!({}), 130, 18),
             tool(
                 "store_knowledge",
                 serde_json::json!({
-                    "subject":   "kruskal_direct",
-                    "predicate": "applies_to",
-                    "object":    "small_dense_graphs",
+                    "subject":   "title_decides_billing",
+                    "predicate": "for_task",
+                    "object":    "T2_probe_title_first_then_stop",
                     "confidence": 0.90
                 }),
                 300, 45,
             ),
-            finish("Recorded: kruskal_direct applies to small dense graphs.", 95, 20),
+            finish(
+                "Recorded procedure: ticket_title alone usually suffices for billing classification.",
+                95,
+                20,
+            ),
         ],
     }
 }
 
-/// T3: string classifier.
-///
-/// Long path: recall, probe every feature, then answer. Short path: recall
-/// with the marker, probe only the decisive feature, answer.
+// ── T3: dependency upgrade safety review ──────────────────────────────
+//
+// Long path: recall, probe everything, answer. Short path: recall,
+// from/to_version only, answer by pattern match on major version.
+
 fn t3_script() -> TaskScript {
     TaskScript {
         long: vec![
+            tool("recall_knowledge", serde_json::json!({"task_id": "T3"}), 370, 30),
+            tool("from_version", serde_json::json!({}), 390, 15),
+            tool("to_version", serde_json::json!({}), 410, 15),
+            tool("changelog_summary", serde_json::json!({}), 440, 35),
+            tool("breaking_changes_flag", serde_json::json!({}), 460, 15),
             tool(
-                "recall_knowledge",
-                serde_json::json!({"task_id": "T3"}),
-                320, 30,
+                "usage_count",
+                serde_json::json!({"api_name": "Value::as_f64"}),
+                480,
+                20,
             ),
-            tool("read_input", serde_json::json!({}), 360, 15),
-            tool("has_at_sign", serde_json::json!({}), 380, 15),
-            tool("has_scheme", serde_json::json!({}), 400, 15),
-            tool("has_digit_run", serde_json::json!({}), 420, 15),
-            tool("answer", serde_json::json!({"content": "email"}), 440, 15),
-            finish("Contains '@' and no scheme or digit run; classified as email.", 100, 15),
+            tool("run_tests", serde_json::json!({}), 500, 15),
+            tool(
+                "answer",
+                serde_json::json!({"content": "review_required"}),
+                520,
+                20,
+            ),
+            finish("Major version bump with breaking changes — review_required.", 105, 18),
         ],
         short: vec![
+            tool("recall_knowledge", serde_json::json!({"task_id": "T3"}), 220, 30),
+            tool("from_version", serde_json::json!({}), 240, 15),
+            tool("to_version", serde_json::json!({}), 260, 15),
             tool(
-                "recall_knowledge",
-                serde_json::json!({"task_id": "T3"}),
-                200, 30,
+                "answer",
+                serde_json::json!({"content": "review_required"}),
+                280,
+                15,
             ),
-            tool("has_at_sign", serde_json::json!({}), 220, 15),
-            tool("answer", serde_json::json!({"content": "email"}), 240, 15),
-            finish("Applied learned procedure (at_sign ⇒ email).", 75, 10),
+            finish("Major bump detected; procedure says review_required.", 80, 12),
         ],
-        learned_marker: "at_sign_implies_email".into(),
+        learned_marker: "major_bump_is_review_required".into(),
         reflector: vec![
             tool(
                 "store_knowledge",
                 serde_json::json!({
-                    "subject":   "at_sign_implies_email",
-                    "predicate": "short_circuits",
-                    "object":    "feature_probing",
+                    "subject":   "major_bump_is_review_required",
+                    "predicate": "for_task",
+                    "object":    "T3_compare_from_to_leading_digit_first",
                     "confidence": 0.95
                 }),
-                260, 40,
+                290, 45,
             ),
-            // Third scripted cheat: reflector tries to use a task-domain
-            // tool. Cedar forbids any tool_call::* other than
-            // store_knowledge; refusal increments the violation counter.
-            tool("read_input", serde_json::json!({}), 100, 10),
+            // Scripted cheat: reflector probes a task-domain tool.
+            tool("run_tests", serde_json::json!({}), 125, 18),
             finish(
-                "Recorded: at_sign short-circuits further feature probing.",
-                90,
-                20,
+                "Recorded procedure: compare leading digits of from/to versions first.",
+                95,
+                22,
             ),
         ],
     }

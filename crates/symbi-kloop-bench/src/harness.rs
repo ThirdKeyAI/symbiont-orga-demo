@@ -247,6 +247,13 @@ impl Ctx {
         let entries = journal.entries().await;
         let journal_path = self.write_journal_file(&task.id, n, "task", &entries)?;
 
+        // Build the tool-trace the reflector will read from the task
+        // agent's final conversation. One line per tool call, followed
+        // by a trimmed version of the observation the tool returned.
+        // Bounded to ~20 entries so the reflector prompt stays small
+        // even if the task agent looped longer.
+        let tool_trace = summarise_tool_trace(&result.conversation, 20);
+
         // Score the agent's answer.
         let answer = executor.outcome().await;
         let outcome = task.grade(answer.as_deref());
@@ -280,6 +287,7 @@ impl Ctx {
             termination,
             answer,
             journal_path,
+            tool_trace,
         })
     }
 
@@ -323,6 +331,15 @@ pub struct IterationResult {
     /// by the report generator when it wants to cite specific runs.
     #[allow(dead_code)]
     pub journal_path: Option<String>,
+    /// A compact one-line-per-step replay of what the task agent did,
+    /// extracted from the in-memory journal before it went to disk.
+    ///
+    /// The reflector reads this to decide which probe was decisive and
+    /// which were wasted — without it the reflector only sees
+    /// score/tokens/iterations and has no way to propose an actionable
+    /// procedure. Bounded on the task side to ~20 entries so the
+    /// reflector prompt stays small even if the loop ran longer.
+    pub tool_trace: String,
 }
 
 /// Final summary returned by the demo orchestrator.
@@ -353,6 +370,78 @@ fn describe_termination(reason: &TerminationReason) -> String {
         TerminationReason::Timeout => "timeout".into(),
         TerminationReason::PolicyDenial { reason } => format!("policy_denial: {reason}"),
         TerminationReason::Error { message } => format!("error: {message}"),
+    }
+}
+
+/// Compact human-readable trace of the task agent's tool-calling
+/// behaviour, built from the final conversation history.
+///
+/// Format: one line per tool call, showing call index, tool name, and a
+/// trimmed view of the observation the tool returned. Truncated to
+/// `max_calls` entries so the reflector's prompt budget stays small
+/// even for long runs.
+fn summarise_tool_trace(
+    conversation: &symbi_runtime::reasoning::conversation::Conversation,
+    max_calls: usize,
+) -> String {
+    use std::collections::HashMap;
+    use symbi_runtime::reasoning::conversation::MessageRole;
+
+    // Build `call_id -> (tool_name, args_preview)` from assistant tool
+    // calls, then for each tool-role message emit a line with the tool
+    // name and the observation content.
+    let mut pending: HashMap<String, (String, String)> = HashMap::new();
+    let mut lines: Vec<String> = Vec::new();
+    let mut idx = 0usize;
+
+    for msg in conversation.messages() {
+        match msg.role {
+            MessageRole::Assistant => {
+                for tc in &msg.tool_calls {
+                    let preview = trim_to(&tc.arguments, 80).replace(['\n', '\r'], " ");
+                    pending.insert(tc.id.clone(), (tc.name.clone(), preview));
+                }
+            }
+            MessageRole::Tool => {
+                let call_id = msg.tool_call_id.as_deref().unwrap_or("");
+                let (name, args_preview) = pending.remove(call_id).unwrap_or_else(|| {
+                    (
+                        msg.tool_name.clone().unwrap_or_else(|| "?".into()),
+                        String::new(),
+                    )
+                });
+                idx += 1;
+                let obs_preview = trim_to(&msg.content, 160).replace(['\n', '\r'], " ⏎ ");
+                let args_hint = if args_preview.is_empty() {
+                    String::new()
+                } else {
+                    format!(" {args_preview}")
+                };
+                lines.push(format!(
+                    "{idx:>2}. {name}{args_hint} -> {obs_preview}"
+                ));
+                if lines.len() >= max_calls {
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if lines.is_empty() {
+        "(no tool calls recorded)".into()
+    } else {
+        lines.join("\n")
+    }
+}
+
+fn trim_to(s: &str, max_chars: usize) -> String {
+    if s.chars().count() <= max_chars {
+        s.to_string()
+    } else {
+        let mut out: String = s.chars().take(max_chars.saturating_sub(1)).collect();
+        out.push('…');
+        out
     }
 }
 

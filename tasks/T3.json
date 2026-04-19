@@ -1,14 +1,30 @@
 {
   "id": "T3",
-  "title": "Regex-free string classifier",
-  "prompt": "task_id=T3\nClassify the input string as one of: \"phone\", \"email\", \"url\", or \"other\". The string is available via the tool `read_input()`. Use the helper tools `has_at_sign`, `has_digit_run`, `has_scheme` to probe before answering.\n\nAvailable tools: answer, recall_knowledge, read_input, has_at_sign, has_digit_run, has_scheme.\n\nCall recall_knowledge(task_id=\"T3\") first. Commit via answer(content=\"<label>\").",
+  "title": "Dependency-upgrade safety review",
+  "prompt": "task_id=T3\nDecide whether a dependency upgrade is `safe` to auto-merge or `review_required`.\n\nThe bump is `serde_json` from `1.0.88` to `2.0.0`. Your job is the single decision, not a full audit.\n\nAvailable tools:\n- from_version()         — the current version string.\n- to_version()           — the proposed version string.\n- changelog_summary()    — a 3-line changelog excerpt.\n- breaking_changes_flag() — returns \"true\"/\"false\" based on whether the changelog calls out breaking changes.\n- usage_count(api_name)  — how many times a given API symbol is used in this repo.\n- run_tests()            — returns \"pass\" or \"fail\" from the latest CI run.\n\nYou do NOT need all of these. The project's rule is: ANY major-version bump (leading digit changes) is always `review_required`. Call recall_knowledge(task_id=\"T3\") first so you see any procedures the reflector learned about version bumps.\n\nAnswer via `answer(content=\"<decision>\")` with ONLY `safe` or `review_required`.",
   "grader": {
     "kind": "keyword_coverage",
-    "must_contain": ["email"]
+    "must_contain": ["review_required"]
   },
   "inputs": {
-    "string": "alice@example.com",
-    "learned_marker": "at_sign_implies_email"
+    "bump": {
+      "package": "serde_json",
+      "from_version": "1.0.88",
+      "to_version": "2.0.0",
+      "changelog_summary": [
+        "BREAKING: `Value::as_f64` now returns `Result` instead of `Option`.",
+        "BREAKING: removed deprecated `to_string_pretty_width` helper.",
+        "Feature: adds `Value::as_decimal()` for fixed-point arithmetic."
+      ],
+      "breaking_changes_flag": true,
+      "usage_counts": {
+        "Value::as_f64": 14,
+        "Value::to_string_pretty_width": 2,
+        "Value::as_decimal": 0
+      },
+      "ci_status": "pass"
+    },
+    "learned_marker": "major_bump_is_review_required"
   },
   "target_iterations": 2
 }

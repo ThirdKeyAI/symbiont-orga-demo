@@ -1,22 +1,24 @@
 {
   "id": "T2",
-  "title": "Minimum spanning budget",
-  "prompt": "task_id=T2\nYou must connect four offices (A, B, C, D) using a minimum-cost subset of the available direct links. Return the TOTAL cost of the minimum spanning tree as a plain decimal number (e.g. `11.5`).\n\nThe six candidate links (by end-offices and direct cost) are:\n- A–B: 4.0\n- A–C: 6.0\n- A–D: 9.0\n- B–C: 3.5\n- B–D: 5.0\n- C–D: 4.0\n\nYou can re-verify any cost with `link_cost(a, b)` and compare two numeric values with `compare(a, b)`.\n\nAvailable tools: answer, recall_knowledge, link_cost, compare.\n\nCall recall_knowledge(task_id=\"T2\") at the start. Commit via `answer(content=\"<number>\")` with ONLY the number — no currency symbol, no prose.",
+  "title": "Support ticket classifier",
+  "prompt": "task_id=T2\nClassify one support ticket into exactly one category from this set: `billing`, `bug_report`, `feature_request`, `account_access`, `other`.\n\nAvailable tools:\n- ticket_title()   — the title as the user wrote it.\n- ticket_body()    — the full body of the ticket.\n- product_area()   — the product area the user tagged (may be empty).\n- search_similar() — free-text search over historical tickets; returns 3 one-line matches.\n- read_runbook()   — a short runbook reminder on how to classify.\n\nMost of these tools are available but most runs don't need them. A run that classifies from `ticket_title()` alone is better than a run that also pulls `ticket_body()`, `search_similar()`, and `read_runbook()`. Call recall_knowledge(task_id=\"T2\") first so you see any decisive signals the reflector learned on prior runs.\n\nAnswer via `answer(content=\"<category>\")` with ONLY the category token.",
   "grader": {
-    "kind": "numeric_near",
-    "expected": 11.5,
-    "tolerance": 0.5
+    "kind": "keyword_coverage",
+    "must_contain": ["billing"]
   },
   "inputs": {
-    "links": [
-      {"a": "A", "b": "B", "cost": 4.0},
-      {"a": "A", "b": "C", "cost": 6.0},
-      {"a": "A", "b": "D", "cost": 9.0},
-      {"a": "B", "b": "C", "cost": 3.5},
-      {"a": "B", "b": "D", "cost": 5.0},
-      {"a": "C", "b": "D", "cost": 4.0}
-    ],
-    "learned_marker": "kruskal_direct"
+    "ticket": {
+      "title": "Double charge on invoice 4821",
+      "body": "Hi team, my invoice 4821 shows two charges for the Pro subscription this month. Can you refund the duplicate? Card ending 1834. Account email is shipped in the attached screenshot.",
+      "product_area": "billing",
+      "similar_titles": [
+        "Refund duplicate charge for Pro plan",
+        "Invoice shows two line items for same subscription",
+        "Chargeback question on recent renewal"
+      ],
+      "runbook_note": "If the ticket mentions `invoice`, `charge`, `refund`, `card`, or the product_area tag is `billing`, classify as `billing` without further probing."
+    },
+    "learned_marker": "title_decides_billing"
   },
-  "target_iterations": 3
+  "target_iterations": 2
 }
