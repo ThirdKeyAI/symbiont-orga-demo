@@ -1,0 +1,10 @@
+/target
+/data
+*.db
+*.db-wal
+*.db-shm
+Cargo.lock
+# Generated artifacts
+/journals/
+/demo-output/*.md
+!/demo-output/.gitkeep
