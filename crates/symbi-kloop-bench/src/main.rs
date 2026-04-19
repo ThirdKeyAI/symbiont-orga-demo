@@ -85,6 +85,19 @@ enum Command {
         /// is plenty for a smoke test.
         #[arg(long, default_value_t = 3)]
         iterations: u32,
+        /// Restrict the demo to a single task id (e.g. `T4`). Useful
+        /// for long-run curve experiments where you want 20+ iterations
+        /// of one task rather than 3 × 3 tasks.
+        #[arg(long)]
+        only: Option<String>,
+        /// Swap in an ADVERSARIAL reflector system prompt that tempts
+        /// the LLM to call task-agent tools it shouldn't. Cedar should
+        /// refuse each such call and `policy_violations_prevented`
+        /// should go up noticeably. Use to demo the safety story
+        /// against a real LLM (the default prompt produces a
+        /// well-behaved reflector and therefore zero denials).
+        #[arg(long, default_value_t = false)]
+        adversarial_reflector: bool,
     },
     /// Render a terminal dashboard of recent runs.
     Dashboard {
@@ -141,8 +154,14 @@ async fn main() -> anyhow::Result<()> {
                 result.total_tokens
             );
         }
-        Command::Demo { iterations } => {
-            let summary = ctx.run_demo(iterations).await?;
+        Command::Demo {
+            iterations,
+            only,
+            adversarial_reflector,
+        } => {
+            let summary = ctx
+                .run_demo_filtered(iterations, only.as_deref(), adversarial_reflector)
+                .await?;
             println!(
                 "demo complete: tasks={} iterations_each={} total_runs={} \
                  stored_procedures={} policy_violations_prevented={}",
