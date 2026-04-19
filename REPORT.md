@@ -1,4 +1,4 @@
-# Karpathy loop for agents — demo report
+# Symbiont agent learning demo — results
 
 **Repo:** `github.com/ThirdKeyAI/symbiont-karpathy-loop`
 **Underlying runtime:** `github.com/ThirdKeyAI/symbiont`
@@ -11,6 +11,8 @@
 One Symbiont agent solves a benchmark task, writes a signed journal, and hands off to a reflector agent whose *only* capability is `store_knowledge`. The reflector reads the task agent's tool trace, proposes procedures, and stores them. On the next run of the same task, the task agent reads those procedures via `recall_knowledge` before deciding what to probe.
 
 Each iteration produces a score, a journal, and — if the reflector had something to say — a stored procedure. The loop closes in plain sight.
+
+The framing borrows from Andrej Karpathy's observation that a tight experiment loop (edit → run → observe → repeat) is what makes ML development productive: every iteration produces a legible signal. This demo applies the same pattern to agent execution, with Cedar policies bounding what the reflector can do to the next run.
 
 Four tasks ship in the repo:
 
