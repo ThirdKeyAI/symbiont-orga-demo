@@ -1,0 +1,32 @@
+[package]
+name = "symbi-kloop-bench"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Task harness, reflector loop, dashboard, and proof-artifact generator for the Symbiont Karpathy-loop demo."
+
+[[bin]]
+name = "symbi-kloop-bench"
+path = "src/main.rs"
+
+[dependencies]
+demo-karpathy-loop = { path = "../demo-karpathy-loop" }
+symbi-runtime = { workspace = true }
+cedar-policy = "4"
+
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+clap = { workspace = true }
+futures = { workspace = true }
+rusqlite = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"

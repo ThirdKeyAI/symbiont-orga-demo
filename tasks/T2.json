@@ -1,0 +1,22 @@
+{
+  "id": "T2",
+  "title": "Minimum spanning budget",
+  "prompt": "task_id=T2\nYou must connect four offices (A, B, C, D) using a subset of the available links. Return the TOTAL cost of the minimum spanning tree as a decimal number.\n\nAvailable tools: answer, recall_knowledge, link_cost, compare.\n\nCall recall_knowledge(task_id=\"T2\") at the start. Answer by calling answer(content=\"<number>\").",
+  "grader": {
+    "kind": "numeric_near",
+    "expected": 11.5,
+    "tolerance": 0.5
+  },
+  "inputs": {
+    "links": [
+      {"a": "A", "b": "B", "cost": 4.0},
+      {"a": "A", "b": "C", "cost": 6.0},
+      {"a": "A", "b": "D", "cost": 9.0},
+      {"a": "B", "b": "C", "cost": 3.5},
+      {"a": "B", "b": "D", "cost": 5.0},
+      {"a": "C", "b": "D", "cost": 4.0}
+    ],
+    "learned_marker": "kruskal_direct"
+  },
+  "target_iterations": 3
+}

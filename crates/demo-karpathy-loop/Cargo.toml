@@ -1,0 +1,29 @@
+[package]
+name = "demo-karpathy-loop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Task set, scoring, and shared types for the Symbiont Karpathy-loop demo."
+
+[dependencies]
+symbi-runtime = { workspace = true }
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+rusqlite = { workspace = true }
+# Not used directly here — imported so cargo unifies the `stream` feature
+# on the reqwest that symbi-runtime pulls in (SchemaPin's `bytes_stream`
+# path is otherwise missing from the feature set our minimal build
+# requests).
+reqwest = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+tempfile = "3"

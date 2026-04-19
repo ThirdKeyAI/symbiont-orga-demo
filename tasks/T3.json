@@ -1,0 +1,14 @@
+{
+  "id": "T3",
+  "title": "Regex-free string classifier",
+  "prompt": "task_id=T3\nClassify the input string as one of: \"phone\", \"email\", \"url\", or \"other\". The string is available via the tool `read_input()`. Use the helper tools `has_at_sign`, `has_digit_run`, `has_scheme` to probe before answering.\n\nAvailable tools: answer, recall_knowledge, read_input, has_at_sign, has_digit_run, has_scheme.\n\nCall recall_knowledge(task_id=\"T3\") first. Commit via answer(content=\"<label>\").",
+  "grader": {
+    "kind": "keyword_coverage",
+    "must_contain": ["email"]
+  },
+  "inputs": {
+    "string": "alice@example.com",
+    "learned_marker": "at_sign_implies_email"
+  },
+  "target_iterations": 2
+}

@@ -1,0 +1,46 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/demo-karpathy-loop",
+    "crates/symbi-kloop-bench",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+authors = ["Symbiont Karpathy-Loop Demo"]
+license = "Apache-2.0"
+
+[workspace.dependencies]
+# Path-dep on the Symbiont runtime sitting next to this repo on disk.
+# Keeping it as a path dep makes the demo trivial to track against runtime
+# changes; swap to a `git` or `version` dep when cutting a release.
+symbi-runtime = { path = "../symbiont/crates/runtime", default-features = false, features = [
+    "cloud-llm",
+    "orga-adaptive",
+    "cedar",
+] }
+
+anyhow = "1"
+async-trait = "0.1"
+# Pulled in so the `stream` feature activates on the reqwest used by
+# symbi-runtime's SchemaPin client (which calls `bytes_stream`). Without
+# this we hit an E0599 on the shared reqwest::Response type.
+reqwest = { version = "0.12", features = ["json", "stream"], default-features = true }
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive"] }
+futures = "0.3"
+rusqlite = { version = "0.31", features = ["bundled", "chrono"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1

@@ -1,0 +1,19 @@
+{
+  "id": "T1",
+  "title": "Cheapest bundle sort",
+  "prompt": "task_id=T1\nYou are given a list of items and a set of shipping rates. Return the items in ascending order of per-unit shipping cost as a JSON array.\n\nAvailable tools: answer, recall_knowledge, rate_lookup, compare.\n\nCall recall_knowledge(task_id=\"T1\") ONCE at the start to retrieve any procedures you learned on previous runs, then pick the most efficient approach. Commit your final answer via answer(content=\"<json array>\").",
+  "grader": {
+    "kind": "exact_match",
+    "expected": ["pen", "notebook", "monitor"]
+  },
+  "inputs": {
+    "items": ["monitor", "notebook", "pen"],
+    "rates": {
+      "pen": 0.5,
+      "notebook": 1.25,
+      "monitor": 12.0
+    },
+    "learned_marker": "sort_by_rate_direct"
+  },
+  "target_iterations": 3
+}
