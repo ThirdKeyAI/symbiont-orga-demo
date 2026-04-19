@@ -57,18 +57,6 @@ demo-output/            Generated proof artifact lands here.
 - The reflector's `ActionExecutor` has no handler for anything other than `store_knowledge`; even a policy relaxation wouldn't let it call other tools.
 - The task agent is read-only on the knowledge store (`recall_knowledge`) and has no `store_knowledge` handler.
 
-## Demo script
-
-Three acts, roughly three minutes total.
-
-**Act 1 — framing (30 seconds).** "Karpathy's dev loop works because every run gives you a legible signal. Here's that pattern for agents."
-
-**Act 2 — watch the curve (90 seconds).** Live-run `scripts/run-demo.sh 10`. Dashboard shows score holding at 1.0, iteration count dropping across runs, token count dropping across runs. "Every improvement is a signed journal entry. Every action went through Cedar. Watch the knowledge panel fill up."
-
-**Act 3 — the safety closer (60 seconds).** Point at the `policy violations prevented` line. "The reflector tried to do things it wasn't supposed to. Cedar stopped it every time. This is what bounded self-improvement looks like."
-
-Drop the generated `demo-output/run-*.md` as the link.
-
 ## Building from this repo
 
 This workspace depends on Symbiont via a **path dep** on `../symbiont/crates/runtime`. Clone both repos side-by-side:

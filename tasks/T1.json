@@ -1,7 +1,7 @@
 {
   "id": "T1",
   "title": "Cheapest bundle sort",
-  "prompt": "task_id=T1\nYou are given a list of items and a set of shipping rates. Return the items in ascending order of per-unit shipping cost as a JSON array.\n\nAvailable tools: answer, recall_knowledge, rate_lookup, compare.\n\nCall recall_knowledge(task_id=\"T1\") ONCE at the start to retrieve any procedures you learned on previous runs, then pick the most efficient approach. Commit your final answer via answer(content=\"<json array>\").",
+  "prompt": "task_id=T1\nYou must sort three items by their per-unit shipping cost in ascending order.\n\nItems to sort: pen, notebook, monitor.\n\nShipping rates are available through the `rate_lookup(item)` tool; you can also verify ordering with `compare(a, b)`.\n\nReturn the sorted list as a JSON array of strings, e.g. [\"a\",\"b\",\"c\"] with no spaces between elements, via `answer(content=...)`.\n\nAvailable tools: answer, recall_knowledge, rate_lookup, compare.\n\nCall recall_knowledge(task_id=\"T1\") ONCE at the start to retrieve any procedures you learned on previous runs, then pick the most efficient approach. When you commit your final answer, pass ONLY the JSON array as `content`, no extra prose.",
   "grader": {
     "kind": "exact_match",
     "expected": ["pen", "notebook", "monitor"]
