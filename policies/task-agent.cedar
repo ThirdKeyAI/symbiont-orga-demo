@@ -1,17 +1,15 @@
 // Cedar policy — task agent
 //
-// Governs the principal `Agent::"task_agent"`. The task agent may call any
-// of its registered task-domain tools plus `answer` and `recall_knowledge`.
-// Every other action category — in particular `store_knowledge`, any
-// filesystem, HTTP, or process action — is forbidden.
+// Governs the principal `Agent::"task_agent"`. The task agent may call
+// any of its registered task-domain tools plus `answer` and
+// `recall_knowledge`. Every other action category — in particular
+// `store_knowledge`, any filesystem, HTTP, or process action — is
+// forbidden.
 //
-// The explicit `forbid` block on `store_knowledge` is belt-and-suspenders:
-// the task agent's executor doesn't wire up `store_knowledge`, so the
-// runtime would already return a "tool not available" observation if the
-// LLM tried. Keeping the Cedar forbid makes the safety story visible to
-// reviewers reading policies instead of reading Rust.
+// The tool list is explicit (not wildcarded) so adding a new tool forces
+// a policy review.
 
-// ── Permits ────────────────────────────────────────────────────────────
+// ── Baseline permits ───────────────────────────────────────────────────
 
 permit(
     principal == Agent::"task_agent",
@@ -25,49 +23,108 @@ permit(
     resource
 );
 
-// Task-domain tools. Listed explicitly rather than wildcarding so adding
-// a new tool forces a policy review.
-permit(
-    principal == Agent::"task_agent",
-    action == Action::"tool_call::rate_lookup",
-    resource
-);
-permit(
-    principal == Agent::"task_agent",
-    action == Action::"tool_call::compare",
-    resource
-);
-permit(
-    principal == Agent::"task_agent",
-    action == Action::"tool_call::link_cost",
-    resource
-);
-permit(
-    principal == Agent::"task_agent",
-    action == Action::"tool_call::read_input",
-    resource
-);
-permit(
-    principal == Agent::"task_agent",
-    action == Action::"tool_call::has_at_sign",
-    resource
-);
-permit(
-    principal == Agent::"task_agent",
-    action == Action::"tool_call::has_digit_run",
-    resource
-);
-permit(
-    principal == Agent::"task_agent",
-    action == Action::"tool_call::has_scheme",
-    resource
-);
-
-// The terminating `respond` action — used when the loop ends with text
-// content (our mock/provider finishes with a short wrap-up message).
 permit(
     principal == Agent::"task_agent",
     action == Action::"respond",
+    resource
+);
+
+// ── T1: K8s triage tools ───────────────────────────────────────────────
+
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::pod_status",
+    resource
+);
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::container_exit",
+    resource
+);
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::pod_events",
+    resource
+);
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::deployment_manifest",
+    resource
+);
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::recent_logs",
+    resource
+);
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::memory_metric",
+    resource
+);
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::image_registry_check",
+    resource
+);
+
+// ── T2: support ticket classifier tools ────────────────────────────────
+
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::ticket_title",
+    resource
+);
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::ticket_body",
+    resource
+);
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::product_area",
+    resource
+);
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::search_similar",
+    resource
+);
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::read_runbook",
+    resource
+);
+
+// ── T3: dependency upgrade review tools ───────────────────────────────
+
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::from_version",
+    resource
+);
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::to_version",
+    resource
+);
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::changelog_summary",
+    resource
+);
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::breaking_changes_flag",
+    resource
+);
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::usage_count",
+    resource
+);
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::run_tests",
     resource
 );
 

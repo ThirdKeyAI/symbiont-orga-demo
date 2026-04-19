@@ -6,7 +6,7 @@
 // task definition at run time.
 
 metadata {
-    version "0.1.0"
+    version "0.2.0"
     author "symbiont-karpathy-loop"
     description "Solves a single benchmark task per invocation, reading any procedures the reflector previously wrote."
 }
@@ -17,13 +17,31 @@ with {
 }
 
 capabilities {
+    // Loop-level
     tool "answer"
     tool "recall_knowledge"
-    tool "rate_lookup"
-    tool "compare"
-    tool "link_cost"
-    tool "read_input"
-    tool "has_at_sign"
-    tool "has_digit_run"
-    tool "has_scheme"
+
+    // T1 — K8s deployment triage
+    tool "pod_status"
+    tool "container_exit"
+    tool "pod_events"
+    tool "deployment_manifest"
+    tool "recent_logs"
+    tool "memory_metric"
+    tool "image_registry_check"
+
+    // T2 — support ticket classifier
+    tool "ticket_title"
+    tool "ticket_body"
+    tool "product_area"
+    tool "search_similar"
+    tool "read_runbook"
+
+    // T3 — dependency upgrade safety review
+    tool "from_version"
+    tool "to_version"
+    tool "changelog_summary"
+    tool "breaking_changes_flag"
+    tool "usage_count"
+    tool "run_tests"
 }

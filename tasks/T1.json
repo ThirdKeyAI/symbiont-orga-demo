@@ -1,19 +1,36 @@
 {
   "id": "T1",
-  "title": "Cheapest bundle sort",
-  "prompt": "task_id=T1\nYou must sort three items by their per-unit shipping cost in ascending order.\n\nItems to sort: pen, notebook, monitor.\n\nShipping rates are available through the `rate_lookup(item)` tool; you can also verify ordering with `compare(a, b)`.\n\nReturn the sorted list as a JSON array of strings, e.g. [\"a\",\"b\",\"c\"] with no spaces between elements, via `answer(content=...)`.\n\nAvailable tools: answer, recall_knowledge, rate_lookup, compare.\n\nCall recall_knowledge(task_id=\"T1\") ONCE at the start to retrieve any procedures you learned on previous runs, then pick the most efficient approach. When you commit your final answer, pass ONLY the JSON array as `content`, no extra prose.",
+  "title": "K8s deployment root-cause triage",
+  "prompt": "task_id=T1\nA deployment named `checkout-api` is failing in production. Identify the single root cause from this set: `oom_kill`, `image_pull_backoff`, `config_invalid`, `liveness_probe_failed`, `crash_loop_backoff`.\n\nAvailable diagnostics (each costs one tool call):\n- pod_status()       — high-level pod phase (e.g. \"Running\", \"Pending\", \"CrashLoopBackOff\").\n- pod_events()       — the last 5 warning events on the pod.\n- container_exit()   — exit_code and exit_reason of the last container termination.\n- deployment_manifest() — the shipped manifest (image tag, probe config, resource requests).\n- recent_logs()      — the last 20 stderr lines from the container.\n- memory_metric()    — observed memory usage as a percentage of the request.\n- image_registry_check() — whether the image tag exists and is pullable.\n\nYou do NOT need every diagnostic. A run that calls one or two decisive probes is better than a run that calls all of them. Call recall_knowledge(task_id=\"T1\") at the start so you see any procedures the reflector learned on prior runs, then choose your probes based on what they say.\n\nAnswer via `answer(content=\"<label>\")` with ONLY the label token (no quotes, no prose).",
   "grader": {
-    "kind": "exact_match",
-    "expected": ["pen", "notebook", "monitor"]
+    "kind": "keyword_coverage",
+    "must_contain": ["oom_kill"]
   },
   "inputs": {
-    "items": ["monitor", "notebook", "pen"],
-    "rates": {
-      "pen": 0.5,
-      "notebook": 1.25,
-      "monitor": 12.0
+    "signals": {
+      "pod_status": "CrashLoopBackOff",
+      "pod_events": [
+        "Warning BackOff   Back-off restarting failed container",
+        "Warning Unhealthy Liveness probe failed: HTTP 503",
+        "Warning Unhealthy Liveness probe failed: HTTP 503"
+      ],
+      "container_exit_code": 137,
+      "container_exit_reason": "OOMKilled",
+      "deployment_manifest": {
+        "image": "ghcr.io/acme/checkout-api:2.7.3",
+        "resources": {"requests": {"memory": "256Mi"}, "limits": {"memory": "256Mi"}},
+        "liveness_probe": {"path": "/healthz", "initial_delay_seconds": 10}
+      },
+      "recent_logs": [
+        "2026-04-18T19:44:02 INFO starting checkout-api on 0.0.0.0:8080",
+        "2026-04-18T19:44:07 INFO warming in-memory product cache (expected ~180MB)",
+        "2026-04-18T19:44:22 INFO heap 240MB / 256MB",
+        "2026-04-18T19:44:29 ERROR oom: heap exhausted while loading top-skus.parquet"
+      ],
+      "memory_usage_pct": 99,
+      "image_registry_exists": true
     },
-    "learned_marker": "sort_by_rate_direct"
+    "learned_marker": "container_exit_is_decisive"
   },
   "target_iterations": 3
 }
