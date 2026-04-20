@@ -36,7 +36,15 @@ fn no_arg_tool(name: &str, description: &str) -> ToolDefinition {
     ToolDefinition {
         name: name.to_string(),
         description: description.to_string(),
-        parameters: serde_json::json!({"type": "object"}),
+        // Azure-hosted GPT-5 (via OpenRouter) rejects `{"type":"object"}`
+        // with `invalid_function_parameters: object schema missing
+        // properties`. Empty `properties` + `required` satisfies strict
+        // validators and is a no-op for lenient ones.
+        parameters: serde_json::json!({
+            "type": "object",
+            "properties": {},
+            "required": []
+        }),
     }
 }
 
