@@ -50,20 +50,33 @@ struct Cli {
 
     /// Inference provider.
     ///
-    /// - `mock`  — deterministic scripted provider, no API calls (default).
-    /// - `cloud` — `CloudInferenceProvider::from_env()` from the runtime.
+    /// - `mock`   — deterministic scripted provider, no API calls (default).
+    /// - `cloud`  — `CloudInferenceProvider::from_env()` from the runtime.
     ///   Fails fast if no API key is configured.
+    /// - `ollama` — OpenAI-compatible client pointed at a local Ollama
+    ///   instance. Requires `--ollama-url` and `--ollama-model`.
     #[arg(long, value_enum, default_value_t = Provider::Mock, global = true)]
     provider: Provider,
+
+    /// Base URL for the Ollama OpenAI-compat endpoint. Only read when
+    /// `--provider ollama`. Example: `http://192.168.0.150:11434/v1`.
+    #[arg(long, global = true)]
+    ollama_url: Option<String>,
+
+    /// Model tag for the Ollama provider (e.g. `gemma4:latest`). Only
+    /// read when `--provider ollama`.
+    #[arg(long, global = true)]
+    ollama_model: Option<String>,
 
     #[command(subcommand)]
     cmd: Command,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
-enum Provider {
+pub enum Provider {
     Mock,
     Cloud,
+    Ollama,
 }
 
 #[derive(Subcommand, Debug)]
@@ -139,6 +152,8 @@ async fn main() -> anyhow::Result<()> {
         policies_dir: cli.policies_dir.clone(),
         journals_dir: cli.journals_dir.clone(),
         provider: cli.provider,
+        ollama_url: cli.ollama_url.clone(),
+        ollama_model: cli.ollama_model.clone(),
     })
     .await?;
 

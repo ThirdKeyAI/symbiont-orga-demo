@@ -7,6 +7,11 @@ Cargo.lock
 # Local environment overrides (API keys, etc.) — never commit.
 .env
 # Generated artifacts
-/journals/
+journals*/
 /demo-output/*.md
+/demo-output/*.log
+/demo-output/*-dashboard.txt
+/demo-output/sweep-summary.json
 !/demo-output/.gitkeep
+# Preserve the curated sweep report so it ships in the public repo.
+!/demo-output/MODEL-SWEEP-REPORT.md
