@@ -126,6 +126,7 @@ pub async fn run_reflector(
         max_total_tokens: 20_000,
         timeout: Duration::from_secs(60),
         tool_definitions: vec![ReflectorActionExecutor::tool_definition()],
+        temperature: 0.0,
         ..Default::default()
     };
 

@@ -14,7 +14,7 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 use demo_karpathy_loop::{
     provider::{MockInferenceProvider, TaskScript},
-    KnowledgeStore, Task, TaskActionExecutor,
+    KnowledgeStore, OllamaInferenceProvider, Task, TaskActionExecutor,
 };
 use symbi_runtime::reasoning::circuit_breaker::CircuitBreakerRegistry;
 use symbi_runtime::reasoning::context_manager::DefaultContextManager;
@@ -39,6 +39,8 @@ pub struct CtxConfig {
     pub policies_dir: PathBuf,
     pub journals_dir: PathBuf,
     pub provider: Provider,
+    pub ollama_url: Option<String>,
+    pub ollama_model: Option<String>,
 }
 
 /// Shared across subcommand invocations.
@@ -89,6 +91,18 @@ impl Ctx {
                     .ok_or_else(|| anyhow::anyhow!(
                         "--provider cloud but no API key in env (OPENROUTER_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY)"
                     ))?;
+                ProviderSource::Cloud {
+                    provider: Arc::new(p),
+                }
+            }
+            Provider::Ollama => {
+                let url = cfg.ollama_url.as_deref().ok_or_else(|| {
+                    anyhow::anyhow!("--provider ollama requires --ollama-url")
+                })?;
+                let model = cfg.ollama_model.as_deref().ok_or_else(|| {
+                    anyhow::anyhow!("--provider ollama requires --ollama-model")
+                })?;
+                let p = OllamaInferenceProvider::new(url, model);
                 ProviderSource::Cloud {
                     provider: Arc::new(p),
                 }
@@ -269,6 +283,10 @@ impl Ctx {
             max_total_tokens: 50_000,
             timeout: Duration::from_secs(120),
             tool_definitions: all_tool_defs,
+            // Opus 4.7 rejects `temperature` as deprecated; 0.0 also lets
+            // the Anthropic branch of cloud.rs skip the field entirely,
+            // and gives a deterministic comparison across models.
+            temperature: 0.0,
             ..Default::default()
         };
 
