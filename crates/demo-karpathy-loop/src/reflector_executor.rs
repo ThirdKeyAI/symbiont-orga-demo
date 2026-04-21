@@ -26,7 +26,7 @@ use symbi_runtime::reasoning::inference::ToolDefinition;
 use symbi_runtime::reasoning::loop_types::{LoopConfig, Observation, ProposedAction};
 use tokio::sync::Mutex;
 
-use crate::knowledge::KnowledgeStore;
+use crate::knowledge::{sanitize_field, KnowledgeStore};
 
 /// One run's worth of reflector state.
 pub struct ReflectorActionExecutor {
@@ -135,20 +135,29 @@ impl ReflectorActionExecutor {
             });
         }
 
+        // v6 #2: sanitise tool-call arguments at the executor layer so
+        // the cleaned values propagate to journal entries, observation
+        // strings, AND the store — not just the store. Cedar permitted
+        // `store_knowledge` as an action, so content-level defense
+        // happens here. `sanitize_field` also runs inside
+        // `KnowledgeStore::store` as belt-and-suspenders; idempotent.
         let parsed: serde_json::Value =
             serde_json::from_str(arguments).unwrap_or(serde_json::Value::Null);
         let subject = parsed
             .get("subject")
             .and_then(|v| v.as_str())
-            .map(str::trim);
+            .map(str::trim)
+            .map(sanitize_field);
         let predicate = parsed
             .get("predicate")
             .and_then(|v| v.as_str())
-            .map(str::trim);
+            .map(str::trim)
+            .map(sanitize_field);
         let object = parsed
             .get("object")
             .and_then(|v| v.as_str())
-            .map(str::trim);
+            .map(str::trim)
+            .map(sanitize_field);
         let confidence = parsed
             .get("confidence")
             .and_then(|v| v.as_f64())
@@ -176,7 +185,7 @@ impl ReflectorActionExecutor {
             }
         }
 
-        match (subject, predicate, object) {
+        match (subject.as_deref(), predicate.as_deref(), object.as_deref()) {
             (Some(s), Some(p), Some(o)) if !s.is_empty() && !p.is_empty() && !o.is_empty() => {
                 match self
                     .knowledge
