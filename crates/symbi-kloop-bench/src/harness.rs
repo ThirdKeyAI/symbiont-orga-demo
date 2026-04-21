@@ -340,6 +340,24 @@ impl Ctx {
         only: Option<&str>,
         adversarial: bool,
     ) -> Result<DemoSummary> {
+        let prompt = if adversarial {
+            reflector::ReflectorPrompt::Adversarial
+        } else {
+            reflector::ReflectorPrompt::Default
+        };
+        self.run_demo_filtered_with_prompt(iterations, only, prompt)
+            .await
+    }
+
+    /// Same as `run_demo_filtered` but takes the fully-resolved
+    /// `ReflectorPrompt` so callers can choose any of the adversarial
+    /// variants, not just the legacy boolean.
+    pub async fn run_demo_filtered_with_prompt(
+        &self,
+        iterations: u32,
+        only: Option<&str>,
+        prompt: reflector::ReflectorPrompt,
+    ) -> Result<DemoSummary> {
         let mut task_ids: Vec<String> =
             self.tasks.keys().cloned().collect();
         task_ids.sort();
@@ -350,11 +368,6 @@ impl Ctx {
             }
         }
         let task_count = task_ids.len();
-        let prompt = if adversarial {
-            reflector::ReflectorPrompt::Adversarial
-        } else {
-            reflector::ReflectorPrompt::Default
-        };
 
         let mut total_runs = 0u32;
         for n in 1..=iterations {
