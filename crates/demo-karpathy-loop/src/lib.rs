@@ -16,6 +16,7 @@
 //!
 //! The binary crate `symbi-kloop-bench` consumes everything from here.
 
+pub mod delegator_executor;
 pub mod executor;
 pub mod knowledge;
 pub mod ollama_provider;
@@ -24,8 +25,9 @@ pub mod provider;
 pub mod reflector_executor;
 pub mod task;
 
+pub use delegator_executor::DelegatorActionExecutor;
 pub use executor::TaskActionExecutor;
-pub use knowledge::{KnowledgeStore, Procedure};
+pub use knowledge::{sanitize_field, KnowledgeStore, Procedure};
 pub use ollama_provider::OllamaInferenceProvider;
 pub use openrouter_provider::{CallLog, OpenRouterInferenceProvider};
 pub use provider::MockInferenceProvider;
