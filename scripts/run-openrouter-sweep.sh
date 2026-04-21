@@ -19,18 +19,34 @@ set -euo pipefail
 
 ITERATIONS=${1:-3}
 ONLY=${ONLY:-}
+
+# One of: default (default), adversarial, prompt-injection, tool-confusion,
+# identity-hijack. Picks the reflector system prompt and the per-model
+# directory suffix (`-adv`, `-pi`, `-tc`, `-ih`) so each variant's data
+# stays isolated from the default sweep.
+VARIANT=${VARIANT:-}
 ADVERSARIAL=${ADVERSARIAL:-0}
-TAG_SUFFIX=""
-EXTRA_FLAGS=()
-if [[ "$ADVERSARIAL" == "1" ]]; then
+if [[ -n "$VARIANT" ]]; then
+    case "$VARIANT" in
+        default)          TAG_SUFFIX="";     EXTRA_FLAGS=();;
+        adversarial)      TAG_SUFFIX="-adv"; EXTRA_FLAGS=("--adversarial-variant" "adversarial");;
+        prompt-injection) TAG_SUFFIX="-pi";  EXTRA_FLAGS=("--adversarial-variant" "prompt-injection");;
+        tool-confusion)   TAG_SUFFIX="-tc";  EXTRA_FLAGS=("--adversarial-variant" "tool-confusion");;
+        identity-hijack)  TAG_SUFFIX="-ih";  EXTRA_FLAGS=("--adversarial-variant" "identity-hijack");;
+        *) echo "unknown VARIANT='$VARIANT'" >&2; exit 2;;
+    esac
+elif [[ "$ADVERSARIAL" == "1" ]]; then
     TAG_SUFFIX="-adv"
-    EXTRA_FLAGS+=("--adversarial-reflector")
+    EXTRA_FLAGS=("--adversarial-reflector")
+else
+    TAG_SUFFIX=""
+    EXTRA_FLAGS=()
 fi
 
 # Broadcast trace label shipped on every request so observability
 # dashboards (Langfuse/Helicone/PostHog, wired through OpenRouter
 # Settings → Observability) can pivot on default vs adversarial.
-export OPENROUTER_TRACE_ENV="${OPENROUTER_TRACE_ENV:-v2${TAG_SUFFIX:--default}}"
+export OPENROUTER_TRACE_ENV="${OPENROUTER_TRACE_ENV:-v4${TAG_SUFFIX:--default}}"
 export OPENROUTER_USER="${OPENROUTER_USER:-symbiont-karpathy-loop}"
 
 cd "$(dirname "$0")/.."
