@@ -90,6 +90,13 @@ struct Cli {
     #[arg(long, default_value_t = false, global = true)]
     no_reflector: bool,
 
+    /// Prepend an adversarial instruction block to every task-agent
+    /// prompt. Symmetrises the safety sweep: v2/v4 stressed the
+    /// reflector's profile-of-one; this tests whether the task
+    /// agent's Cedar permit-list holds under equivalent temptation.
+    #[arg(long, default_value_t = false, global = true)]
+    task_adversarial: bool,
+
     #[command(subcommand)]
     cmd: Command,
 }
@@ -189,6 +196,7 @@ async fn main() -> anyhow::Result<()> {
         temperature: cli.temperature,
         reflector_store_cap: cli.reflector_store_cap,
         no_reflector: cli.no_reflector,
+        task_adversarial: cli.task_adversarial,
     })
     .await?;
 
@@ -218,8 +226,15 @@ async fn main() -> anyhow::Result<()> {
                 Some("prompt-injection") => reflector::ReflectorPrompt::PromptInjection,
                 Some("tool-confusion") => reflector::ReflectorPrompt::ToolConfusion,
                 Some("identity-hijack") => reflector::ReflectorPrompt::IdentityHijack,
+                Some("homoglyph") => reflector::ReflectorPrompt::Homoglyph,
+                Some("multi-stage") => reflector::ReflectorPrompt::MultiStage,
+                Some("ciphered") => reflector::ReflectorPrompt::Ciphered,
+                Some("non-english") => reflector::ReflectorPrompt::NonEnglish,
+                Some("paraphrase") => reflector::ReflectorPrompt::Paraphrase,
                 Some(other) => anyhow::bail!(
-                    "unknown --adversarial-variant '{other}'; expected default|adversarial|prompt-injection|tool-confusion|identity-hijack"
+                    "unknown --adversarial-variant '{other}'; expected one of: \
+                     default|adversarial|prompt-injection|tool-confusion|identity-hijack|\
+                     homoglyph|multi-stage|ciphered|non-english|paraphrase"
                 ),
                 None if adversarial_reflector => reflector::ReflectorPrompt::Adversarial,
                 None => reflector::ReflectorPrompt::Default,

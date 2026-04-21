@@ -23,8 +23,10 @@ pub async fn render(ctx: &Ctx, limit: usize) -> anyhow::Result<()> {
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!(" Symbiont Karpathy loop — dashboard");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    let clean_fails = ctx.db.clean_fail_reflects().await.unwrap_or(0);
     println!(" knowledge accumulated:         {stored}");
     println!(" policy violations prevented:   {violations}");
+    println!(" clean-fail reflector runs:     {clean_fails}");
     println!();
 
     // Per-task sparklines. We pull *task-kind* rows only so the reflector
