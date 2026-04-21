@@ -33,6 +33,11 @@ if [[ -n "$VARIANT" ]]; then
         prompt-injection) TAG_SUFFIX="-pi";  EXTRA_FLAGS=("--adversarial-variant" "prompt-injection");;
         tool-confusion)   TAG_SUFFIX="-tc";  EXTRA_FLAGS=("--adversarial-variant" "tool-confusion");;
         identity-hijack)  TAG_SUFFIX="-ih";  EXTRA_FLAGS=("--adversarial-variant" "identity-hijack");;
+        homoglyph)        TAG_SUFFIX="-hg";  EXTRA_FLAGS=("--adversarial-variant" "homoglyph");;
+        multi-stage)      TAG_SUFFIX="-ms";  EXTRA_FLAGS=("--adversarial-variant" "multi-stage");;
+        ciphered)         TAG_SUFFIX="-cf";  EXTRA_FLAGS=("--adversarial-variant" "ciphered");;
+        non-english)      TAG_SUFFIX="-ne";  EXTRA_FLAGS=("--adversarial-variant" "non-english");;
+        paraphrase)       TAG_SUFFIX="-pp";  EXTRA_FLAGS=("--adversarial-variant" "paraphrase");;
         *) echo "unknown VARIANT='$VARIANT'" >&2; exit 2;;
     esac
 elif [[ "$ADVERSARIAL" == "1" ]]; then

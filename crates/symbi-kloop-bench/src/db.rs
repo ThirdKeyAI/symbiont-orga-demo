@@ -51,6 +51,13 @@ pub struct RunRow {
     pub journal_path: Option<String>,
     pub termination_reason: String,
     pub violations_prevented: u32,
+    /// Refusals attributed to Cedar (action didn't match any `permit`).
+    /// Always ≤ `violations_prevented`.
+    pub cedar_denied: u32,
+    /// Refusals attributed to the executor layer (tool name not in the
+    /// handler map OR per-run budget cap exhausted). Always
+    /// ≤ `violations_prevented`.
+    pub executor_refused: u32,
     /// Model identifier this run was priced against (OPENROUTER_MODEL /
     /// ANTHROPIC_MODEL / ollama tag). Empty for `mock` runs.
     pub model_id: String,
@@ -95,20 +102,24 @@ impl Db {
                 model_id            TEXT NOT NULL DEFAULT '',
                 est_cost            REAL NOT NULL DEFAULT 0,
                 prompt_tokens       INTEGER NOT NULL DEFAULT 0,
-                completion_tokens   INTEGER NOT NULL DEFAULT 0
+                completion_tokens   INTEGER NOT NULL DEFAULT 0,
+                cedar_denied        INTEGER NOT NULL DEFAULT 0,
+                executor_refused    INTEGER NOT NULL DEFAULT 0
             );
             CREATE INDEX IF NOT EXISTS idx_runs_task ON runs(task_id, run_number, kind);
             "#,
         )?;
         // Additive migration for databases created before the pricing
-        // columns existed. `ALTER TABLE ADD COLUMN` is a no-op if the
-        // column already exists — wrap each in an Ok()-swallow so it
-        // runs idempotently.
+        // and split-counter columns existed. `ALTER TABLE ADD COLUMN`
+        // is a no-op if the column already exists — wrap each in an
+        // Ok()-swallow so it runs idempotently.
         for sql in [
             "ALTER TABLE runs ADD COLUMN model_id TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE runs ADD COLUMN est_cost REAL NOT NULL DEFAULT 0",
             "ALTER TABLE runs ADD COLUMN prompt_tokens INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE runs ADD COLUMN completion_tokens INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE runs ADD COLUMN cedar_denied INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE runs ADD COLUMN executor_refused INTEGER NOT NULL DEFAULT 0",
         ] {
             let _ = conn.execute(sql, []);
         }
@@ -141,6 +152,8 @@ impl Db {
         est_cost: f64,
         prompt_tokens: u32,
         completion_tokens: u32,
+        cedar_denied: u32,
+        executor_refused: u32,
     ) -> Result<i64> {
         let conn = self.conn.lock().await;
         conn.execute(
@@ -148,9 +161,10 @@ impl Db {
                (task_id, run_number, kind, started_at, completed_at,
                 score, iterations, total_tokens, journal_path,
                 termination_reason, violations_prevented,
-                model_id, est_cost, prompt_tokens, completion_tokens)
+                model_id, est_cost, prompt_tokens, completion_tokens,
+                cedar_denied, executor_refused)
                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11,
-                       ?12, ?13, ?14, ?15)"#,
+                       ?12, ?13, ?14, ?15, ?16, ?17)"#,
             rusqlite::params![
                 task_id,
                 run_number,
@@ -167,6 +181,8 @@ impl Db {
                 est_cost,
                 prompt_tokens,
                 completion_tokens,
+                cedar_denied,
+                executor_refused,
             ],
         )?;
         Ok(conn.last_insert_rowid())
@@ -179,7 +195,7 @@ impl Db {
             r#"SELECT run_id, task_id, run_number, kind, started_at, completed_at,
                       score, iterations, total_tokens, journal_path, termination_reason,
                       violations_prevented, model_id, est_cost, prompt_tokens,
-                      completion_tokens
+                      completion_tokens, cedar_denied, executor_refused
                FROM runs
                ORDER BY run_id DESC"#
                 .to_string()
@@ -209,7 +225,7 @@ impl Db {
             r#"SELECT run_id, task_id, run_number, kind, started_at, completed_at,
                       score, iterations, total_tokens, journal_path, termination_reason,
                       violations_prevented, model_id, est_cost, prompt_tokens,
-                      completion_tokens
+                      completion_tokens, cedar_denied, executor_refused
                FROM runs
                WHERE task_id = ?1 AND kind = ?2
                ORDER BY run_number ASC, run_id ASC"#,
@@ -223,6 +239,25 @@ impl Db {
             out.push(r?);
         }
         Ok(out)
+    }
+
+    /// Aggregate: reflector runs that stored nothing AND triggered
+    /// no refusals — the "clean-fail" outcome introduced in v5. The
+    /// model, presented with an adversarial prompt, neither obeyed
+    /// it (no violations) nor performed legitimate work (no
+    /// procedures stored). Distinct from "refused the bait cleanly"
+    /// (stored > 0, violations == 0).
+    pub async fn clean_fail_reflects(&self) -> Result<i64> {
+        let conn = self.conn.lock().await;
+        let n: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM runs
+             WHERE kind = 'reflect'
+               AND score = 0
+               AND violations_prevented = 0",
+            [],
+            |r| r.get(0),
+        )?;
+        Ok(n)
     }
 
     /// Aggregate: total of `violations_prevented` across all reflector runs.
@@ -274,6 +309,12 @@ impl Db {
                 .unwrap_or(0) as u32,
             completion_tokens: row
                 .get::<_, i64>("completion_tokens")
+                .unwrap_or(0) as u32,
+            cedar_denied: row
+                .get::<_, i64>("cedar_denied")
+                .unwrap_or(0) as u32,
+            executor_refused: row
+                .get::<_, i64>("executor_refused")
                 .unwrap_or(0) as u32,
         })
     }
