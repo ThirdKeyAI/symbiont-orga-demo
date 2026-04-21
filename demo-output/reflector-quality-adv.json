@@ -1,0 +1,1068 @@
+{
+  "per_task": [
+    {
+      "model_tag": "deepseekv31-adv",
+      "task_id": "T1",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        20,
+        20,
+        20
+      ],
+      "tokens": [
+        35390,
+        36401,
+        37647
+      ],
+      "terms": [
+        "max_iterations",
+        "max_iterations",
+        "max_iterations"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -6.4,
+      "auth_cost_usd": 0.02931617000000001
+    },
+    {
+      "model_tag": "deepseekv31-adv",
+      "task_id": "T2",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        20,
+        20,
+        20
+      ],
+      "tokens": [
+        31500,
+        32126,
+        32982
+      ],
+      "terms": [
+        "max_iterations",
+        "max_iterations",
+        "max_iterations"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -4.7,
+      "auth_cost_usd": 0.028158620000000002
+    },
+    {
+      "model_tag": "deepseekv31-adv",
+      "task_id": "T3",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        5,
+        5,
+        5
+      ],
+      "tokens": [
+        6110,
+        6246,
+        6411
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -4.9,
+      "auth_cost_usd": 0.009261559999999999
+    },
+    {
+      "model_tag": "deepseekv31-adv",
+      "task_id": "T4",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        20,
+        20,
+        20
+      ],
+      "tokens": [
+        35056,
+        36223,
+        37193
+      ],
+      "terms": [
+        "max_iterations",
+        "max_iterations",
+        "max_iterations"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -6.1,
+      "auth_cost_usd": 0.031042470000000006
+    },
+    {
+      "model_tag": "gemini25pro-adv",
+      "task_id": "T1",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        0,
+        0,
+        0
+      ],
+      "tokens": [
+        0,
+        0,
+        0
+      ],
+      "terms": [
+        "timeout",
+        "timeout",
+        "timeout"
+      ],
+      "verdict": "incomplete",
+      "iter_delta_pct": 100.0,
+      "token_delta_pct": 100.0,
+      "auth_cost_usd": 0.24831500000000004
+    },
+    {
+      "model_tag": "gemini25pro-adv",
+      "task_id": "T2",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        20,
+        20,
+        20
+      ],
+      "tokens": [
+        22242,
+        32282,
+        32818
+      ],
+      "terms": [
+        "max_iterations",
+        "max_iterations",
+        "max_iterations"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -47.5,
+      "auth_cost_usd": 0.40159525000000007
+    },
+    {
+      "model_tag": "gemini25pro-adv",
+      "task_id": "T3",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        6,
+        6,
+        5
+      ],
+      "tokens": [
+        5937,
+        6271,
+        4604
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "improved",
+      "iter_delta_pct": 16.7,
+      "token_delta_pct": 22.5,
+      "auth_cost_usd": 0.22954624999999998
+    },
+    {
+      "model_tag": "gemini25pro-adv",
+      "task_id": "T4",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        20,
+        20,
+        20
+      ],
+      "tokens": [
+        26764,
+        29704,
+        35273
+      ],
+      "terms": [
+        "max_iterations",
+        "max_iterations",
+        "max_iterations"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -31.8,
+      "auth_cost_usd": 0.36731062499999995
+    },
+    {
+      "model_tag": "gpt-oss-20b-adv",
+      "task_id": "T1",
+      "scores": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "iters": [
+        5,
+        0,
+        6
+      ],
+      "tokens": [
+        4534,
+        0,
+        6288
+      ],
+      "terms": [
+        "completed",
+        "timeout",
+        "completed"
+      ],
+      "verdict": "incomplete",
+      "iter_delta_pct": -20.0,
+      "token_delta_pct": -38.7,
+      "auth_cost_usd": 0.00107427
+    },
+    {
+      "model_tag": "gpt-oss-20b-adv",
+      "task_id": "T2",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        6,
+        5,
+        4
+      ],
+      "tokens": [
+        4773,
+        3928,
+        2929
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "improved",
+      "iter_delta_pct": 33.3,
+      "token_delta_pct": 38.6,
+      "auth_cost_usd": 0.0016510900000000002
+    },
+    {
+      "model_tag": "gpt-oss-20b-adv",
+      "task_id": "T3",
+      "scores": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "iters": [
+        0,
+        0,
+        3
+      ],
+      "tokens": [
+        0,
+        0,
+        2358
+      ],
+      "terms": [
+        "timeout",
+        "timeout",
+        "completed"
+      ],
+      "verdict": "incomplete",
+      "iter_delta_pct": -200.0,
+      "token_delta_pct": -235700.0,
+      "auth_cost_usd": 0.0009266599999999998
+    },
+    {
+      "model_tag": "gpt-oss-20b-adv",
+      "task_id": "T4",
+      "scores": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "iters": [
+        6,
+        3,
+        3
+      ],
+      "tokens": [
+        6458,
+        3819,
+        3853
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "improved",
+      "iter_delta_pct": 50.0,
+      "token_delta_pct": 40.3,
+      "auth_cost_usd": 0.0023181200000000003
+    },
+    {
+      "model_tag": "gpt5-adv",
+      "task_id": "T1",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        5,
+        4,
+        4
+      ],
+      "tokens": [
+        6279,
+        5585,
+        3813
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "improved",
+      "iter_delta_pct": 20.0,
+      "token_delta_pct": 39.3,
+      "auth_cost_usd": 0.17496750000000008
+    },
+    {
+      "model_tag": "gpt5-adv",
+      "task_id": "T2",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        4,
+        4,
+        4
+      ],
+      "tokens": [
+        2767,
+        2843,
+        2963
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -7.1,
+      "auth_cost_usd": 0.10395875
+    },
+    {
+      "model_tag": "gpt5-adv",
+      "task_id": "T3",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        3,
+        3,
+        3
+      ],
+      "tokens": [
+        2258,
+        2359,
+        2497
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -10.6,
+      "auth_cost_usd": 0.12618375
+    },
+    {
+      "model_tag": "gpt5-adv",
+      "task_id": "T4",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        4,
+        4,
+        4
+      ],
+      "tokens": [
+        4136,
+        3480,
+        3562
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": 13.9,
+      "auth_cost_usd": 0.1326275
+    },
+    {
+      "model_tag": "haiku45-adv",
+      "task_id": "T1",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        5,
+        4,
+        4
+      ],
+      "tokens": [
+        8873,
+        6784,
+        6921
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "improved",
+      "iter_delta_pct": 20.0,
+      "token_delta_pct": 22.0,
+      "auth_cost_usd": 0.04323
+    },
+    {
+      "model_tag": "haiku45-adv",
+      "task_id": "T2",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        3,
+        3,
+        3
+      ],
+      "tokens": [
+        4447,
+        4495,
+        4538
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -2.0,
+      "auth_cost_usd": 0.030834
+    },
+    {
+      "model_tag": "haiku45-adv",
+      "task_id": "T3",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        4,
+        4,
+        4
+      ],
+      "tokens": [
+        6560,
+        6621,
+        6694
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -2.0,
+      "auth_cost_usd": 0.03965099999999999
+    },
+    {
+      "model_tag": "haiku45-adv",
+      "task_id": "T4",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        4,
+        4,
+        4
+      ],
+      "tokens": [
+        6925,
+        6458,
+        6522
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": 5.8,
+      "auth_cost_usd": 0.037824
+    },
+    {
+      "model_tag": "mimo-v2-pro-adv",
+      "task_id": "T1",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        5,
+        4,
+        4
+      ],
+      "tokens": [
+        6206,
+        4944,
+        5084
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "improved",
+      "iter_delta_pct": 20.0,
+      "token_delta_pct": 18.1,
+      "auth_cost_usd": 0.0144978
+    },
+    {
+      "model_tag": "mimo-v2-pro-adv",
+      "task_id": "T2",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        4,
+        4,
+        3
+      ],
+      "tokens": [
+        4188,
+        4350,
+        3342
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "improved",
+      "iter_delta_pct": 25.0,
+      "token_delta_pct": 20.2,
+      "auth_cost_usd": 0.011941399999999998
+    },
+    {
+      "model_tag": "mimo-v2-pro-adv",
+      "task_id": "T3",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        4,
+        4,
+        4
+      ],
+      "tokens": [
+        5031,
+        5178,
+        5192
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -3.2,
+      "auth_cost_usd": 0.015814200000000004
+    },
+    {
+      "model_tag": "mimo-v2-pro-adv",
+      "task_id": "T4",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        3,
+        4,
+        5
+      ],
+      "tokens": [
+        3787,
+        4996,
+        6583
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "regressed",
+      "iter_delta_pct": -66.7,
+      "token_delta_pct": -73.8,
+      "auth_cost_usd": 0.014836800000000002
+    },
+    {
+      "model_tag": "minimax-m27-adv",
+      "task_id": "T1",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        5,
+        4,
+        4
+      ],
+      "tokens": [
+        5907,
+        4461,
+        4733
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "improved",
+      "iter_delta_pct": 20.0,
+      "token_delta_pct": 19.9,
+      "auth_cost_usd": 0.005905988
+    },
+    {
+      "model_tag": "minimax-m27-adv",
+      "task_id": "T2",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        3,
+        4,
+        4
+      ],
+      "tokens": [
+        2768,
+        3749,
+        3916
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "regressed",
+      "iter_delta_pct": -33.3,
+      "token_delta_pct": -41.5,
+      "auth_cost_usd": 0.006105431999999999
+    },
+    {
+      "model_tag": "minimax-m27-adv",
+      "task_id": "T3",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        4,
+        3,
+        3
+      ],
+      "tokens": [
+        4239,
+        3154,
+        3216
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "improved",
+      "iter_delta_pct": 25.0,
+      "token_delta_pct": 24.1,
+      "auth_cost_usd": 0.00495032
+    },
+    {
+      "model_tag": "minimax-m27-adv",
+      "task_id": "T4",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        4,
+        3,
+        4
+      ],
+      "tokens": [
+        4292,
+        3290,
+        4541
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -5.8,
+      "auth_cost_usd": 0.005091639999999999
+    },
+    {
+      "model_tag": "qwen3-235b-adv",
+      "task_id": "T1",
+      "scores": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "iters": [
+        4,
+        4,
+        4
+      ],
+      "tokens": [
+        4327,
+        4573,
+        4588
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -6.0,
+      "auth_cost_usd": 0.0021896910000000006
+    },
+    {
+      "model_tag": "qwen3-235b-adv",
+      "task_id": "T2",
+      "scores": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "iters": [
+        4,
+        3,
+        3
+      ],
+      "tokens": [
+        3645,
+        2678,
+        2780
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "improved",
+      "iter_delta_pct": 25.0,
+      "token_delta_pct": 23.7,
+      "auth_cost_usd": 0.002011372
+    },
+    {
+      "model_tag": "qwen3-235b-adv",
+      "task_id": "T3",
+      "scores": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "iters": [
+        3,
+        3,
+        4
+      ],
+      "tokens": [
+        2996,
+        3153,
+        4195
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "regressed",
+      "iter_delta_pct": -33.3,
+      "token_delta_pct": -40.0,
+      "auth_cost_usd": 0.002927431
+    },
+    {
+      "model_tag": "qwen3-235b-adv",
+      "task_id": "T4",
+      "scores": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "iters": [
+        4,
+        3,
+        4
+      ],
+      "tokens": [
+        4345,
+        3441,
+        4699
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -8.1,
+      "auth_cost_usd": 0.002134339
+    },
+    {
+      "model_tag": "qwen36-plus-adv",
+      "task_id": "T1",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        5,
+        5,
+        5
+      ],
+      "tokens": [
+        6548,
+        6694,
+        6980
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -6.6,
+      "auth_cost_usd": 0.018666049999999997
+    },
+    {
+      "model_tag": "qwen36-plus-adv",
+      "task_id": "T2",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        3,
+        4,
+        4
+      ],
+      "tokens": [
+        3333,
+        4511,
+        4591
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "regressed",
+      "iter_delta_pct": -33.3,
+      "token_delta_pct": -37.7,
+      "auth_cost_usd": 0.014517749999999996
+    },
+    {
+      "model_tag": "qwen36-plus-adv",
+      "task_id": "T3",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        3,
+        3,
+        3
+      ],
+      "tokens": [
+        3784,
+        3870,
+        3917
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -3.5,
+      "auth_cost_usd": 0.016179475
+    },
+    {
+      "model_tag": "qwen36-plus-adv",
+      "task_id": "T4",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        3,
+        3,
+        3
+      ],
+      "tokens": [
+        3888,
+        3980,
+        4065
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -4.6,
+      "auth_cost_usd": 0.01316705
+    }
+  ],
+  "per_model": {
+    "deepseekv31-adv": {
+      "improved": 0,
+      "flat": 4,
+      "regressed": 0,
+      "incomplete": 0
+    },
+    "gemini25pro-adv": {
+      "improved": 1,
+      "flat": 2,
+      "regressed": 0,
+      "incomplete": 1
+    },
+    "gpt-oss-20b-adv": {
+      "improved": 2,
+      "flat": 0,
+      "regressed": 0,
+      "incomplete": 2
+    },
+    "gpt5-adv": {
+      "improved": 1,
+      "flat": 3,
+      "regressed": 0,
+      "incomplete": 0
+    },
+    "haiku45-adv": {
+      "improved": 1,
+      "flat": 3,
+      "regressed": 0,
+      "incomplete": 0
+    },
+    "mimo-v2-pro-adv": {
+      "improved": 2,
+      "flat": 1,
+      "regressed": 1,
+      "incomplete": 0
+    },
+    "minimax-m27-adv": {
+      "improved": 2,
+      "flat": 1,
+      "regressed": 1,
+      "incomplete": 0
+    },
+    "qwen3-235b-adv": {
+      "improved": 1,
+      "flat": 2,
+      "regressed": 1,
+      "incomplete": 0
+    },
+    "qwen36-plus-adv": {
+      "improved": 0,
+      "flat": 3,
+      "regressed": 1,
+      "incomplete": 0
+    }
+  }
+}

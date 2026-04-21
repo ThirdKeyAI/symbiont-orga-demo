@@ -21,6 +21,7 @@ mod db;
 mod harness;
 mod mock_scripts;
 mod policy_gate;
+mod pricing;
 mod reflector;
 mod report;
 mod task_tools;
@@ -68,6 +69,21 @@ struct Cli {
     #[arg(long, global = true)]
     ollama_model: Option<String>,
 
+    /// Sampling temperature for every inference call in the loop.
+    /// Default 0.0 (deterministic). Opus 4.7 rejects any non-zero
+    /// `temperature` on the Anthropic API, so 0.0 is the safe default.
+    /// Pass e.g. `--temperature 0.3` to study sampling effects on
+    /// non-Opus models.
+    #[arg(long, default_value_t = 0.0, global = true)]
+    temperature: f32,
+
+    /// Hard cap on `store_knowledge` calls per reflector run. The
+    /// default reflector prompt asks for 0–5 procedures; small models
+    /// don't honor that. This flag enforces it in the executor — the
+    /// cap is a second fence in addition to the Cedar policy.
+    #[arg(long, default_value_t = 5, global = true)]
+    reflector_store_cap: u32,
+
     #[command(subcommand)]
     cmd: Command,
 }
@@ -77,6 +93,10 @@ pub enum Provider {
     Mock,
     Cloud,
     Ollama,
+    /// Direct OpenRouter client that captures generation ids, upstream
+    /// provider, and authoritative `usage.cost` per call into a per-run
+    /// JSONL sidecar (`journals-<tag>/<ts>-<task>-n<NNN>-<kind>-calls.jsonl`).
+    Openrouter,
 }
 
 #[derive(Subcommand, Debug)]
@@ -154,6 +174,8 @@ async fn main() -> anyhow::Result<()> {
         provider: cli.provider,
         ollama_url: cli.ollama_url.clone(),
         ollama_model: cli.ollama_model.clone(),
+        temperature: cli.temperature,
+        reflector_store_cap: cli.reflector_store_cap,
     })
     .await?;
 
