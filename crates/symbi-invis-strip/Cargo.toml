@@ -1,0 +1,14 @@
+[package]
+name = "symbi-invis-strip"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Strip invisible / steganographic Unicode code points from strings before they reach a knowledge store, a journal, or a prompt."
+repository = "https://github.com/ThirdKeyAI/symbiont-karpathy-loop"
+readme = "README.md"
+keywords = ["unicode", "security", "sanitise", "agent", "symbiont"]
+categories = ["text-processing", "no-std"]
+
+[dependencies]
+
+[dev-dependencies]
