@@ -156,6 +156,49 @@ permit(
     resource
 );
 
+// ── T5: rustc cascade root-cause identification tools ────────────────
+
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::error_list",
+    resource
+);
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::error_detail",
+    resource
+);
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::error_span",
+    resource
+);
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::check_error_code",
+    resource
+);
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::cross_reference",
+    resource
+);
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::sort_by_line",
+    resource
+);
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::sort_by_severity",
+    resource
+);
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::crate_imports",
+    resource
+);
+
 // ── Forbids ────────────────────────────────────────────────────────────
 
 // Never let the task agent write knowledge. This is the half of the

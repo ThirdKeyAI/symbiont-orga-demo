@@ -75,7 +75,7 @@ pub async fn run_reflector(
     let gate: Arc<dyn ReasoningPolicyGate> = Arc::new(cedar);
 
     let journal = Arc::new(BufferedJournal::new(1_024));
-    let or_handle = ctx.fresh_openrouter_provider();
+    let or_handle = ctx.fresh_openrouter_reflect_provider();
     if let Some(h) = &or_handle {
         h.set_trace_context(TraceContext {
             task_id: task.id.clone(),
@@ -189,8 +189,9 @@ pub async fn run_reflector(
     } else {
         (prompt_tokens, completion_tokens)
     };
+    let reflect_pricing_key = ctx.pricing_key_for("reflect");
     let est_cost = authoritative_cost
-        .unwrap_or_else(|| crate::pricing::cost_usd(&ctx.pricing_model_key, pt, ct));
+        .unwrap_or_else(|| crate::pricing::cost_usd(&reflect_pricing_key, pt, ct));
 
     ctx.db
         .record_run(
@@ -209,7 +210,7 @@ pub async fn run_reflector(
             journal_path.as_deref(),
             &describe_termination(&result.termination_reason),
             violations,
-            &ctx.pricing_model_key,
+            &reflect_pricing_key,
             est_cost,
             pt,
             ct,
