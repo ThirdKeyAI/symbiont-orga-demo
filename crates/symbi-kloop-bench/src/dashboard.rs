@@ -52,12 +52,18 @@ pub async fn render(ctx: &Ctx, limit: usize) -> anyhow::Result<()> {
         );
     }
 
+    // Aggregate totals (cost, tokens, latency) across task+reflect rows.
+    let total_cost: f64 = recent.iter().map(|r| r.est_cost).sum();
+    let total_tokens: u64 = recent.iter().map(|r| r.total_tokens as u64).sum();
+    println!(" est total cost (shown rows): ${:.4}", total_cost);
+    println!(" total tokens (shown rows):   {}", total_tokens);
+
     // Recent runs (most recent first).
     println!();
     println!(" recent runs:");
     println!(
-        "  {:>4}  {:<8} {:<3} {:<9} {:>6} {:>5} {:>7} {:<12}",
-        "id", "task", "run", "kind", "score", "iter", "tokens", "termination"
+        "  {:>4}  {:<8} {:<3} {:<8} {:>6} {:>5} {:>7} {:>6} {:>8} {:<12}",
+        "id", "task", "run", "kind", "score", "iter", "tokens", "sec", "cost$", "termination"
     );
     for r in &recent {
         let kind = match r.kind {
@@ -69,8 +75,19 @@ pub async fn render(ctx: &Ctx, limit: usize) -> anyhow::Result<()> {
         } else {
             format!("{} stored", r.score as i64)
         };
+        let latency_s = (r.completed_at - r.started_at)
+            .num_milliseconds()
+            .max(0) as f64
+            / 1000.0;
+        let cost_s = if r.est_cost >= 0.01 {
+            format!("{:.3}", r.est_cost)
+        } else if r.est_cost > 0.0 {
+            format!("{:.4}", r.est_cost)
+        } else {
+            "—".into()
+        };
         println!(
-            "  {:>4}  {:<8} {:<3} {:<9} {:>6} {:>5} {:>7} {:<12}",
+            "  {:>4}  {:<8} {:<3} {:<8} {:>6} {:>5} {:>7} {:>6.1} {:>8} {:<12}",
             r.run_id,
             truncate(&r.task_id, 8),
             r.run_number,
@@ -78,6 +95,8 @@ pub async fn render(ctx: &Ctx, limit: usize) -> anyhow::Result<()> {
             score,
             r.iterations,
             r.total_tokens,
+            latency_s,
+            cost_s,
             truncate(&r.termination_reason, 12)
         );
     }

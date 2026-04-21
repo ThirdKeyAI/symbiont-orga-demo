@@ -13,8 +13,10 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use chrono::Utc;
 use demo_karpathy_loop::{
+    openrouter_provider::TraceContext,
     provider::{MockInferenceProvider, TaskScript},
-    KnowledgeStore, OllamaInferenceProvider, Task, TaskActionExecutor,
+    KnowledgeStore, OllamaInferenceProvider, OpenRouterInferenceProvider, Task,
+    TaskActionExecutor,
 };
 use symbi_runtime::reasoning::circuit_breaker::CircuitBreakerRegistry;
 use symbi_runtime::reasoning::context_manager::DefaultContextManager;
@@ -41,6 +43,8 @@ pub struct CtxConfig {
     pub provider: Provider,
     pub ollama_url: Option<String>,
     pub ollama_model: Option<String>,
+    pub temperature: f32,
+    pub reflector_store_cap: u32,
 }
 
 /// Shared across subcommand invocations.
@@ -50,6 +54,16 @@ pub struct Ctx {
     pub tasks: HashMap<String, Task>,
     pub journals_dir: PathBuf,
     pub policies_dir: PathBuf,
+    /// Sampling temperature forwarded to every LoopConfig in this run.
+    pub temperature: f32,
+    /// Max `store_knowledge` calls per reflector run (enforced in the
+    /// `ReflectorActionExecutor`).
+    pub reflector_store_cap: u32,
+    /// Model id tag, used for per-model pricing lookup. Populated from
+    /// env (`ANTHROPIC_MODEL` / `OPENROUTER_MODEL`) so the `est_cost`
+    /// column stays accurate without plumbing the provider's model()
+    /// through every call site.
+    pub pricing_model_key: String,
     /// How to obtain an inference provider for each run.
     ///
     /// The mock variant holds a script bundle and builds a fresh
@@ -67,6 +81,14 @@ enum ProviderSource {
     },
     Cloud {
         provider: Arc<dyn InferenceProvider>,
+    },
+    /// Special-cased because the harness wants a *fresh* provider per
+    /// iteration (so the call log is run-scoped) rather than a shared
+    /// Arc. We cache the config and mint a new provider per call.
+    OpenRouter {
+        base_url: String,
+        model: String,
+        api_key: String,
     },
 }
 
@@ -107,7 +129,32 @@ impl Ctx {
                     provider: Arc::new(p),
                 }
             }
+            Provider::Openrouter => {
+                let api_key = std::env::var("OPENROUTER_API_KEY").map_err(|_| {
+                    anyhow::anyhow!("--provider openrouter requires OPENROUTER_API_KEY")
+                })?;
+                let model = std::env::var("OPENROUTER_MODEL").map_err(|_| {
+                    anyhow::anyhow!("--provider openrouter requires OPENROUTER_MODEL")
+                })?;
+                let base_url = std::env::var("OPENROUTER_BASE_URL")
+                    .unwrap_or_else(|_| "https://openrouter.ai/api/v1".into());
+                ProviderSource::OpenRouter {
+                    base_url,
+                    model,
+                    api_key,
+                }
+            }
         };
+
+        // Pricing key prefers the model id the operator selected via
+        // env, falling back to a generic tag that misses pricing.
+        let pricing_model_key = std::env::var("OPENROUTER_MODEL")
+            .or_else(|_| std::env::var("ANTHROPIC_MODEL"))
+            .or_else(|_| std::env::var("CHAT_MODEL"))
+            .unwrap_or_else(|_| match cfg.provider {
+                Provider::Ollama => cfg.ollama_model.clone().unwrap_or_default(),
+                _ => "unknown".into(),
+            });
 
         Ok(Self {
             db,
@@ -115,6 +162,9 @@ impl Ctx {
             tasks,
             journals_dir: cfg.journals_dir,
             policies_dir: cfg.policies_dir,
+            temperature: cfg.temperature,
+            reflector_store_cap: cfg.reflector_store_cap,
+            pricing_model_key,
             provider_source,
         })
     }
@@ -122,14 +172,41 @@ impl Ctx {
     /// Mint an inference provider for a single run.
     ///
     /// Mock: builds a fresh `MockInferenceProvider` from the cached
-    /// script bundle so cursor state starts at 0 for every run. Cloud:
-    /// returns a clone of the shared `Arc`.
+    /// script bundle so cursor state starts at 0 for every run.
+    /// Cloud: returns a clone of the shared `Arc`.
+    /// OpenRouter: builds a fresh `OpenRouterInferenceProvider` so its
+    ///   per-call log is run-scoped; the caller can downcast or use
+    ///   `fresh_openrouter_provider` to get the concrete handle.
     pub fn fresh_provider(&self) -> Arc<dyn InferenceProvider> {
         match &self.provider_source {
             ProviderSource::Mock { scripts } => {
                 MockInferenceProvider::with_scripts(scripts.clone())
             }
             ProviderSource::Cloud { provider } => provider.clone(),
+            ProviderSource::OpenRouter {
+                base_url,
+                model,
+                api_key,
+            } => Arc::new(OpenRouterInferenceProvider::new(
+                base_url, model, api_key,
+            )),
+        }
+    }
+
+    /// Same as `fresh_provider` but returns the concrete OpenRouter
+    /// handle when the harness is configured with `--provider
+    /// openrouter`. `None` for other providers. Used by the task-agent
+    /// and reflector to drain the per-call metadata log.
+    pub fn fresh_openrouter_provider(&self) -> Option<Arc<OpenRouterInferenceProvider>> {
+        match &self.provider_source {
+            ProviderSource::OpenRouter {
+                base_url,
+                model,
+                api_key,
+            } => Some(Arc::new(OpenRouterInferenceProvider::new(
+                base_url, model, api_key,
+            ))),
+            _ => None,
         }
     }
 
@@ -253,8 +330,25 @@ impl Ctx {
         );
 
         let journal = Arc::new(BufferedJournal::new(4_096));
+        // Mint a provider for this run. When we're on OpenRouter we
+        // keep the concrete handle so we can drain the per-call metadata
+        // log after the loop finishes.
+        let or_handle = self.fresh_openrouter_provider();
+        if let Some(h) = &or_handle {
+            h.set_trace_context(TraceContext {
+                task_id: task.id.clone(),
+                run_number: n,
+                role: "task-agent".into(),
+                environment: std::env::var("OPENROUTER_TRACE_ENV").unwrap_or_default(),
+            })
+            .await;
+        }
+        let provider_arc: Arc<dyn InferenceProvider> = match &or_handle {
+            Some(h) => h.clone(),
+            None => self.fresh_provider(),
+        };
         let runner = ReasoningLoopRunner::builder()
-            .provider(self.fresh_provider())
+            .provider(provider_arc)
             .executor(executor.clone())
             .policy_gate(gate)
             .context_manager(Arc::new(DefaultContextManager::default()))
@@ -284,9 +378,10 @@ impl Ctx {
             timeout: Duration::from_secs(120),
             tool_definitions: all_tool_defs,
             // Opus 4.7 rejects `temperature` as deprecated; 0.0 also lets
-            // the Anthropic branch of cloud.rs skip the field entirely,
-            // and gives a deterministic comparison across models.
-            temperature: 0.0,
+            // the Anthropic branch of cloud.rs skip the field entirely.
+            // The CLI can override via --temperature, defaulting to 0.0
+            // which is safe for every provider we support.
+            temperature: self.temperature,
             ..Default::default()
         };
 
@@ -298,6 +393,23 @@ impl Ctx {
         let entries = journal.entries().await;
         let journal_path = self.write_journal_file(&task.id, n, "task", &entries)?;
 
+        // Drain OpenRouter's per-call log (generation_id, authoritative
+        // cost, upstream provider, latency) into a JSONL sidecar so a
+        // post-hoc script can correlate runs with OpenRouter billing.
+        // Also tally the authoritative cost for the `est_cost` column
+        // below — when we have it, prefer it over the static estimate.
+        let mut authoritative_cost: Option<f64> = None;
+        if let Some(h) = &or_handle {
+            let calls = h.drain_calls().await;
+            if !calls.is_empty() {
+                let sum: f64 = calls.iter().map(|c| c.cost_usd).sum();
+                if sum > 0.0 {
+                    authoritative_cost = Some(sum);
+                }
+                let _ = self.write_calls_sidecar(&task.id, n, "task", &calls);
+            }
+        }
+
         // Build the tool-trace the reflector will read from the task
         // agent's final conversation. One line per tool call, followed
         // by a trimmed version of the observation the tool returned.
@@ -305,11 +417,34 @@ impl Ctx {
         // even if the task agent looped longer.
         let tool_trace = summarise_tool_trace(&result.conversation, 20);
 
-        // Score the agent's answer.
+        // Score the agent's answer. When the loop didn't reach `Completed`
+        // and never committed an answer, force score to 0.0 — the grader
+        // returns 1.0 for lenient tasks given an empty answer, which
+        // silently inflates the pass rate for timeouts / errors. See
+        // MODEL-SWEEP-REPORT.md §"Timeouts eat Gemini results silently".
         let answer = executor.outcome().await;
-        let outcome = task.grade(answer.as_deref());
+        let mut outcome = task.grade(answer.as_deref());
+        if answer.is_none()
+            && !matches!(result.termination_reason, TerminationReason::Completed)
+        {
+            outcome.score = 0.0;
+        }
 
         let termination = describe_termination(&result.termination_reason);
+
+        let prompt_tokens = result.total_usage.prompt_tokens;
+        let completion_tokens = result.total_usage.completion_tokens;
+        // If the provider didn't split prompt vs completion, fall back
+        // to a 70/30 heuristic so pricing is computable.
+        let (pt, ct) = if prompt_tokens == 0 && completion_tokens == 0
+            && result.total_usage.total_tokens > 0
+        {
+            crate::pricing::split_70_30(result.total_usage.total_tokens)
+        } else {
+            (prompt_tokens, completion_tokens)
+        };
+        let est_cost = authoritative_cost
+            .unwrap_or_else(|| crate::pricing::cost_usd(&self.pricing_model_key, pt, ct));
 
         let run_id = self
             .db
@@ -325,6 +460,10 @@ impl Ctx {
                 journal_path.as_deref(),
                 &termination,
                 0,
+                &self.pricing_model_key,
+                est_cost,
+                pt,
+                ct,
             )
             .await?;
 
@@ -340,6 +479,33 @@ impl Ctx {
             journal_path,
             tool_trace,
         })
+    }
+
+    /// Write the OpenRouter-capture JSONL sidecar for a single run.
+    /// One line per inference call; empty file if nothing was recorded.
+    pub fn write_calls_sidecar(
+        &self,
+        task_id: &str,
+        run_number: u32,
+        tag: &str,
+        calls: &[demo_karpathy_loop::CallLog],
+    ) -> Result<Option<String>> {
+        std::fs::create_dir_all(&self.journals_dir).ok();
+        let fname = format!(
+            "{}-{}-n{:03}-{}-calls.jsonl",
+            chrono::Utc::now().format("%Y%m%d-%H%M%S"),
+            task_id,
+            run_number,
+            tag
+        );
+        let path = self.journals_dir.join(fname);
+        let mut out = String::new();
+        for c in calls {
+            out.push_str(&serde_json::to_string(c)?);
+            out.push('\n');
+        }
+        std::fs::write(&path, out)?;
+        Ok(Some(path.display().to_string()))
     }
 
     /// Write a signed journal to disk. We serialize to JSON for now —

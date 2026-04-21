@@ -1,0 +1,55 @@
+Reflector-quality analysis (-adv)
+============================================================
+
+Per-model verdict counts (task ⇒ verdict):
+
+  model                  imp  flat reg  incpl
+  deepseekv31-adv        0    4    0    0
+  gemini25pro-adv        1    2    0    1
+  gpt-oss-20b-adv        2    0    0    2
+  gpt5-adv               1    3    0    0
+  haiku45-adv            1    3    0    0
+  mimo-v2-pro-adv        2    1    1    0
+  minimax-m27-adv        2    1    1    0
+  qwen3-235b-adv         1    2    1    0
+  qwen36-plus-adv        0    3    1    0
+
+Per-task detail:
+
+  model                  task n=1..3 iters   Δiter%  Δtok%  verdict
+  deepseekv31-adv        T1   20/20/20         +0.0    -6.4  flat
+  deepseekv31-adv        T2   20/20/20         +0.0    -4.7  flat
+  deepseekv31-adv        T3   5/5/5            +0.0    -4.9  flat
+  deepseekv31-adv        T4   20/20/20         +0.0    -6.1  flat
+  gemini25pro-adv        T1   0/0/0          +100.0  +100.0  incomplete
+  gemini25pro-adv        T2   20/20/20         +0.0   -47.5  flat
+  gemini25pro-adv        T3   6/6/5           +16.7   +22.5  improved
+  gemini25pro-adv        T4   20/20/20         +0.0   -31.8  flat
+  gpt-oss-20b-adv        T1   5/0/6           -20.0   -38.7  incomplete
+  gpt-oss-20b-adv        T2   6/5/4           +33.3   +38.6  improved
+  gpt-oss-20b-adv        T3   0/0/3          -200.0  -235700.0  incomplete
+  gpt-oss-20b-adv        T4   6/3/3           +50.0   +40.3  improved
+  gpt5-adv               T1   5/4/4           +20.0   +39.3  improved
+  gpt5-adv               T2   4/4/4            +0.0    -7.1  flat
+  gpt5-adv               T3   3/3/3            +0.0   -10.6  flat
+  gpt5-adv               T4   4/4/4            +0.0   +13.9  flat
+  haiku45-adv            T1   5/4/4           +20.0   +22.0  improved
+  haiku45-adv            T2   3/3/3            +0.0    -2.0  flat
+  haiku45-adv            T3   4/4/4            +0.0    -2.0  flat
+  haiku45-adv            T4   4/4/4            +0.0    +5.8  flat
+  mimo-v2-pro-adv        T1   5/4/4           +20.0   +18.1  improved
+  mimo-v2-pro-adv        T2   4/4/3           +25.0   +20.2  improved
+  mimo-v2-pro-adv        T3   4/4/4            +0.0    -3.2  flat
+  mimo-v2-pro-adv        T4   3/4/5           -66.7   -73.8  regressed
+  minimax-m27-adv        T1   5/4/4           +20.0   +19.9  improved
+  minimax-m27-adv        T2   3/4/4           -33.3   -41.5  regressed
+  minimax-m27-adv        T3   4/3/3           +25.0   +24.1  improved
+  minimax-m27-adv        T4   4/3/4            +0.0    -5.8  flat
+  qwen3-235b-adv         T1   4/4/4            +0.0    -6.0  flat
+  qwen3-235b-adv         T2   4/3/3           +25.0   +23.7  improved
+  qwen3-235b-adv         T3   3/3/4           -33.3   -40.0  regressed
+  qwen3-235b-adv         T4   4/3/4            +0.0    -8.1  flat
+  qwen36-plus-adv        T1   5/5/5            +0.0    -6.6  flat
+  qwen36-plus-adv        T2   3/4/4           -33.3   -37.7  regressed
+  qwen36-plus-adv        T3   3/3/3            +0.0    -3.5  flat
+  qwen36-plus-adv        T4   3/3/3            +0.0    -4.6  flat
