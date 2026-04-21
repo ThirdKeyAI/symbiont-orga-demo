@@ -207,58 +207,14 @@ impl Procedure {
     }
 }
 
-/// Drop invisible / steganographic Unicode code points the knowledge
-/// store has no legitimate need for. Keeps printable characters
-/// (including non-ASCII letters — Cyrillic, CJK, etc.) intact so
-/// legitimate multilingual content still roundtrips.
+/// Strip invisible / steganographic Unicode code points from `s`.
 ///
-/// Filtered ranges:
-///
-/// - `U+200B..=U+200F` — zero-width space, ZWNJ, ZWJ, LRM, RLM.
-/// - `U+202A..=U+202E` — bidi explicit directional overrides.
-/// - `U+2060..=U+206F` — word joiner, invisible operators, bidi
-///   isolates, deprecated format controls.
-/// - `U+FEFF` — BOM / ZWNBSP.
-/// - `U+180E` — Mongolian vowel separator (legacy invisible).
-/// - `U+1D173..=U+1D17A` — musical notation invisible format chars.
-/// - `U+FE00..=U+FE0F` — variation selectors (used for emoji-VS
-///   steganography by tools like P4RS3LT0NGV3).
-/// - `U+E0100..=U+E01EF` — supplementary variation selectors.
-/// - `U+E0000..=U+E007F` — Unicode Tag block (the primary
-///   steganographic channel for "invisible text"); stripped entirely.
-pub fn sanitize_field(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for c in s.chars() {
-        let code = c as u32;
-        let drop = matches!(code,
-            // ASCII C0 control chars except \t \n \r: escape path for
-            // old-school invisible separators. GPT-5 was caught using
-            // U+007F (DEL) this way in the v5 multi-stage sweep.
-            0x00..=0x08
-            | 0x0B..=0x0C
-            | 0x0E..=0x1F
-            | 0x7F
-            // C1 control block.
-            | 0x80..=0x9F
-            // Zero-width + bidi controls.
-            | 0x200B..=0x200F
-            | 0x202A..=0x202E
-            | 0x2060..=0x206F
-            | 0xFEFF
-            | 0x180E
-            | 0x1D173..=0x1D17A
-            | 0xFE00..=0xFE0F
-            // Unicode Tag block + supplementary variation selectors —
-            // both used as primary steganographic channels.
-            | 0xE0000..=0xE007F
-            | 0xE0100..=0xE01EF
-        );
-        if !drop {
-            out.push(c);
-        }
-    }
-    out
-}
+/// Re-exported from the standalone [`symbi_invis_strip`] crate in v6
+/// so any Symbiont-adjacent agent framework with a knowledge-store /
+/// long-term-memory surface can depend on the sanitiser without
+/// pulling in this demo's runtime. The full forbidden-range list and
+/// rationale live in that crate's documentation.
+pub use symbi_invis_strip::sanitize_field;
 
 #[cfg(test)]
 mod tests {
