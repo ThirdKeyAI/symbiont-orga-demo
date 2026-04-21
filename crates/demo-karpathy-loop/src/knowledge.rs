@@ -226,7 +226,7 @@ impl Procedure {
 /// - `U+E0100..=U+E01EF` — supplementary variation selectors.
 /// - `U+E0000..=U+E007F` — Unicode Tag block (the primary
 ///   steganographic channel for "invisible text"); stripped entirely.
-pub(crate) fn sanitize_field(s: &str) -> String {
+pub fn sanitize_field(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
         let code = c as u32;
@@ -299,6 +299,63 @@ mod tests {
         assert_eq!(sanitize_field("a\tb\nc\rd"), "a\tb\nc\rd");
         // C1 control.
         assert_eq!(sanitize_field("a\u{0085}b"), "ab");
+    }
+
+    /// v6 #1 — exhaustive fuzz: walk every code point in every
+    /// forbidden range and assert it is stripped when surrounded by
+    /// legitimate content. Turns "we caught U+007F on GPT-5 by luck"
+    /// into "every future regression is caught before the sweep
+    /// even runs."
+    #[test]
+    fn sanitize_covers_every_declared_range() {
+        // Keep in lockstep with the match arms in `sanitize_field`.
+        let forbidden: &[(u32, u32, &str)] = &[
+            (0x00, 0x08, "C0 low"),
+            (0x0B, 0x0C, "C0 VT/FF"),
+            (0x0E, 0x1F, "C0 high"),
+            (0x7F, 0x7F, "DEL"),
+            (0x80, 0x9F, "C1"),
+            (0x200B, 0x200F, "zero-width+LRM+RLM"),
+            (0x202A, 0x202E, "bidi overrides"),
+            (0x2060, 0x206F, "word joiner + invisible operators"),
+            (0xFEFF, 0xFEFF, "BOM"),
+            (0x180E, 0x180E, "Mongolian VS"),
+            (0x1D173, 0x1D17A, "musical invisible"),
+            (0xFE00, 0xFE0F, "variation selectors"),
+            (0xE0000, 0xE007F, "Unicode Tag block"),
+            (0xE0100, 0xE01EF, "supplementary variation selectors"),
+        ];
+        let mut scanned = 0u32;
+        for (lo, hi, label) in forbidden {
+            for code in *lo..=*hi {
+                let Some(c) = char::from_u32(code) else { continue };
+                let raw = format!("pre{}post", c);
+                let got = sanitize_field(&raw);
+                assert_eq!(got, "prepost",
+                    "range '{label}' — U+{code:04X} survived sanitize_field");
+                scanned += 1;
+            }
+        }
+        // Sanity check: we really did walk every declared cell.
+        assert!(scanned > 200, "only scanned {scanned} code points");
+    }
+
+    /// v6 #1 — every printable ASCII must survive sanitisation.
+    /// Belt-and-suspenders for the exhaustive forbidden test: if we
+    /// accidentally widen a drop range, this catches it.
+    #[test]
+    fn sanitize_preserves_printable_ascii_and_whitespace() {
+        for code in 0x20..=0x7E {
+            let c = char::from_u32(code).unwrap();
+            let raw = format!("a{}b", c);
+            assert_eq!(sanitize_field(&raw), raw, "printable U+{code:04X} stripped");
+        }
+        // Whitespace that alignment-sensitive readers might treat as a
+        // layout cue — must roundtrip.
+        for c in ['\t', '\n', '\r'] {
+            let raw = format!("a{}b", c);
+            assert_eq!(sanitize_field(&raw), raw);
+        }
     }
 
     #[tokio::test]
