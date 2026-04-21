@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/demo-karpathy-loop",
+    "crates/symbi-invis-strip",
     "crates/symbi-kloop-bench",
 ]
 
@@ -21,6 +22,11 @@ symbi-runtime = { path = "../symbiont/crates/runtime", default-features = false,
     "orga-adaptive",
     "cedar",
 ] }
+
+# Sanitiser crate — extracted in v6 so any Symbiont-adjacent agent
+# framework with a knowledge-store / long-term-memory surface can reuse
+# the same forbidden-range table without copying it.
+symbi-invis-strip = { path = "crates/symbi-invis-strip" }
 
 anyhow = "1"
 async-trait = "0.1"
