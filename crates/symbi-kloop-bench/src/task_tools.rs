@@ -26,6 +26,7 @@ pub fn register_for_task(
         "T2" => register_t2(task, executor),
         "T3" => register_t3(task, executor),
         "T4" => register_t4(task, executor),
+        "T5" => register_t5(task, executor),
         other => anyhow::bail!("no tool handlers registered for task id '{}'", other),
     }
 }
@@ -56,6 +57,33 @@ fn single_string_arg_tool(name: &str, description: &str, arg_name: &str) -> Tool
             "type": "object",
             "properties": { arg_name: {"type": "string"} },
             "required": [arg_name]
+        }),
+    }
+}
+
+fn single_int_arg_tool(name: &str, description: &str, arg_name: &str) -> ToolDefinition {
+    ToolDefinition {
+        name: name.to_string(),
+        description: description.to_string(),
+        parameters: serde_json::json!({
+            "type": "object",
+            "properties": { arg_name: {"type": "integer", "minimum": 1} },
+            "required": [arg_name]
+        }),
+    }
+}
+
+fn two_int_args_tool(name: &str, description: &str, a: &str, b: &str) -> ToolDefinition {
+    ToolDefinition {
+        name: name.to_string(),
+        description: description.to_string(),
+        parameters: serde_json::json!({
+            "type": "object",
+            "properties": {
+                a: {"type": "integer", "minimum": 1},
+                b: {"type": "integer", "minimum": 1}
+            },
+            "required": [a, b]
         }),
     }
 }
@@ -499,6 +527,253 @@ fn register_t4(
     Ok(defs)
 }
 
+// ── T5: rustc cascade root-cause identification ──────────────────────
+//
+// The "iteration budget" task. 8 errors, one root. Cold-start path walks
+// every `error_detail` and burns 12–18 iterations; expert path calls
+// `error_list()` once, spots the E0433, and answers in 3.
+
+fn register_t5(
+    task: &Task,
+    executor: &mut TaskActionExecutor,
+) -> anyhow::Result<Vec<ToolDefinition>> {
+    let errors = task
+        .inputs
+        .get("errors")
+        .cloned()
+        .unwrap_or(serde_json::Value::Array(vec![]));
+    let errors_arr = errors.as_array().cloned().unwrap_or_default();
+    let e = Arc::new(errors_arr);
+    let imports = task
+        .inputs
+        .get("crate_imports")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
+    let imports = Arc::new(imports);
+
+    let mut defs = Vec::new();
+
+    // Cheap key probe — one line per error. The expert path starts here.
+    let list_def = no_arg_tool(
+        "error_list",
+        "Return a numbered, one-line-per-error banner list (e.g. `3. E0433 failed to resolve: use of undeclared type Value`).",
+    );
+    {
+        let e = e.clone();
+        executor.register_tool(list_def.clone(), move |_| {
+            let lines: Vec<String> = e
+                .iter()
+                .map(|err| {
+                    let idx = err.get("index").and_then(|v| v.as_i64()).unwrap_or(0);
+                    let code_line = err
+                        .get("code_line")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("(no banner)");
+                    format!("{idx}. {code_line}")
+                })
+                .collect();
+            Ok(lines.join("\n"))
+        })?;
+    }
+    defs.push(list_def);
+
+    // Expensive probe — full text. Naive path calls this N times.
+    let detail_def = single_int_arg_tool(
+        "error_detail",
+        "Return the full multi-line block for error N (1-based).",
+        "index",
+    );
+    {
+        let e = e.clone();
+        executor.register_tool(detail_def.clone(), move |args| {
+            let parsed: serde_json::Value = serde_json::from_str(args).unwrap_or_default();
+            let idx = parsed
+                .get("index")
+                .and_then(|v| v.as_i64())
+                .ok_or_else(|| "missing `index`".to_string())?;
+            for err in e.iter() {
+                let i = err.get("index").and_then(|v| v.as_i64()).unwrap_or(0);
+                if i == idx {
+                    return Ok(err
+                        .get("full_text")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("(no full_text)")
+                        .to_string());
+                }
+            }
+            Ok(format!("(no error at index {idx})"))
+        })?;
+    }
+    defs.push(detail_def);
+
+    let span_def = single_int_arg_tool(
+        "error_span",
+        "Return just the underlined source lines rustc attached to error N.",
+        "index",
+    );
+    {
+        let e = e.clone();
+        executor.register_tool(span_def.clone(), move |args| {
+            let parsed: serde_json::Value = serde_json::from_str(args).unwrap_or_default();
+            let idx = parsed
+                .get("index")
+                .and_then(|v| v.as_i64())
+                .ok_or_else(|| "missing `index`".to_string())?;
+            for err in e.iter() {
+                let i = err.get("index").and_then(|v| v.as_i64()).unwrap_or(0);
+                if i == idx {
+                    return Ok(err
+                        .get("source_snippet")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string());
+                }
+            }
+            Ok(format!("(no error at index {idx})"))
+        })?;
+    }
+    defs.push(span_def);
+
+    let explain_def = single_string_arg_tool(
+        "check_error_code",
+        "Return the rustc-explain text for an error code (e.g. `E0433`).",
+        "code",
+    );
+    {
+        executor.register_tool(explain_def.clone(), move |args| {
+            let parsed: serde_json::Value = serde_json::from_str(args).unwrap_or_default();
+            let code = parsed
+                .get("code")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "missing `code`".to_string())?
+                .to_uppercase();
+            Ok(explain_code(&code).to_string())
+        })?;
+    }
+    defs.push(explain_def);
+
+    let xref_def = two_int_args_tool(
+        "cross_reference",
+        "Return whether errors A and B refer to the same symbol/type/name. Returns `yes` or `no`.",
+        "a",
+        "b",
+    );
+    {
+        let e = e.clone();
+        executor.register_tool(xref_def.clone(), move |args| {
+            let parsed: serde_json::Value = serde_json::from_str(args).unwrap_or_default();
+            let a = parsed.get("a").and_then(|v| v.as_i64()).unwrap_or(0);
+            let b = parsed.get("b").and_then(|v| v.as_i64()).unwrap_or(0);
+            let symbol = |idx: i64| -> Option<String> {
+                for err in e.iter() {
+                    if err.get("index").and_then(|v| v.as_i64()).unwrap_or(0) == idx {
+                        let full = err
+                            .get("full_text")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+                        // Extract any backtick-quoted symbol. Cheap heuristic.
+                        let mut parts = full.split('`');
+                        let _ = parts.next();
+                        for seg in parts.step_by(2) {
+                            if !seg.is_empty() {
+                                return Some(seg.to_ascii_lowercase());
+                            }
+                        }
+                    }
+                }
+                None
+            };
+            match (symbol(a), symbol(b)) {
+                (Some(sa), Some(sb)) if sa.contains(&sb) || sb.contains(&sa) => Ok("yes".into()),
+                _ => Ok("no".into()),
+            }
+        })?;
+    }
+    defs.push(xref_def);
+
+    let sort_line_def = no_arg_tool(
+        "sort_by_line",
+        "Return the errors re-sorted by source line number (earliest first), as `index:line_no code`.",
+    );
+    {
+        let e = e.clone();
+        executor.register_tool(sort_line_def.clone(), move |_| {
+            let mut rows: Vec<(i64, i64, String)> = e
+                .iter()
+                .map(|err| {
+                    (
+                        err.get("index").and_then(|v| v.as_i64()).unwrap_or(0),
+                        err.get("line_no").and_then(|v| v.as_i64()).unwrap_or(0),
+                        err.get("code")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string(),
+                    )
+                })
+                .collect();
+            rows.sort_by_key(|r| r.1);
+            Ok(rows
+                .into_iter()
+                .map(|(i, ln, code)| format!("{i}:{ln} {code}"))
+                .collect::<Vec<_>>()
+                .join("\n"))
+        })?;
+    }
+    defs.push(sort_line_def);
+
+    let sort_sev_def = no_arg_tool(
+        "sort_by_severity",
+        "Return the errors re-sorted by a rough severity heuristic (resolution errors first, then borrow/lifetime, then type/trait).",
+    );
+    {
+        let e = e.clone();
+        executor.register_tool(sort_sev_def.clone(), move |_| {
+            let rank = |code: &str| -> i32 {
+                match code {
+                    "E0432" | "E0433" | "E0425" => 0,
+                    "E0597" | "E0621" => 1,
+                    "E0382" | "E0499" | "E0502" => 2,
+                    "E0277" => 3,
+                    "E0308" => 4,
+                    _ => 9,
+                }
+            };
+            let mut rows: Vec<(i64, i32, String)> = e
+                .iter()
+                .map(|err| {
+                    let code = err.get("code").and_then(|v| v.as_str()).unwrap_or("");
+                    (
+                        err.get("index").and_then(|v| v.as_i64()).unwrap_or(0),
+                        rank(code),
+                        code.to_string(),
+                    )
+                })
+                .collect();
+            rows.sort_by_key(|r| r.1);
+            Ok(rows
+                .into_iter()
+                .map(|(i, _, code)| format!("{i} {code}"))
+                .collect::<Vec<_>>()
+                .join("\n"))
+        })?;
+    }
+    defs.push(sort_sev_def);
+
+    let imports_def = no_arg_tool(
+        "crate_imports",
+        "Return the `use` statements at the top of the failing module.",
+    );
+    {
+        let imports = imports.clone();
+        executor.register_tool(imports_def.clone(), move |_| {
+            Ok(imports.as_str().unwrap_or("").to_string())
+        })?;
+    }
+    defs.push(imports_def);
+
+    Ok(defs)
+}
+
 /// Tiny, deterministic "rustc --explain" lookup for the demo. Not a
 /// substitute for the real docs; just enough that the tool returns
 /// something informative when called.
@@ -511,8 +786,9 @@ fn explain_code(code: &str) -> &'static str {
         "E0597" => "E0597: a value is dropped while still borrowed. Categorise as `lifetime`.",
         "E0621" => "E0621: explicit lifetime required in function signature. Categorise as `lifetime`.",
         "E0308" => "E0308: mismatched types. Categorise as `type_mismatch`.",
-        "E0432" => "E0432: unresolved import path. Categorise as `import_missing`.",
-        "E0433" => "E0433: failed to resolve — use of undeclared crate/module. Categorise as `import_missing`.",
+        "E0432" => "E0432: unresolved import path. Categorise as `import_missing`. In a cascade, an E0432 near the top of the list is almost always the ROOT — subsequent type/trait errors are downstream effects of the missing import.",
+        "E0433" => "E0433: failed to resolve — use of undeclared crate/module. Categorise as `import_missing`. In a cascade, an E0433 is almost always the ROOT — subsequent E0308/E0277 errors that mention the same unresolved name are downstream effects.",
+        "E0425" => "E0425: cannot find value / function in this scope. Categorise as `import_missing`. In a cascade, usually the ROOT — fix the missing binding and the downstream errors disappear.",
         _ => "(error code not in the lookup table)",
     }
 }
