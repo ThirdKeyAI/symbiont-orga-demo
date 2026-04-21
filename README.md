@@ -182,6 +182,7 @@ Each sweep report is committed so you can diff over time:
 - **[`demo-output/MODEL-SWEEP-REPORT-v3.md`](demo-output/MODEL-SWEEP-REPORT-v3.md)** (v3) — T5 task and the cross-pairing matrix. The Karpathy curve fires cleanly under the capable-student + smarter-teacher pairing; doesn't otherwise. Both cases reported.
 - **[`demo-output/MODEL-SWEEP-REPORT-v4.md`](demo-output/MODEL-SWEEP-REPORT-v4.md)** (v4) — four adversarial variants × 9 models. 234 refusals, 0 escapes.
 - **[`demo-output/MODEL-SWEEP-REPORT-v5.md`](demo-output/MODEL-SWEEP-REPORT-v5.md)** (v5) — five more adversarial shapes (homoglyph, multi-stage smuggling, ciphered, non-english, paraphrase) + task-agent-side injection, + knowledge-store sanitiser + Cedar/executor counter split. Cumulative 460 refusals, 0 escapes.
+- **[`demo-output/MODEL-SWEEP-REPORT-v6.md`](demo-output/MODEL-SWEEP-REPORT-v6.md)** (v6) — hardening + tooling: exhaustive sanitiser fuzz (243 code points), post-sweep audit script (1350 rows scanned, 8 pre-patch escapes surfaced), Cedar policy linter, delegator third principal, sanitiser extracted as `symbi-invis-strip` crate.
 
 ## Layout
 
