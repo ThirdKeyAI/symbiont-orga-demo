@@ -45,6 +45,9 @@ pub struct CtxConfig {
     pub ollama_model: Option<String>,
     pub temperature: f32,
     pub reflector_store_cap: u32,
+    /// Skip the reflector pass entirely. Used for the "no-learning"
+    /// control arm of cross-pairing experiments.
+    pub no_reflector: bool,
 }
 
 /// Shared across subcommand invocations.
@@ -59,6 +62,8 @@ pub struct Ctx {
     /// Max `store_knowledge` calls per reflector run (enforced in the
     /// `ReflectorActionExecutor`).
     pub reflector_store_cap: u32,
+    /// When true, skip the reflector pass. Control arm of cross-pairing.
+    pub no_reflector: bool,
     /// Model id tag, used for per-model pricing lookup. Populated from
     /// env (`ANTHROPIC_MODEL` / `OPENROUTER_MODEL`) so the `est_cost`
     /// column stays accurate without plumbing the provider's model()
@@ -85,9 +90,15 @@ enum ProviderSource {
     /// Special-cased because the harness wants a *fresh* provider per
     /// iteration (so the call log is run-scoped) rather than a shared
     /// Arc. We cache the config and mint a new provider per call.
+    ///
+    /// `task_model` and `reflect_model` let the sweep pair a cheap task
+    /// agent with a premium reflector (or vice-versa). Both default to
+    /// the value of `OPENROUTER_MODEL` if the role-specific env isn't
+    /// set, which keeps the single-model case a zero-config run.
     OpenRouter {
         base_url: String,
-        model: String,
+        task_model: String,
+        reflect_model: String,
         api_key: String,
     },
 }
@@ -133,14 +144,30 @@ impl Ctx {
                 let api_key = std::env::var("OPENROUTER_API_KEY").map_err(|_| {
                     anyhow::anyhow!("--provider openrouter requires OPENROUTER_API_KEY")
                 })?;
-                let model = std::env::var("OPENROUTER_MODEL").map_err(|_| {
-                    anyhow::anyhow!("--provider openrouter requires OPENROUTER_MODEL")
-                })?;
+                // Role-specific vars win; fall back to the shared one.
+                let shared = std::env::var("OPENROUTER_MODEL").ok();
+                let task_model = std::env::var("OPENROUTER_MODEL_TASK")
+                    .ok()
+                    .or_else(|| shared.clone())
+                    .ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "--provider openrouter requires OPENROUTER_MODEL_TASK or OPENROUTER_MODEL"
+                        )
+                    })?;
+                let reflect_model = std::env::var("OPENROUTER_MODEL_REFLECT")
+                    .ok()
+                    .or(shared)
+                    .ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "--provider openrouter requires OPENROUTER_MODEL_REFLECT or OPENROUTER_MODEL"
+                        )
+                    })?;
                 let base_url = std::env::var("OPENROUTER_BASE_URL")
                     .unwrap_or_else(|_| "https://openrouter.ai/api/v1".into());
                 ProviderSource::OpenRouter {
                     base_url,
-                    model,
+                    task_model,
+                    reflect_model,
                     api_key,
                 }
             }
@@ -164,6 +191,7 @@ impl Ctx {
             policies_dir: cfg.policies_dir,
             temperature: cfg.temperature,
             reflector_store_cap: cfg.reflector_store_cap,
+            no_reflector: cfg.no_reflector,
             pricing_model_key,
             provider_source,
         })
@@ -185,28 +213,65 @@ impl Ctx {
             ProviderSource::Cloud { provider } => provider.clone(),
             ProviderSource::OpenRouter {
                 base_url,
-                model,
+                task_model,
                 api_key,
+                ..
             } => Arc::new(OpenRouterInferenceProvider::new(
-                base_url, model, api_key,
+                base_url, task_model, api_key,
             )),
         }
     }
 
-    /// Same as `fresh_provider` but returns the concrete OpenRouter
-    /// handle when the harness is configured with `--provider
-    /// openrouter`. `None` for other providers. Used by the task-agent
-    /// and reflector to drain the per-call metadata log.
-    pub fn fresh_openrouter_provider(&self) -> Option<Arc<OpenRouterInferenceProvider>> {
+    /// Concrete OpenRouter handle for the **task agent** role. Honors
+    /// `OPENROUTER_MODEL_TASK` so cross-pairing experiments can split
+    /// task agent and reflector models.
+    pub fn fresh_openrouter_task_provider(&self) -> Option<Arc<OpenRouterInferenceProvider>> {
         match &self.provider_source {
             ProviderSource::OpenRouter {
                 base_url,
-                model,
+                task_model,
                 api_key,
+                ..
             } => Some(Arc::new(OpenRouterInferenceProvider::new(
-                base_url, model, api_key,
+                base_url, task_model, api_key,
             ))),
             _ => None,
+        }
+    }
+
+    /// Concrete OpenRouter handle for the **reflector** role. Honors
+    /// `OPENROUTER_MODEL_REFLECT`.
+    pub fn fresh_openrouter_reflect_provider(&self) -> Option<Arc<OpenRouterInferenceProvider>> {
+        match &self.provider_source {
+            ProviderSource::OpenRouter {
+                base_url,
+                reflect_model,
+                api_key,
+                ..
+            } => Some(Arc::new(OpenRouterInferenceProvider::new(
+                base_url, reflect_model, api_key,
+            ))),
+            _ => None,
+        }
+    }
+
+    /// Return the pricing key for the given role. Task agent uses
+    /// `OPENROUTER_MODEL_TASK`, reflector uses `OPENROUTER_MODEL_REFLECT`,
+    /// with the usual fallback chain.
+    pub fn pricing_key_for(&self, role: &str) -> String {
+        match &self.provider_source {
+            ProviderSource::OpenRouter {
+                task_model,
+                reflect_model,
+                ..
+            } => {
+                if role == "reflect" {
+                    reflect_model.clone()
+                } else {
+                    task_model.clone()
+                }
+            }
+            _ => self.pricing_model_key.clone(),
         }
     }
 
@@ -242,7 +307,12 @@ impl Ctx {
 
         // Reflector only runs when the task agent produced *something* to
         // reflect on. If the task run aborted with no iterations, skip.
-        if task_outcome.iterations == 0 {
+        // Also honor the `--no-reflector` control flag for cross-pairing
+        // experiments where we want the task agent to run with no
+        // learning signal whatsoever.
+        if self.no_reflector {
+            tracing::info!("--no-reflector set; skipping reflector pass");
+        } else if task_outcome.iterations == 0 {
             tracing::warn!("task agent produced no iterations; skipping reflector");
         } else if let Err(e) =
             reflector::run_reflector(self, &task, &task_outcome, task_outcome.run_id, prompt).await
@@ -333,7 +403,7 @@ impl Ctx {
         // Mint a provider for this run. When we're on OpenRouter we
         // keep the concrete handle so we can drain the per-call metadata
         // log after the loop finishes.
-        let or_handle = self.fresh_openrouter_provider();
+        let or_handle = self.fresh_openrouter_task_provider();
         if let Some(h) = &or_handle {
             h.set_trace_context(TraceContext {
                 task_id: task.id.clone(),
@@ -443,8 +513,9 @@ impl Ctx {
         } else {
             (prompt_tokens, completion_tokens)
         };
+        let task_pricing_key = self.pricing_key_for("task");
         let est_cost = authoritative_cost
-            .unwrap_or_else(|| crate::pricing::cost_usd(&self.pricing_model_key, pt, ct));
+            .unwrap_or_else(|| crate::pricing::cost_usd(&task_pricing_key, pt, ct));
 
         let run_id = self
             .db
@@ -460,7 +531,7 @@ impl Ctx {
                 journal_path.as_deref(),
                 &termination,
                 0,
-                &self.pricing_model_key,
+                &task_pricing_key,
                 est_cost,
                 pt,
                 ct,

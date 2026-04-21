@@ -84,6 +84,12 @@ struct Cli {
     #[arg(long, default_value_t = 5, global = true)]
     reflector_store_cap: u32,
 
+    /// Skip the reflector pass entirely. Use for the "no-learning"
+    /// negative control in cross-pairing experiments: subsequent task
+    /// runs won't have any procedures to recall.
+    #[arg(long, default_value_t = false, global = true)]
+    no_reflector: bool,
+
     #[command(subcommand)]
     cmd: Command,
 }
@@ -176,6 +182,7 @@ async fn main() -> anyhow::Result<()> {
         ollama_model: cli.ollama_model.clone(),
         temperature: cli.temperature,
         reflector_store_cap: cli.reflector_store_cap,
+        no_reflector: cli.no_reflector,
     })
     .await?;
 
