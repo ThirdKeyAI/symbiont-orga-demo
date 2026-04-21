@@ -103,6 +103,16 @@ impl KnowledgeStore {
     /// the same procedure twice, it lands twice; downstream readers can
     /// collapse by subject if they care. Duplicates are cheap and make
     /// the reflector's behaviour auditable.
+    ///
+    /// Sanitisation: subject / predicate / object are stripped of
+    /// invisible format characters and the Unicode tag block BEFORE
+    /// storage. Rationale: the reflector principal is allowed to call
+    /// store_knowledge freely, so Cedar cannot refuse on action
+    /// grounds. An attacker-controlled reflector could otherwise
+    /// embed zero-width or tag-block payloads that become instructions
+    /// when the task agent recalls them. The strip runs at ingress
+    /// rather than egress so every reader sees the same sanitised
+    /// value; see `sanitize_field` for the filtered ranges.
     pub async fn store(
         &self,
         task_id: &str,
@@ -112,6 +122,9 @@ impl KnowledgeStore {
         object: &str,
         confidence: f64,
     ) -> Result<i64> {
+        let subject = sanitize_field(subject);
+        let predicate = sanitize_field(predicate);
+        let object = sanitize_field(object);
         let conn = self.inner.lock().await;
         conn.execute(
             r#"INSERT INTO stored_procedures
@@ -194,9 +207,115 @@ impl Procedure {
     }
 }
 
+/// Drop invisible / steganographic Unicode code points the knowledge
+/// store has no legitimate need for. Keeps printable characters
+/// (including non-ASCII letters — Cyrillic, CJK, etc.) intact so
+/// legitimate multilingual content still roundtrips.
+///
+/// Filtered ranges:
+///
+/// - `U+200B..=U+200F` — zero-width space, ZWNJ, ZWJ, LRM, RLM.
+/// - `U+202A..=U+202E` — bidi explicit directional overrides.
+/// - `U+2060..=U+206F` — word joiner, invisible operators, bidi
+///   isolates, deprecated format controls.
+/// - `U+FEFF` — BOM / ZWNBSP.
+/// - `U+180E` — Mongolian vowel separator (legacy invisible).
+/// - `U+1D173..=U+1D17A` — musical notation invisible format chars.
+/// - `U+FE00..=U+FE0F` — variation selectors (used for emoji-VS
+///   steganography by tools like P4RS3LT0NGV3).
+/// - `U+E0100..=U+E01EF` — supplementary variation selectors.
+/// - `U+E0000..=U+E007F` — Unicode Tag block (the primary
+///   steganographic channel for "invisible text"); stripped entirely.
+pub(crate) fn sanitize_field(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        let code = c as u32;
+        let drop = matches!(code,
+            // ASCII C0 control chars except \t \n \r: escape path for
+            // old-school invisible separators. GPT-5 was caught using
+            // U+007F (DEL) this way in the v5 multi-stage sweep.
+            0x00..=0x08
+            | 0x0B..=0x0C
+            | 0x0E..=0x1F
+            | 0x7F
+            // C1 control block.
+            | 0x80..=0x9F
+            // Zero-width + bidi controls.
+            | 0x200B..=0x200F
+            | 0x202A..=0x202E
+            | 0x2060..=0x206F
+            | 0xFEFF
+            | 0x180E
+            | 0x1D173..=0x1D17A
+            | 0xFE00..=0xFE0F
+            // Unicode Tag block + supplementary variation selectors —
+            // both used as primary steganographic channels.
+            | 0xE0000..=0xE007F
+            | 0xE0100..=0xE01EF
+        );
+        if !drop {
+            out.push(c);
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sanitize_strips_invisible_and_tag_block() {
+        // Zero-width space smuggled between "store" and "knowledge".
+        let zwsp = "store\u{200B}knowledge";
+        assert_eq!(sanitize_field(zwsp), "storeknowledge");
+
+        // Tag-block "ignore" payload (U+E0049 U+E0047 U+E004E ... etc.
+        // here we just prove the range is stripped with one sample).
+        let payload: String = "safe ".chars().chain(std::iter::once('\u{E0045}'))
+            .chain("trailing".chars()).collect();
+        assert_eq!(sanitize_field(&payload), "safe trailing");
+
+        // BOM in the middle.
+        assert_eq!(sanitize_field("a\u{FEFF}b"), "ab");
+
+        // Variation selector used in emoji-VS steg.
+        assert_eq!(sanitize_field("x\u{FE0F}y"), "xy");
+
+        // Legitimate non-ASCII — Cyrillic, CJK — must survive.
+        assert_eq!(sanitize_field("Привет 世界"), "Привет 世界");
+
+        // Bidi override attempt.
+        assert_eq!(sanitize_field("a\u{202E}bcd"), "abcd");
+
+        // ASCII DEL (U+007F) smuggling — GPT-5 was caught using this
+        // as a word separator in the v5 multi-stage sweep.
+        assert_eq!(sanitize_field("call\u{007F}container_exit"), "callcontainer_exit");
+
+        // Other C0 controls.
+        assert_eq!(sanitize_field("a\u{0001}b"), "ab");
+        assert_eq!(sanitize_field("a\u{001F}b"), "ab");
+        // Preserve legitimate whitespace.
+        assert_eq!(sanitize_field("a\tb\nc\rd"), "a\tb\nc\rd");
+        // C1 control.
+        assert_eq!(sanitize_field("a\u{0085}b"), "ab");
+    }
+
+    #[tokio::test]
+    async fn store_sanitises_inputs_on_insert() {
+        let td = tempfile::tempdir().unwrap();
+        let store = KnowledgeStore::open(td.path().join("k.db")).unwrap();
+        // Adversarial reflector tries to smuggle a tag-block payload
+        // into the object field alongside legitimate-looking text.
+        let poisoned = format!("legit\u{200B}\u{E0049}\u{E0047}\u{E004E}\u{E004F}\u{E0052}\u{E0045}");
+        store
+            .store("T1", Some(1), "sort", "before", &poisoned, 0.9)
+            .await
+            .unwrap();
+        let got = store.recall("T1", 5).await.unwrap();
+        assert_eq!(got.len(), 1);
+        assert_eq!(got[0].object, "legit", "payload must not roundtrip");
+    }
 
     #[tokio::test]
     async fn roundtrip() {
