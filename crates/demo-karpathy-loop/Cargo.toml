@@ -7,6 +7,7 @@ description = "Task set, scoring, and shared types for the Symbiont Karpathy-loo
 
 [dependencies]
 symbi-runtime = { workspace = true }
+symbi-invis-strip = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 chrono = { workspace = true }
