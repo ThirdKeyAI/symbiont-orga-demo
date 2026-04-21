@@ -51,6 +51,16 @@ pub struct RunRow {
     pub journal_path: Option<String>,
     pub termination_reason: String,
     pub violations_prevented: u32,
+    /// Model identifier this run was priced against (OPENROUTER_MODEL /
+    /// ANTHROPIC_MODEL / ollama tag). Empty for `mock` runs.
+    pub model_id: String,
+    /// Estimated USD cost of this run, computed from the static pricing
+    /// table at record time. Zero for `mock` and local-Ollama.
+    pub est_cost: f64,
+    /// Input / output token split (populated by the cloud provider via
+    /// the usage block). Zero for providers that don't break it down.
+    pub prompt_tokens: u32,
+    pub completion_tokens: u32,
 }
 
 #[derive(Clone)]
@@ -81,11 +91,27 @@ impl Db {
                 total_tokens        INTEGER NOT NULL,
                 journal_path        TEXT,
                 termination_reason  TEXT NOT NULL,
-                violations_prevented INTEGER NOT NULL DEFAULT 0
+                violations_prevented INTEGER NOT NULL DEFAULT 0,
+                model_id            TEXT NOT NULL DEFAULT '',
+                est_cost            REAL NOT NULL DEFAULT 0,
+                prompt_tokens       INTEGER NOT NULL DEFAULT 0,
+                completion_tokens   INTEGER NOT NULL DEFAULT 0
             );
             CREATE INDEX IF NOT EXISTS idx_runs_task ON runs(task_id, run_number, kind);
             "#,
         )?;
+        // Additive migration for databases created before the pricing
+        // columns existed. `ALTER TABLE ADD COLUMN` is a no-op if the
+        // column already exists — wrap each in an Ok()-swallow so it
+        // runs idempotently.
+        for sql in [
+            "ALTER TABLE runs ADD COLUMN model_id TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE runs ADD COLUMN est_cost REAL NOT NULL DEFAULT 0",
+            "ALTER TABLE runs ADD COLUMN prompt_tokens INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE runs ADD COLUMN completion_tokens INTEGER NOT NULL DEFAULT 0",
+        ] {
+            let _ = conn.execute(sql, []);
+        }
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
             path,
@@ -111,14 +137,20 @@ impl Db {
         journal_path: Option<&str>,
         termination_reason: &str,
         violations_prevented: u32,
+        model_id: &str,
+        est_cost: f64,
+        prompt_tokens: u32,
+        completion_tokens: u32,
     ) -> Result<i64> {
         let conn = self.conn.lock().await;
         conn.execute(
             r#"INSERT INTO runs
                (task_id, run_number, kind, started_at, completed_at,
                 score, iterations, total_tokens, journal_path,
-                termination_reason, violations_prevented)
-               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)"#,
+                termination_reason, violations_prevented,
+                model_id, est_cost, prompt_tokens, completion_tokens)
+               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11,
+                       ?12, ?13, ?14, ?15)"#,
             rusqlite::params![
                 task_id,
                 run_number,
@@ -131,6 +163,10 @@ impl Db {
                 journal_path,
                 termination_reason,
                 violations_prevented,
+                model_id,
+                est_cost,
+                prompt_tokens,
+                completion_tokens,
             ],
         )?;
         Ok(conn.last_insert_rowid())
@@ -142,7 +178,8 @@ impl Db {
         let sql = if limit == 0 {
             r#"SELECT run_id, task_id, run_number, kind, started_at, completed_at,
                       score, iterations, total_tokens, journal_path, termination_reason,
-                      violations_prevented
+                      violations_prevented, model_id, est_cost, prompt_tokens,
+                      completion_tokens
                FROM runs
                ORDER BY run_id DESC"#
                 .to_string()
@@ -171,7 +208,8 @@ impl Db {
         let mut stmt = conn.prepare(
             r#"SELECT run_id, task_id, run_number, kind, started_at, completed_at,
                       score, iterations, total_tokens, journal_path, termination_reason,
-                      violations_prevented
+                      violations_prevented, model_id, est_cost, prompt_tokens,
+                      completion_tokens
                FROM runs
                WHERE task_id = ?1 AND kind = ?2
                ORDER BY run_number ASC, run_id ASC"#,
@@ -228,6 +266,14 @@ impl Db {
             termination_reason: row.get("termination_reason")?,
             violations_prevented: row
                 .get::<_, i64>("violations_prevented")
+                .unwrap_or(0) as u32,
+            model_id: row.get::<_, String>("model_id").unwrap_or_default(),
+            est_cost: row.get::<_, f64>("est_cost").unwrap_or(0.0),
+            prompt_tokens: row
+                .get::<_, i64>("prompt_tokens")
+                .unwrap_or(0) as u32,
+            completion_tokens: row
+                .get::<_, i64>("completion_tokens")
                 .unwrap_or(0) as u32,
         })
     }

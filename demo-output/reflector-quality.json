@@ -1,0 +1,1422 @@
+{
+  "per_task": [
+    {
+      "model_tag": "deepseekv31",
+      "task_id": "T1",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        20,
+        5,
+        5
+      ],
+      "tokens": [
+        35706,
+        6992,
+        7002
+      ],
+      "terms": [
+        "max_iterations",
+        "completed",
+        "completed"
+      ],
+      "verdict": "improved",
+      "iter_delta_pct": 75.0,
+      "token_delta_pct": 80.4,
+      "auth_cost_usd": 0.018002470000767795
+    },
+    {
+      "model_tag": "deepseekv31",
+      "task_id": "T2",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        20,
+        4,
+        20
+      ],
+      "tokens": [
+        31500,
+        4767,
+        33421
+      ],
+      "terms": [
+        "max_iterations",
+        "completed",
+        "max_iterations"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -6.1,
+      "auth_cost_usd": 0.021395680001076
+    },
+    {
+      "model_tag": "deepseekv31",
+      "task_id": "T3",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        5,
+        5,
+        4
+      ],
+      "tokens": [
+        6141,
+        6093,
+        4967
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "improved",
+      "iter_delta_pct": 20.0,
+      "token_delta_pct": 19.1,
+      "auth_cost_usd": 0.0084344100003856
+    },
+    {
+      "model_tag": "deepseekv31",
+      "task_id": "T4",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        4,
+        20,
+        20
+      ],
+      "tokens": [
+        3821,
+        35918,
+        36891
+      ],
+      "terms": [
+        "completed",
+        "max_iterations",
+        "max_iterations"
+      ],
+      "verdict": "regressed",
+      "iter_delta_pct": -400.0,
+      "token_delta_pct": -865.5,
+      "auth_cost_usd": 0.021953380002021006
+    },
+    {
+      "model_tag": "gemini25pro",
+      "task_id": "T1",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        5,
+        20,
+        20
+      ],
+      "tokens": [
+        5419,
+        34115,
+        36925
+      ],
+      "terms": [
+        "completed",
+        "max_iterations",
+        "max_iterations"
+      ],
+      "verdict": "regressed",
+      "iter_delta_pct": -300.0,
+      "token_delta_pct": -581.4,
+      "auth_cost_usd": 0.4015187499999999
+    },
+    {
+      "model_tag": "gemini25pro",
+      "task_id": "T2",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        4,
+        0,
+        20
+      ],
+      "tokens": [
+        2940,
+        0,
+        22802
+      ],
+      "terms": [
+        "completed",
+        "timeout",
+        "max_iterations"
+      ],
+      "verdict": "incomplete",
+      "iter_delta_pct": -400.0,
+      "token_delta_pct": -675.6,
+      "auth_cost_usd": 0.15467325
+    },
+    {
+      "model_tag": "gemini25pro",
+      "task_id": "T3",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        8,
+        20,
+        20
+      ],
+      "tokens": [
+        8639,
+        27805,
+        40915
+      ],
+      "terms": [
+        "completed",
+        "max_iterations",
+        "max_iterations"
+      ],
+      "verdict": "regressed",
+      "iter_delta_pct": -150.0,
+      "token_delta_pct": -373.6,
+      "auth_cost_usd": 0.40892974999999976
+    },
+    {
+      "model_tag": "gemini25pro",
+      "task_id": "T4",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        20,
+        20,
+        0
+      ],
+      "tokens": [
+        27833,
+        35527,
+        0
+      ],
+      "terms": [
+        "max_iterations",
+        "max_iterations",
+        "timeout"
+      ],
+      "verdict": "incomplete",
+      "iter_delta_pct": 100.0,
+      "token_delta_pct": 100.0,
+      "auth_cost_usd": 0.2966838750000001
+    },
+    {
+      "model_tag": "gemma4",
+      "task_id": "T1",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        5,
+        5,
+        5
+      ],
+      "tokens": [
+        6105,
+        6460,
+        6460
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -5.8,
+      "auth_cost_usd": null
+    },
+    {
+      "model_tag": "gemma4",
+      "task_id": "T2",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        6,
+        6,
+        6
+      ],
+      "tokens": [
+        5474,
+        6039,
+        6039
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -10.3,
+      "auth_cost_usd": null
+    },
+    {
+      "model_tag": "gemma4",
+      "task_id": "T3",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        7,
+        8,
+        8
+      ],
+      "tokens": [
+        7261,
+        8624,
+        8624
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": -14.3,
+      "token_delta_pct": -18.8,
+      "auth_cost_usd": null
+    },
+    {
+      "model_tag": "gemma4",
+      "task_id": "T4",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        4,
+        4,
+        4
+      ],
+      "tokens": [
+        5329,
+        5220,
+        5220
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": 2.0,
+      "auth_cost_usd": null
+    },
+    {
+      "model_tag": "gpt-oss-20b",
+      "task_id": "T1",
+      "scores": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "iters": [
+        5,
+        7,
+        0
+      ],
+      "tokens": [
+        4654,
+        8624,
+        0
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "timeout"
+      ],
+      "verdict": "incomplete",
+      "iter_delta_pct": 100.0,
+      "token_delta_pct": 100.0,
+      "auth_cost_usd": 0.00138433
+    },
+    {
+      "model_tag": "gpt-oss-20b",
+      "task_id": "T2",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        6,
+        4,
+        4
+      ],
+      "tokens": [
+        4735,
+        2905,
+        2956
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "improved",
+      "iter_delta_pct": 33.3,
+      "token_delta_pct": 37.6,
+      "auth_cost_usd": 0.0007861099999999999
+    },
+    {
+      "model_tag": "gpt-oss-20b",
+      "task_id": "T3",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        3,
+        3,
+        3
+      ],
+      "tokens": [
+        2358,
+        2358,
+        2358
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": 0.0,
+      "auth_cost_usd": 0.00063899
+    },
+    {
+      "model_tag": "gpt-oss-20b",
+      "task_id": "T4",
+      "scores": [
+        0.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        5,
+        4,
+        4
+      ],
+      "tokens": [
+        4717,
+        3926,
+        3689
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "improved",
+      "iter_delta_pct": 20.0,
+      "token_delta_pct": 21.8,
+      "auth_cost_usd": 0.00100806
+    },
+    {
+      "model_tag": "gpt5",
+      "task_id": "T1",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        5,
+        4,
+        4
+      ],
+      "tokens": [
+        6565,
+        5886,
+        4941
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "improved",
+      "iter_delta_pct": 20.0,
+      "token_delta_pct": 24.7,
+      "auth_cost_usd": 0.16435375
+    },
+    {
+      "model_tag": "gpt5",
+      "task_id": "T2",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        4,
+        4,
+        4
+      ],
+      "tokens": [
+        2661,
+        2813,
+        3020
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -13.5,
+      "auth_cost_usd": 0.0655775
+    },
+    {
+      "model_tag": "gpt5",
+      "task_id": "T3",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        3,
+        3,
+        3
+      ],
+      "tokens": [
+        2234,
+        2412,
+        2312
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -3.5,
+      "auth_cost_usd": 0.06682249999999999
+    },
+    {
+      "model_tag": "gpt5",
+      "task_id": "T4",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        4,
+        4,
+        4
+      ],
+      "tokens": [
+        3307,
+        3732,
+        3566
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -7.8,
+      "auth_cost_usd": 0.09594249999999999
+    },
+    {
+      "model_tag": "haiku45",
+      "task_id": "T1",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        5,
+        4,
+        4
+      ],
+      "tokens": [
+        8873,
+        6989,
+        6896
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "improved",
+      "iter_delta_pct": 20.0,
+      "token_delta_pct": 22.3,
+      "auth_cost_usd": 0.040281999999999984
+    },
+    {
+      "model_tag": "haiku45",
+      "task_id": "T2",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        3,
+        3,
+        3
+      ],
+      "tokens": [
+        4447,
+        4467,
+        4559
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -2.5,
+      "auth_cost_usd": 0.029378999999999995
+    },
+    {
+      "model_tag": "haiku45",
+      "task_id": "T3",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        4,
+        4,
+        3
+      ],
+      "tokens": [
+        6560,
+        6628,
+        4746
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "improved",
+      "iter_delta_pct": 25.0,
+      "token_delta_pct": 27.7,
+      "auth_cost_usd": 0.036517
+    },
+    {
+      "model_tag": "haiku45",
+      "task_id": "T4",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        4,
+        4,
+        4
+      ],
+      "tokens": [
+        6925,
+        6561,
+        6628
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": 4.3,
+      "auth_cost_usd": 0.037559
+    },
+    {
+      "model_tag": "mimo-v2-pro",
+      "task_id": "T1",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        6,
+        4,
+        4
+      ],
+      "tokens": [
+        8218,
+        4949,
+        5032
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "improved",
+      "iter_delta_pct": 33.3,
+      "token_delta_pct": 38.8,
+      "auth_cost_usd": 0.0178948
+    },
+    {
+      "model_tag": "mimo-v2-pro",
+      "task_id": "T2",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        4,
+        4,
+        4
+      ],
+      "tokens": [
+        4163,
+        4252,
+        4358
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -4.7,
+      "auth_cost_usd": 0.013394000000000001
+    },
+    {
+      "model_tag": "mimo-v2-pro",
+      "task_id": "T3",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        3,
+        4,
+        3
+      ],
+      "tokens": [
+        3721,
+        4916,
+        3879
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -4.2,
+      "auth_cost_usd": 0.022988599999999994
+    },
+    {
+      "model_tag": "mimo-v2-pro",
+      "task_id": "T4",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        4,
+        4,
+        4
+      ],
+      "tokens": [
+        4969,
+        5063,
+        5059
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -1.8,
+      "auth_cost_usd": 0.0135776
+    },
+    {
+      "model_tag": "minimax-m27",
+      "task_id": "T1",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        5,
+        4,
+        4
+      ],
+      "tokens": [
+        5765,
+        4501,
+        4705
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "improved",
+      "iter_delta_pct": 20.0,
+      "token_delta_pct": 18.4,
+      "auth_cost_usd": 0.005972972
+    },
+    {
+      "model_tag": "minimax-m27",
+      "task_id": "T2",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        4,
+        4,
+        4
+      ],
+      "tokens": [
+        3645,
+        3728,
+        3889
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -6.7,
+      "auth_cost_usd": 0.005304276000000001
+    },
+    {
+      "model_tag": "minimax-m27",
+      "task_id": "T3",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        4,
+        4,
+        4
+      ],
+      "tokens": [
+        4150,
+        4326,
+        4270
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -2.9,
+      "auth_cost_usd": 0.005822592000000001
+    },
+    {
+      "model_tag": "minimax-m27",
+      "task_id": "T4",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        4,
+        5,
+        4
+      ],
+      "tokens": [
+        4618,
+        5605,
+        4486
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": 2.9,
+      "auth_cost_usd": 0.00521016
+    },
+    {
+      "model_tag": "opus",
+      "task_id": "T1",
+      "scores": [
+        0.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        4,
+        4,
+        4
+      ],
+      "tokens": [
+        8608,
+        9053,
+        8793
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "improved",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -2.1,
+      "auth_cost_usd": null
+    },
+    {
+      "model_tag": "opus",
+      "task_id": "T2",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        4,
+        4,
+        4
+      ],
+      "tokens": [
+        7258,
+        7426,
+        7629
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -5.1,
+      "auth_cost_usd": null
+    },
+    {
+      "model_tag": "opus",
+      "task_id": "T3",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        3,
+        3,
+        3
+      ],
+      "tokens": [
+        5879,
+        5886,
+        5953
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -1.3,
+      "auth_cost_usd": null
+    },
+    {
+      "model_tag": "opus",
+      "task_id": "T4",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        4,
+        4,
+        4
+      ],
+      "tokens": [
+        8122,
+        8368,
+        8593
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -5.8,
+      "auth_cost_usd": null
+    },
+    {
+      "model_tag": "qwen3-235b",
+      "task_id": "T1",
+      "scores": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "iters": [
+        5,
+        4,
+        4
+      ],
+      "tokens": [
+        5469,
+        4461,
+        4590
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "improved",
+      "iter_delta_pct": 20.0,
+      "token_delta_pct": 16.1,
+      "auth_cost_usd": 0.0019886770000000003
+    },
+    {
+      "model_tag": "qwen3-235b",
+      "task_id": "T2",
+      "scores": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "iters": [
+        4,
+        4,
+        4
+      ],
+      "tokens": [
+        3597,
+        3694,
+        3850
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -7.0,
+      "auth_cost_usd": 0.0019050960000000002
+    },
+    {
+      "model_tag": "qwen3-235b",
+      "task_id": "T3",
+      "scores": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "iters": [
+        4,
+        4,
+        4
+      ],
+      "tokens": [
+        4011,
+        4156,
+        4284
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -6.8,
+      "auth_cost_usd": 0.0022114450000000007
+    },
+    {
+      "model_tag": "qwen3-235b",
+      "task_id": "T4",
+      "scores": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "iters": [
+        4,
+        4,
+        3
+      ],
+      "tokens": [
+        4357,
+        4367,
+        3239
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "improved",
+      "iter_delta_pct": 25.0,
+      "token_delta_pct": 25.7,
+      "auth_cost_usd": 0.0013764650000000001
+    },
+    {
+      "model_tag": "qwen36-plus",
+      "task_id": "T1",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        5,
+        4,
+        4
+      ],
+      "tokens": [
+        6482,
+        5245,
+        5236
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "improved",
+      "iter_delta_pct": 20.0,
+      "token_delta_pct": 19.2,
+      "auth_cost_usd": 0.014339325000000002
+    },
+    {
+      "model_tag": "qwen36-plus",
+      "task_id": "T2",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        3,
+        3,
+        4
+      ],
+      "tokens": [
+        3301,
+        3364,
+        4552
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "regressed",
+      "iter_delta_pct": -33.3,
+      "token_delta_pct": -37.9,
+      "auth_cost_usd": 0.010674625000000002
+    },
+    {
+      "model_tag": "qwen36-plus",
+      "task_id": "T3",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        3,
+        3,
+        3
+      ],
+      "tokens": [
+        3779,
+        3832,
+        3777
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": 0.1,
+      "auth_cost_usd": 0.009435075
+    },
+    {
+      "model_tag": "qwen36-plus",
+      "task_id": "T4",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        3,
+        3,
+        3
+      ],
+      "tokens": [
+        3902,
+        3947,
+        3972
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -1.8,
+      "auth_cost_usd": 0.013791375
+    },
+    {
+      "model_tag": "sonnet",
+      "task_id": "T1",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        4,
+        4,
+        4
+      ],
+      "tokens": [
+        6591,
+        6454,
+        6553
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": 0.6,
+      "auth_cost_usd": null
+    },
+    {
+      "model_tag": "sonnet",
+      "task_id": "T2",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        3,
+        3,
+        3
+      ],
+      "tokens": [
+        4238,
+        4299,
+        4359
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -2.9,
+      "auth_cost_usd": null
+    },
+    {
+      "model_tag": "sonnet",
+      "task_id": "T3",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        3,
+        3,
+        3
+      ],
+      "tokens": [
+        4799,
+        4971,
+        5036
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "flat",
+      "iter_delta_pct": 0.0,
+      "token_delta_pct": -4.9,
+      "auth_cost_usd": null
+    },
+    {
+      "model_tag": "sonnet",
+      "task_id": "T4",
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "iters": [
+        3,
+        3,
+        4
+      ],
+      "tokens": [
+        4832,
+        5005,
+        6577
+      ],
+      "terms": [
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "verdict": "regressed",
+      "iter_delta_pct": -33.3,
+      "token_delta_pct": -36.1,
+      "auth_cost_usd": null
+    }
+  ],
+  "per_model": {
+    "deepseekv31": {
+      "improved": 2,
+      "flat": 1,
+      "regressed": 1,
+      "incomplete": 0
+    },
+    "gemini25pro": {
+      "improved": 0,
+      "flat": 0,
+      "regressed": 2,
+      "incomplete": 2
+    },
+    "gemma4": {
+      "improved": 0,
+      "flat": 4,
+      "regressed": 0,
+      "incomplete": 0
+    },
+    "gpt-oss-20b": {
+      "improved": 2,
+      "flat": 1,
+      "regressed": 0,
+      "incomplete": 1
+    },
+    "gpt5": {
+      "improved": 1,
+      "flat": 3,
+      "regressed": 0,
+      "incomplete": 0
+    },
+    "haiku45": {
+      "improved": 2,
+      "flat": 2,
+      "regressed": 0,
+      "incomplete": 0
+    },
+    "mimo-v2-pro": {
+      "improved": 1,
+      "flat": 3,
+      "regressed": 0,
+      "incomplete": 0
+    },
+    "minimax-m27": {
+      "improved": 1,
+      "flat": 3,
+      "regressed": 0,
+      "incomplete": 0
+    },
+    "opus": {
+      "improved": 1,
+      "flat": 3,
+      "regressed": 0,
+      "incomplete": 0
+    },
+    "qwen3-235b": {
+      "improved": 2,
+      "flat": 2,
+      "regressed": 0,
+      "incomplete": 0
+    },
+    "qwen36-plus": {
+      "improved": 1,
+      "flat": 2,
+      "regressed": 1,
+      "incomplete": 0
+    },
+    "sonnet": {
+      "improved": 0,
+      "flat": 3,
+      "regressed": 1,
+      "incomplete": 0
+    }
+  }
+}

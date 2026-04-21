@@ -42,6 +42,10 @@ pub struct ReflectorActionExecutor {
     /// prevented" number in the proof artifact — the reflector tried
     /// to call something it shouldn't, and the system stopped it.
     refused_count: Arc<Mutex<u32>>,
+    /// Hard ceiling on successful `store_knowledge` calls per run. The
+    /// default reflector prompt asks for 0–5 procedures; small models
+    /// routinely ignore that cap. 0 means unlimited.
+    store_cap: u32,
 }
 
 impl ReflectorActionExecutor {
@@ -56,7 +60,17 @@ impl ReflectorActionExecutor {
             knowledge,
             stored_count: Arc::new(Mutex::new(0)),
             refused_count: Arc::new(Mutex::new(0)),
+            store_cap: 0,
         }
+    }
+
+    /// Set the per-run cap on successful `store_knowledge` calls. Once
+    /// the counter reaches `cap`, further calls return an error
+    /// observation and are counted as budget refusals. Pass 0 for
+    /// unlimited (legacy behavior).
+    pub fn with_store_cap(mut self, cap: u32) -> Self {
+        self.store_cap = cap;
+        self
     }
 
     /// How many procedures landed in the knowledge store this run.
@@ -140,6 +154,27 @@ impl ReflectorActionExecutor {
             .and_then(|v| v.as_f64())
             .unwrap_or(0.8)
             .clamp(0.0, 1.0);
+
+        // Budget fence. Once we hit the cap, refuse and count as a
+        // refusal so the safety-story tallies include model misbehavior
+        // around verbosity, not just tool-profile violations.
+        if self.store_cap > 0 {
+            let current = *self.stored_count.lock().await;
+            if current >= self.store_cap {
+                *self.refused_count.lock().await += 1;
+                return Some(Observation {
+                    source: "store_knowledge".into(),
+                    content: format!(
+                        "per-run store_knowledge budget exhausted ({} / {}); \
+                         stop calling and return a plain-text summary instead",
+                        current, self.store_cap
+                    ),
+                    is_error: true,
+                    call_id: Some(call_id.clone()),
+                    metadata: Default::default(),
+                });
+            }
+        }
 
         match (subject, predicate, object) {
             (Some(s), Some(p), Some(o)) if !s.is_empty() && !p.is_empty() && !o.is_empty() => {
@@ -244,6 +279,25 @@ mod tests {
         }
         assert_eq!(exec.refused_count().await, 4);
         assert_eq!(exec.stored_count().await, 0);
+    }
+
+    #[tokio::test]
+    async fn store_cap_enforced() {
+        let td = tempfile::tempdir().unwrap();
+        let ks = KnowledgeStore::open(td.path().join("k.db")).unwrap();
+        let exec = ReflectorActionExecutor::new("T1", None, ks).with_store_cap(2);
+        for i in 0..5 {
+            let a = ProposedAction::ToolCall {
+                call_id: format!("c{i}"),
+                name: "store_knowledge".into(),
+                arguments: format!(
+                    r#"{{"subject":"s{i}","predicate":"p","object":"o"}}"#
+                ),
+            };
+            exec.handle_one(&a).await;
+        }
+        assert_eq!(exec.stored_count().await, 2);
+        assert_eq!(exec.refused_count().await, 3);
     }
 
     #[tokio::test]

@@ -2,18 +2,36 @@
 # Full OpenRouter model sweep for the public README.
 #
 # Requires OPENROUTER_API_KEY in .env (or the environment). Each model
-# gets its own data/$tag/runs.db, journals-$tag/, and demo-output
-# artefacts so the existing opus/sonnet/gemma4 results stay intact.
+# gets its own data/$tag{,-adv}/runs.db, journals-$tag{,-adv}/, and
+# demo-output artefacts so other runs stay intact.
 #
 # Usage:
-#   scripts/run-openrouter-sweep.sh              # all 9 models, 3 iters
-#   scripts/run-openrouter-sweep.sh 5            # all 9 models, 5 iters
+#   scripts/run-openrouter-sweep.sh              # all 9, 3 iters, default reflector
+#   scripts/run-openrouter-sweep.sh 5            # all 9, 5 iters
 #   ONLY=gpt5 scripts/run-openrouter-sweep.sh    # one model by tag
+#   ADVERSARIAL=1 scripts/run-openrouter-sweep.sh   # safety sweep (adds -adv suffix)
+#
+# Provider: uses --provider openrouter (the capturing variant), which
+# writes generation_id / upstream provider / authoritative
+# usage.cost per call into journals-$tag/<ts>-<task>-n<NNN>-<kind>-calls.jsonl.
 
 set -euo pipefail
 
 ITERATIONS=${1:-3}
 ONLY=${ONLY:-}
+ADVERSARIAL=${ADVERSARIAL:-0}
+TAG_SUFFIX=""
+EXTRA_FLAGS=()
+if [[ "$ADVERSARIAL" == "1" ]]; then
+    TAG_SUFFIX="-adv"
+    EXTRA_FLAGS+=("--adversarial-reflector")
+fi
+
+# Broadcast trace label shipped on every request so observability
+# dashboards (Langfuse/Helicone/PostHog, wired through OpenRouter
+# Settings → Observability) can pivot on default vs adversarial.
+export OPENROUTER_TRACE_ENV="${OPENROUTER_TRACE_ENV:-v2${TAG_SUFFIX:--default}}"
+export OPENROUTER_USER="${OPENROUTER_USER:-symbiont-karpathy-loop}"
 
 cd "$(dirname "$0")/.."
 
@@ -50,30 +68,32 @@ MODELS=(
 )
 
 for entry in "${MODELS[@]}"; do
-    tag="${entry%%:*}"
+    base_tag="${entry%%:*}"
     model="${entry#*:}"
+    tag="${base_tag}${TAG_SUFFIX}"
 
-    if [[ -n "$ONLY" && "$ONLY" != "$tag" ]]; then
+    if [[ -n "$ONLY" && "$ONLY" != "$base_tag" && "$ONLY" != "$tag" ]]; then
         continue
     fi
 
     echo
     echo "============================================================"
-    echo "  $tag — $model"
+    echo "  $tag — $model ${TAG_SUFFIX:+[adversarial]}"
     echo "============================================================"
 
     mkdir -p "data/$tag" "journals-$tag"
-    rm -f "data/$tag/"*.db "journals-$tag/"*.json
+    rm -f "data/$tag/"*.db "journals-$tag/"*.json "journals-$tag/"*.jsonl
     : > "demo-output/$tag.log"
 
-    # OPENROUTER_MODEL is what LlmClient::from_env() reads for OpenRouter.
+    # --provider openrouter uses our capturing client; it reads
+    # OPENROUTER_API_KEY + OPENROUTER_MODEL from env.
     start=$(date +%s)
     OPENROUTER_MODEL="$model" \
     "$BIN" \
         --db "data/$tag/runs.db" \
         --journals-dir "journals-$tag" \
-        --provider cloud \
-        demo --iterations "$ITERATIONS" \
+        --provider openrouter \
+        demo --iterations "$ITERATIONS" "${EXTRA_FLAGS[@]}" \
         >> "demo-output/$tag.log" 2>&1 || {
             echo "  ! $tag failed (rc=$?), continuing — see demo-output/$tag.log"
             continue

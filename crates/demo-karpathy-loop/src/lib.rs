@@ -19,6 +19,7 @@
 pub mod executor;
 pub mod knowledge;
 pub mod ollama_provider;
+pub mod openrouter_provider;
 pub mod provider;
 pub mod reflector_executor;
 pub mod task;
@@ -26,6 +27,7 @@ pub mod task;
 pub use executor::TaskActionExecutor;
 pub use knowledge::{KnowledgeStore, Procedure};
 pub use ollama_provider::OllamaInferenceProvider;
+pub use openrouter_provider::{CallLog, OpenRouterInferenceProvider};
 pub use provider::MockInferenceProvider;
 pub use reflector_executor::ReflectorActionExecutor;
 pub use task::{ScoreDetail, Task, TaskOutcome};
