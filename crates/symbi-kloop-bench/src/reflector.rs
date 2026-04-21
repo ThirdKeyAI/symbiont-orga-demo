@@ -21,10 +21,11 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use chrono::Utc;
-use demo_karpathy_loop::{ReflectorActionExecutor, Task};
+use demo_karpathy_loop::{openrouter_provider::TraceContext, ReflectorActionExecutor, Task};
 use symbi_runtime::reasoning::circuit_breaker::CircuitBreakerRegistry;
 use symbi_runtime::reasoning::context_manager::DefaultContextManager;
 use symbi_runtime::reasoning::conversation::{Conversation, ConversationMessage};
+use symbi_runtime::reasoning::inference::InferenceProvider;
 use symbi_runtime::reasoning::loop_types::{BufferedJournal, LoopConfig, LoopResult};
 use symbi_runtime::reasoning::policy_bridge::ReasoningPolicyGate;
 use symbi_runtime::reasoning::reasoning_loop::ReasoningLoopRunner;
@@ -57,11 +58,10 @@ pub async fn run_reflector(
 ) -> Result<()> {
     let agent_id = AgentId::new();
 
-    let executor = Arc::new(ReflectorActionExecutor::new(
-        &task.id,
-        Some(learned_at_run_id),
-        ctx.knowledge.clone(),
-    ));
+    let executor = Arc::new(
+        ReflectorActionExecutor::new(&task.id, Some(learned_at_run_id), ctx.knowledge.clone())
+            .with_store_cap(ctx.reflector_store_cap),
+    );
 
     let cedar = NamedPrincipalCedarGate::from_file(
         "reflector",
@@ -75,8 +75,22 @@ pub async fn run_reflector(
     let gate: Arc<dyn ReasoningPolicyGate> = Arc::new(cedar);
 
     let journal = Arc::new(BufferedJournal::new(1_024));
+    let or_handle = ctx.fresh_openrouter_provider();
+    if let Some(h) = &or_handle {
+        h.set_trace_context(TraceContext {
+            task_id: task.id.clone(),
+            run_number: task_result.run_number,
+            role: "reflector".into(),
+            environment: std::env::var("OPENROUTER_TRACE_ENV").unwrap_or_default(),
+        })
+        .await;
+    }
+    let provider_arc: Arc<dyn InferenceProvider> = match &or_handle {
+        Some(h) => h.clone(),
+        None => ctx.fresh_provider(),
+    };
     let runner = ReasoningLoopRunner::builder()
-        .provider(ctx.fresh_provider())
+        .provider(provider_arc)
         .executor(executor.clone())
         .policy_gate(gate)
         .context_manager(Arc::new(DefaultContextManager::default()))
@@ -126,7 +140,7 @@ pub async fn run_reflector(
         max_total_tokens: 20_000,
         timeout: Duration::from_secs(60),
         tool_definitions: vec![ReflectorActionExecutor::tool_definition()],
-        temperature: 0.0,
+        temperature: ctx.temperature,
         ..Default::default()
     };
 
@@ -138,6 +152,25 @@ pub async fn run_reflector(
     let entries = journal.entries().await;
     let journal_path = write_reflector_journal(ctx, task, task_result.run_number, &entries)?;
 
+    // Drain the OpenRouter per-call log, write the sidecar, and tally
+    // authoritative cost (when present) to override static pricing.
+    let mut authoritative_cost: Option<f64> = None;
+    if let Some(h) = &or_handle {
+        let calls = h.drain_calls().await;
+        if !calls.is_empty() {
+            let sum: f64 = calls.iter().map(|c| c.cost_usd).sum();
+            if sum > 0.0 {
+                authoritative_cost = Some(sum);
+            }
+            let _ = ctx.write_calls_sidecar(
+                &task.id,
+                task_result.run_number,
+                "reflect",
+                &calls,
+            );
+        }
+    }
+
     let stored = executor.stored_count().await;
     // "Violations prevented" = Cedar denials + any executor-layer refusals.
     // In practice the executor counter stays at 0 because Cedar sits
@@ -146,6 +179,18 @@ pub async fn run_reflector(
     // vice versa).
     let violations = cedar_denied.load(std::sync::atomic::Ordering::Relaxed)
         + executor.refused_count().await;
+
+    let prompt_tokens = result.total_usage.prompt_tokens;
+    let completion_tokens = result.total_usage.completion_tokens;
+    let (pt, ct) = if prompt_tokens == 0 && completion_tokens == 0
+        && result.total_usage.total_tokens > 0
+    {
+        crate::pricing::split_70_30(result.total_usage.total_tokens)
+    } else {
+        (prompt_tokens, completion_tokens)
+    };
+    let est_cost = authoritative_cost
+        .unwrap_or_else(|| crate::pricing::cost_usd(&ctx.pricing_model_key, pt, ct));
 
     ctx.db
         .record_run(
@@ -164,6 +209,10 @@ pub async fn run_reflector(
             journal_path.as_deref(),
             &describe_termination(&result.termination_reason),
             violations,
+            &ctx.pricing_model_key,
+            est_cost,
+            pt,
+            ct,
         )
         .await?;
 

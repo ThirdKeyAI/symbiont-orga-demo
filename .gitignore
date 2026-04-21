@@ -13,5 +13,11 @@ journals*/
 /demo-output/*-dashboard.txt
 /demo-output/sweep-summary.json
 !/demo-output/.gitkeep
-# Preserve the curated sweep report so it ships in the public repo.
-!/demo-output/MODEL-SWEEP-REPORT.md
+# Preserve the curated sweep reports so they ship in the public repo.
+# The glob matches MODEL-SWEEP-REPORT.md and all versioned successors
+# (MODEL-SWEEP-REPORT-v2.md, ...).
+!/demo-output/MODEL-SWEEP-REPORT*.md
+# Also preserve the machine-readable quality analyses so the repo ships
+# with something a README badge generator can pull from.
+!/demo-output/reflector-quality*.txt
+!/demo-output/reflector-quality*.json
