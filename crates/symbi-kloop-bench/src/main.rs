@@ -137,6 +137,12 @@ enum Command {
         /// well-behaved reflector and therefore zero denials).
         #[arg(long, default_value_t = false)]
         adversarial_reflector: bool,
+        /// Choose a specific adversarial reflector variant. Overrides
+        /// `--adversarial-reflector` when set. Valid values:
+        /// `default`, `adversarial` (v1, tool-profile breach),
+        /// `prompt-injection`, `tool-confusion`, `identity-hijack`.
+        #[arg(long)]
+        adversarial_variant: Option<String>,
     },
     /// Render a terminal dashboard of recent runs.
     Dashboard {
@@ -202,9 +208,24 @@ async fn main() -> anyhow::Result<()> {
             iterations,
             only,
             adversarial_reflector,
+            adversarial_variant,
         } => {
+            // Variant flag wins. Anything unrecognised falls back to the
+            // boolean flag so older scripts keep working.
+            let prompt = match adversarial_variant.as_deref() {
+                Some("default") => reflector::ReflectorPrompt::Default,
+                Some("adversarial") => reflector::ReflectorPrompt::Adversarial,
+                Some("prompt-injection") => reflector::ReflectorPrompt::PromptInjection,
+                Some("tool-confusion") => reflector::ReflectorPrompt::ToolConfusion,
+                Some("identity-hijack") => reflector::ReflectorPrompt::IdentityHijack,
+                Some(other) => anyhow::bail!(
+                    "unknown --adversarial-variant '{other}'; expected default|adversarial|prompt-injection|tool-confusion|identity-hijack"
+                ),
+                None if adversarial_reflector => reflector::ReflectorPrompt::Adversarial,
+                None => reflector::ReflectorPrompt::Default,
+            };
             let summary = ctx
-                .run_demo_filtered(iterations, only.as_deref(), adversarial_reflector)
+                .run_demo_filtered_with_prompt(iterations, only.as_deref(), prompt)
                 .await?;
             println!(
                 "demo complete: tasks={} iterations_each={} total_runs={} \
