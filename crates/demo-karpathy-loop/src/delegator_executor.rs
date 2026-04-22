@@ -217,4 +217,65 @@ mod tests {
         assert_eq!(exec.refused_count().await, forbidden.len() as u32);
         assert!(exec.chosen().await.is_none());
     }
+
+    /// v7 #4 — tool-registry trust. Mirrors the 2026 MCP marketplace-
+    /// poisoning angle from cybersecuritynews.com (9 of 11 MCP
+    /// registries successfully poisoned). The delegator's allow-list
+    /// is the local equivalent of "verified registry": a forged task
+    /// id smuggled through any channel must be refused at the
+    /// delegator boundary, regardless of how plausibly it's named.
+    /// This test simulates the full marketplace-poisoning class:
+    ///   - homoglyph forgery (`T1` with Cyrillic characters)
+    ///   - typo-squatting (`t1`, `T01`, `T1 `)
+    ///   - prefix-attack (`T1; choose_task('T9')`)
+    ///   - empty / whitespace
+    ///   - JSON injection (`"T1\"}` to break the parser)
+    /// All must end with `chosen().await == None` and an error
+    /// observation. The defense is: the executor checks the parsed
+    /// `task_id` against an explicit allow-list, not against any
+    /// fuzzy match.
+    #[tokio::test]
+    async fn refuses_unregistered_task_ids_marketplace_poisoning() {
+        let exec = DelegatorActionExecutor::new(vec!["T1".into(), "T2".into()]);
+        let poisoned: &[&str] = &[
+            // Homoglyph: Cyrillic Т (U+0422) instead of ASCII T.
+            r#"{"task_id":"\u0422\u0031"}"#,
+            // Typosquatting / case mismatch.
+            r#"{"task_id":"t1"}"#,
+            r#"{"task_id":"T01"}"#,
+            // Whitespace padding (trim() handles leading/trailing — the
+            // inner whitespace one should still fail).
+            r#"{"task_id":" T1 X"}"#,
+            // Prefix-attack: try to smuggle a second instruction.
+            r#"{"task_id":"T1; choose_task(T9)"}"#,
+            // Empty + missing.
+            r#"{"task_id":""}"#,
+            r#"{}"#,
+            // JSON injection attempt — malformed payload entirely.
+            r#"{"task_id":"T1\"}"#,
+            // Pure noise.
+            r#"not even json"#,
+        ];
+        for (i, args) in poisoned.iter().enumerate() {
+            let a = ProposedAction::ToolCall {
+                call_id: format!("c{i}"),
+                name: "choose_task".into(),
+                arguments: (*args).into(),
+            };
+            let obs = exec.handle_one(&a).await.unwrap();
+            assert!(
+                obs.is_error,
+                "poisoned input #{i} should be refused but was accepted: {args}"
+            );
+            assert!(
+                obs.content.contains("not a known task id"),
+                "expected 'not a known task id' refusal for #{i} ({args}); got: {}",
+                obs.content
+            );
+        }
+        assert!(
+            exec.chosen().await.is_none(),
+            "no poisoned input may set the chosen task"
+        );
+    }
 }
