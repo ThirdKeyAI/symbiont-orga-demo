@@ -360,12 +360,12 @@ cumulative authoritative cost         :  ≈ $10.55 (v8 sweeps added
    on the actual principal would land it in the headline matrix).
 5. **Backport `sanitize_field_with_markup` + forensic sidecar
    pattern upstream.** The v6 PR that introduced
-   `symbi-invis-strip` is in
-   `git.jascha.madhacker.biz:2222/jascha/symbiont` already. v8
-   adds HTML-comment + Markdown-fence support, plus the
-   forensic-raw-args-sidecar pattern (designed once, useful for
-   any sanitiser-rich agent framework). Same backport work would
-   let the upstream Symbiont runtime adopt both.
+   `symbi-invis-strip` already shipped as a mirror branch in the
+   upstream Symbiont repo. v8 adds HTML-comment + Markdown-fence
+   support, plus the forensic-raw-args-sidecar pattern (designed
+   once, useful for any sanitiser-rich agent framework). Same
+   backport work would let the upstream Symbiont runtime adopt
+   both.
 6. **Audit script: forensic-sidecar consistency check.** Once the
    sidecar is shipped, a CI gate could assert "for every
    `*-reflect-raw-args.jsonl` whose record contains a forbidden
