@@ -28,8 +28,9 @@ pub struct OllamaInferenceProvider {
 
 impl OllamaInferenceProvider {
     /// `base_url` should be the OpenAI-compat root, e.g.
-    /// `http://192.168.0.150:11434/v1`. `model` is the tag Ollama knows
-    /// (see `GET /api/tags`) — e.g. `gemma4:latest`.
+    /// `http://localhost:11434/v1` or `http://<host>:11434/v1` for a
+    /// LAN Ollama. `model` is the tag Ollama knows (see
+    /// `GET /api/tags`) — e.g. `gemma4:latest`.
     pub fn new(base_url: impl Into<String>, model: impl Into<String>) -> Self {
         let http = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(600))
