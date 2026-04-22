@@ -1,0 +1,140 @@
+name: ci
+
+# v7 #5 — turns the v6-shipped tooling into enforcement.
+#
+# Three gates:
+#
+#   1. safety-gates  — pure-Python audit + lint. No Rust toolchain
+#      required, runs in seconds. Catches sanitiser-escapes in any
+#      committed knowledge.db, homoglyph identifiers in any .cedar
+#      policy file, invisible control chars in any policy file.
+#
+#   2. rust-tests    — full cargo test --workspace. Includes the
+#      exhaustive sanitiser fuzz (`sanitize_covers_every_declared_range`,
+#      243 code points × every forbidden range), the new HTML-comment
+#      strip tests, the no-shell-out static guard against MCP-shape
+#      RCE, and the marketplace-poisoning trust-boundary test on the
+#      delegator. Requires a sibling `symbiont/` checkout because the
+#      workspace path-deps on `../symbiont/crates/runtime`.
+#
+#   3. clippy        — `cargo clippy --all-targets -- -D warnings` on
+#      the demo crates only (the upstream runtime emits its own
+#      warnings outside our control).
+#
+# Trigger on push and PR so a sanitiser regression, a homoglyph
+# `Action::"…"` literal, or a process-spawning executor is caught
+# before merge instead of after the next sweep.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  safety-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cedar policy linter (homoglyph + invisible-char fence)
+        run: scripts/lint-cedar-policies.py
+
+      - name: Knowledge-store audit (sanitiser-escape fence)
+        # --strict respects .audit-allowlist (gpt5-ms historical pre-patch
+        # escapes from v5; documented in MODEL-SWEEP-REPORT-v6.md). Any
+        # new tag with escapes — e.g. a regression in a fresh sweep — fails.
+        run: scripts/audit-knowledge-stores.py --strict
+
+  rust-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out this repo (under <parent>/symbiont-karpathy-loop)
+        uses: actions/checkout@v4
+        with:
+          path: symbiont-karpathy-loop
+
+      # The workspace's `Cargo.toml` declares the runtime as
+      # `path = "../symbiont/crates/runtime"`. CI must place the
+      # upstream side-by-side or the build fails on resolve.
+      - name: Check out Symbiont runtime side-by-side
+        uses: actions/checkout@v4
+        with:
+          repository: ThirdKeyAI/symbiont
+          path: symbiont
+          ref: main
+
+      - name: Install Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry + target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            symbiont-karpathy-loop/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('symbiont-karpathy-loop/Cargo.lock') }}
+
+      - name: cargo test --workspace
+        working-directory: symbiont-karpathy-loop
+        run: cargo test --release --workspace
+
+      - name: Targeted — exhaustive sanitiser fuzz must run
+        working-directory: symbiont-karpathy-loop
+        # Belt-and-suspenders against `cargo test --workspace` ever
+        # accidentally filtering this test out (e.g. via a target
+        # selector). The 243-code-point sweep is the central evidence
+        # for the v6 sanitiser claim.
+        run: |
+          cargo test --release --lib -p demo-karpathy-loop \
+              sanitize_covers_every_declared_range -- --nocapture
+
+      - name: Targeted — process-spawn guard must run
+        working-directory: symbiont-karpathy-loop
+        # v7 #3 — proves no executor file imports `Command::new`. The
+        # MCP STDIO RCE class lands here; this gate refuses it pre-merge.
+        run: |
+          cargo test --release --test no_shell_out -p demo-karpathy-loop -- --nocapture
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: symbiont-karpathy-loop
+
+      - uses: actions/checkout@v4
+        with:
+          repository: ThirdKeyAI/symbiont
+          path: symbiont
+          ref: main
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache cargo registry + target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            symbiont-karpathy-loop/target
+          key: clippy-${{ runner.os }}-${{ hashFiles('symbiont-karpathy-loop/Cargo.lock') }}
+
+      - name: clippy on demo crates (upstream warnings excluded)
+        working-directory: symbiont-karpathy-loop
+        run: |
+          cargo clippy --release --all-targets \
+              -p demo-karpathy-loop -p symbi-kloop-bench \
+              -- -D warnings
