@@ -71,11 +71,14 @@ pub async fn render(ctx: &Ctx, limit: usize) -> anyhow::Result<()> {
         let kind = match r.kind {
             RunKind::Task => "task",
             RunKind::Reflect => "reflect",
+            RunKind::Delegate => "delegate",
         };
-        let score = if r.kind == RunKind::Task {
-            format!("{:.2}", r.score)
-        } else {
-            format!("{} stored", r.score as i64)
+        let score = match r.kind {
+            RunKind::Task => format!("{:.2}", r.score),
+            RunKind::Reflect => format!("{} stored", r.score as i64),
+            RunKind::Delegate => {
+                if r.score >= 0.5 { "picked".into() } else { "(none)".into() }
+            }
         };
         let latency_s = (r.completed_at - r.started_at)
             .num_milliseconds()
