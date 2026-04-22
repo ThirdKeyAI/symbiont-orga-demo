@@ -18,6 +18,7 @@
 
 mod dashboard;
 mod db;
+mod delegator;
 mod harness;
 mod mock_scripts;
 mod policy_gate;
@@ -157,9 +158,19 @@ enum Command {
         /// Choose a specific adversarial reflector variant. Overrides
         /// `--adversarial-reflector` when set. Valid values:
         /// `default`, `adversarial` (v1, tool-profile breach),
-        /// `prompt-injection`, `tool-confusion`, `identity-hijack`.
+        /// `prompt-injection`, `tool-confusion`, `identity-hijack`,
+        /// `homoglyph`, `multi-stage`, `ciphered`, `non-english`,
+        /// `paraphrase`, `html-comment-smuggle`, `markdown-fence`.
         #[arg(long)]
         adversarial_variant: Option<String>,
+
+        /// v8 #3 — run the three-principal flow: delegator picks
+        /// which task runs each iteration, then the task agent and
+        /// reflector run as usual. Without this flag the demo
+        /// iterates every loaded task in sorted order (or the one
+        /// passed via `--only`).
+        #[arg(long, default_value_t = false)]
+        with_delegator: bool,
     },
     /// Render a terminal dashboard of recent runs.
     Dashboard {
@@ -239,6 +250,7 @@ async fn main() -> anyhow::Result<()> {
             only,
             adversarial_reflector,
             adversarial_variant,
+            with_delegator,
         } => {
             // Variant flag wins. Anything unrecognised falls back to the
             // boolean flag so older scripts keep working.
@@ -254,17 +266,23 @@ async fn main() -> anyhow::Result<()> {
                 Some("non-english") => reflector::ReflectorPrompt::NonEnglish,
                 Some("paraphrase") => reflector::ReflectorPrompt::Paraphrase,
                 Some("html-comment-smuggle") => reflector::ReflectorPrompt::HtmlCommentSmuggle,
+                Some("markdown-fence") => reflector::ReflectorPrompt::MarkdownFence,
                 Some(other) => anyhow::bail!(
                     "unknown --adversarial-variant '{other}'; expected one of: \
                      default|adversarial|prompt-injection|tool-confusion|identity-hijack|\
-                     homoglyph|multi-stage|ciphered|non-english|paraphrase|html-comment-smuggle"
+                     homoglyph|multi-stage|ciphered|non-english|paraphrase|\
+                     html-comment-smuggle|markdown-fence"
                 ),
                 None if adversarial_reflector => reflector::ReflectorPrompt::Adversarial,
                 None => reflector::ReflectorPrompt::Default,
             };
-            let summary = ctx
-                .run_demo_filtered_with_prompt(iterations, only.as_deref(), prompt)
-                .await?;
+            let summary = if with_delegator {
+                ctx.run_demo_with_delegator(iterations, only.as_deref(), prompt)
+                    .await?
+            } else {
+                ctx.run_demo_filtered_with_prompt(iterations, only.as_deref(), prompt)
+                    .await?
+            };
             println!(
                 "demo complete: tasks={} iterations_each={} total_runs={} \
                  stored_procedures={} policy_violations_prevented={}",

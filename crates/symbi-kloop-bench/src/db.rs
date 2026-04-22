@@ -19,6 +19,10 @@ pub enum RunKind {
     Task,
     /// Reflector's post-task pass that wrote procedures.
     Reflect,
+    /// Delegator pass that picked which task should run next.
+    /// v8 #3 — turns the v6 structural delegator into a behavioural
+    /// component visible in the runs table and the dashboard.
+    Delegate,
 }
 
 impl RunKind {
@@ -26,6 +30,7 @@ impl RunKind {
         match self {
             RunKind::Task => "task",
             RunKind::Reflect => "reflect",
+            RunKind::Delegate => "delegate",
         }
     }
 }
@@ -281,6 +286,7 @@ impl Db {
         let kind_str: String = row.get("kind")?;
         let kind = match kind_str.as_str() {
             "reflect" => RunKind::Reflect,
+            "delegate" => RunKind::Delegate,
             _ => RunKind::Task,
         };
         Ok(RunRow {

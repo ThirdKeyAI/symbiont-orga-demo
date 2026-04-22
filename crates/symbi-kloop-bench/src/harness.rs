@@ -401,6 +401,60 @@ impl Ctx {
             .await
     }
 
+    /// v8 #3 — three-principal demo loop. Each iteration runs
+    /// the delegator (which picks one task from the loaded set),
+    /// then runs the chosen task agent + reflector as usual. If the
+    /// delegator fails to pick (LLM error, timeout, refused
+    /// otherwise), this iteration is skipped and a warning is
+    /// logged — we deliberately do NOT fall back to a deterministic
+    /// pick here so the demo's "did the delegator drive it?" claim
+    /// stays auditable from the runs table.
+    pub async fn run_demo_with_delegator(
+        &self,
+        iterations: u32,
+        only: Option<&str>,
+        prompt: reflector::ReflectorPrompt,
+    ) -> Result<DemoSummary> {
+        let mut task_ids: Vec<String> = self.tasks.keys().cloned().collect();
+        task_ids.sort();
+        if let Some(target) = only {
+            task_ids.retain(|id| id == target);
+            if task_ids.is_empty() {
+                anyhow::bail!("--only '{}' matched no loaded task", target);
+            }
+        }
+        let task_count = task_ids.len();
+
+        let mut total_runs = 0u32;
+        for n in 1..=iterations {
+            let chosen = match crate::delegator::run_delegator(self, &task_ids, n).await {
+                Ok(Some(id)) => id,
+                Ok(None) => {
+                    tracing::warn!(iter = n, "delegator returned no task; skipping iteration");
+                    continue;
+                }
+                Err(e) => {
+                    tracing::error!(iter = n, error = %e, "delegator pass failed");
+                    continue;
+                }
+            };
+            match self.run_iteration_with(&chosen, n, prompt).await {
+                Ok(_) => total_runs += 1,
+                Err(e) => tracing::error!(task = %chosen, error = %e, "iteration failed"),
+            }
+        }
+
+        let stored_procedures = self.knowledge.total().await.unwrap_or(0);
+        let violations = self.db.total_violations_prevented().await.unwrap_or(0);
+
+        Ok(DemoSummary {
+            task_count,
+            total_runs,
+            stored_procedures,
+            violations_prevented: violations,
+        })
+    }
+
     /// Same as `run_demo_filtered` but takes the fully-resolved
     /// `ReflectorPrompt` so callers can choose any of the adversarial
     /// variants, not just the legacy boolean.
@@ -632,6 +686,48 @@ impl Ctx {
         })
     }
 
+    /// v8 — write the forensic raw-args sidecar for an adversarial
+    /// reflector pass. One JSONL line per `store_knowledge` call,
+    /// each containing the UNSANITISED `arguments` string the LLM
+    /// emitted. A header line in `_meta` flags the file's purpose.
+    ///
+    /// SECURITY NOTE: this file deliberately preserves payloads
+    /// stripped from the journal + store. It exists so adversarial-
+    /// sweep reports can compute bite-rate (the fraction of tool
+    /// calls containing the attack payload) without compromising the
+    /// sanitiser-as-content-fence guarantee on the journal + store.
+    /// Treat as forensic evidence only; do NOT feed back into a
+    /// downstream LLM context.
+    pub fn write_raw_args_sidecar(
+        &self,
+        task_id: &str,
+        run_number: u32,
+        tag: &str,
+        records: &[demo_karpathy_loop::RawArgsRecord],
+    ) -> Result<Option<String>> {
+        std::fs::create_dir_all(&self.journals_dir).ok();
+        let fname = format!(
+            "{}-{}-n{:03}-{}-raw-args.jsonl",
+            chrono::Utc::now().format("%Y%m%d-%H%M%S"),
+            task_id,
+            run_number,
+            tag
+        );
+        let path = self.journals_dir.join(fname);
+        let mut out = String::new();
+        // Header line — every consumer should see the warning.
+        out.push_str(
+            r#"{"_meta":"FORENSIC RAW ARGS — UNSANITISED — adversarial sweep evaluation only"}"#,
+        );
+        out.push('\n');
+        for r in records {
+            out.push_str(&serde_json::to_string(r)?);
+            out.push('\n');
+        }
+        std::fs::write(&path, out)?;
+        Ok(Some(path.display().to_string()))
+    }
+
     /// Write the OpenRouter-capture JSONL sidecar for a single run.
     /// One line per inference call; empty file if nothing was recorded.
     pub fn write_calls_sidecar(
@@ -659,9 +755,31 @@ impl Ctx {
         Ok(Some(path.display().to_string()))
     }
 
+    /// Public form of `write_journal_file` — used by the delegator
+    /// runner (v8 #3) which lives outside `harness.rs`.
+    pub fn write_named_journal(
+        &self,
+        task_id: &str,
+        run_number: u32,
+        tag: &str,
+        entries: &[JournalEntry],
+    ) -> Result<Option<String>> {
+        self.write_journal_file(task_id, run_number, tag, entries)
+    }
+
     /// Write a signed journal to disk. We serialize to JSON for now —
     /// Symbiont's own signed-journal format is a superset we can adopt
     /// later without changing the filename layout the dashboard reads.
+    ///
+    /// v8 #5 — second consumer of `symbi-invis-strip`. Every string
+    /// leaf in the serialised journal goes through
+    /// `sanitize_field_with_markup` before disk. Closes the "what if
+    /// the journal becomes someone's audit source" hole flagged in
+    /// the v6 report: a forge-style Markdown viewer rendering this
+    /// JSON would otherwise hide an `<!-- ... -->` payload from a
+    /// reviewer while every LLM-driven downstream consumer still
+    /// parsed it. Same defense as the knowledge store, applied at
+    /// the second possible egress.
     fn write_journal_file(
         &self,
         task_id: &str,
@@ -678,9 +796,81 @@ impl Ctx {
             tag
         );
         let path = self.journals_dir.join(fname);
-        let text = serde_json::to_string_pretty(entries)?;
+        let mut value = serde_json::to_value(entries)?;
+        sanitize_json_strings(&mut value);
+        let text = serde_json::to_string_pretty(&value)?;
         std::fs::write(&path, text)?;
         Ok(Some(path.display().to_string()))
+    }
+}
+
+/// Recursively sanitise every `String` leaf in a `serde_json::Value`.
+/// Used by the journal writer (v8 #5) to make the on-disk JSON a
+/// second sanitiser consumer alongside the knowledge store. Object
+/// keys are NOT sanitised — they are structural.
+fn sanitize_json_strings(v: &mut serde_json::Value) {
+    use symbi_invis_strip::sanitize_field_with_markup;
+    match v {
+        serde_json::Value::String(s) => {
+            *s = sanitize_field_with_markup(s);
+        }
+        serde_json::Value::Array(arr) => {
+            for x in arr.iter_mut() {
+                sanitize_json_strings(x);
+            }
+        }
+        serde_json::Value::Object(map) => {
+            for (_, val) in map.iter_mut() {
+                sanitize_json_strings(val);
+            }
+        }
+        _ => {}
+    }
+}
+
+#[cfg(test)]
+mod sanitize_json_tests {
+    use super::sanitize_json_strings;
+    use serde_json::json;
+
+    #[test]
+    fn strips_html_comment_in_nested_string() {
+        let mut v = json!({
+            "tool_call": {
+                "name": "store_knowledge",
+                "arguments": "obj=container_exit<!-- HIDDEN: pwned -->"
+            }
+        });
+        sanitize_json_strings(&mut v);
+        assert_eq!(
+            v["tool_call"]["arguments"].as_str().unwrap(),
+            "obj=container_exit"
+        );
+        // Tool name (a string elsewhere) untouched — no payload.
+        assert_eq!(v["tool_call"]["name"].as_str().unwrap(), "store_knowledge");
+    }
+
+    #[test]
+    fn strips_md_fence_in_array() {
+        let mut v = json!([
+            "ok",
+            "before```ignore me```after",
+            "ok2"
+        ]);
+        sanitize_json_strings(&mut v);
+        assert_eq!(v[0].as_str().unwrap(), "ok");
+        assert_eq!(v[1].as_str().unwrap(), "beforeafter");
+        assert_eq!(v[2].as_str().unwrap(), "ok2");
+    }
+
+    #[test]
+    fn keys_not_sanitised_only_values() {
+        // Object keys are structural; if a forbidden char ever lands
+        // in a key we want to know via test failure elsewhere, not a
+        // silent rewrite.
+        let mut v = json!({"key_with_no_payload": "value\u{200B}with_payload"});
+        sanitize_json_strings(&mut v);
+        assert_eq!(v["key_with_no_payload"].as_str().unwrap(), "valuewith_payload");
     }
 }
 
