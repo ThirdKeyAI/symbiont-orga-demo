@@ -426,13 +426,12 @@ mod tests {
             sanitize_field_with_markup("call `container_exit` first"),
             "call `container_exit` first"
         );
-        // Two-backtick inline ALSO survives (the strip is strictly
-        // triple-or-more) — chose this trade-off because attackers
-        // who bypass to `` `` blocks lose access to a multi-line
-        // payload, which is the renderer-hides-it angle.
+        // Two-backtick inline ALSO survives — the strip is on
+        // `` ``` `` (three or more in a row); a `` `` `` pair is
+        // legitimate Markdown for inline code containing a backtick.
         assert_eq!(
-            sanitize_field_with_markup("see ``a```b`` for details"),
-            "see ``a```b`` for details"
+            sanitize_field_with_markup("see ``literal``"),
+            "see ``literal``"
         );
     }
 
