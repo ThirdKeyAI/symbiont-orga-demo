@@ -127,7 +127,10 @@ mod tests {
 
     #[test]
     fn computes_cost() {
-        let c = cost_usd("openai/gpt-oss-20b", 70_000, 30_000);
+        // 700k prompt + 300k completion = 1Mtok total, split 70/30 — the
+        // numbers in the assertion read naturally as "0.7 of an Mtok at
+        // the prompt rate plus 0.3 of an Mtok at the completion rate".
+        let c = cost_usd("openai/gpt-oss-20b", 700_000, 300_000);
         assert!((c - (0.7 * 0.03 + 0.3 * 0.14)).abs() < 1e-6);
     }
 }
