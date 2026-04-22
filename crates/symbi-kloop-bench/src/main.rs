@@ -94,8 +94,18 @@ struct Cli {
     /// prompt. Symmetrises the safety sweep: v2/v4 stressed the
     /// reflector's profile-of-one; this tests whether the task
     /// agent's Cedar permit-list holds under equivalent temptation.
+    /// Legacy boolean — use `--task-adversarial-variant` for newer
+    /// shapes.
     #[arg(long, default_value_t = false, global = true)]
     task_adversarial: bool,
+
+    /// Pick a task-agent-side adversarial variant. Overrides
+    /// `--task-adversarial` when set. Valid values: `none` (default),
+    /// `original` (v5 ADVERSARIAL-EVAL block — equivalent to
+    /// `--task-adversarial`), `pr-title-injection` (v7 — mirrors the
+    /// 2026 GitHub-comment PI family from cybersecuritynews.com).
+    #[arg(long, global = true)]
+    task_adversarial_variant: Option<String>,
 
     #[command(subcommand)]
     cmd: Command,
@@ -185,6 +195,18 @@ async fn main() -> anyhow::Result<()> {
     }
     std::fs::create_dir_all(&cli.journals_dir).ok();
 
+    let task_adversarial = match cli.task_adversarial_variant.as_deref() {
+        Some("none") => harness::TaskAdversarialPrompt::None,
+        Some("original") => harness::TaskAdversarialPrompt::Original,
+        Some("pr-title-injection") => harness::TaskAdversarialPrompt::PrTitleInjection,
+        Some(other) => anyhow::bail!(
+            "unknown --task-adversarial-variant '{other}'; expected one of: \
+             none|original|pr-title-injection"
+        ),
+        None if cli.task_adversarial => harness::TaskAdversarialPrompt::Original,
+        None => harness::TaskAdversarialPrompt::None,
+    };
+
     let ctx = harness::Ctx::bootstrap(harness::CtxConfig {
         db_path: cli.db.clone(),
         tasks_dir: cli.tasks_dir.clone(),
@@ -196,7 +218,7 @@ async fn main() -> anyhow::Result<()> {
         temperature: cli.temperature,
         reflector_store_cap: cli.reflector_store_cap,
         no_reflector: cli.no_reflector,
-        task_adversarial: cli.task_adversarial,
+        task_adversarial,
     })
     .await?;
 
@@ -231,10 +253,11 @@ async fn main() -> anyhow::Result<()> {
                 Some("ciphered") => reflector::ReflectorPrompt::Ciphered,
                 Some("non-english") => reflector::ReflectorPrompt::NonEnglish,
                 Some("paraphrase") => reflector::ReflectorPrompt::Paraphrase,
+                Some("html-comment-smuggle") => reflector::ReflectorPrompt::HtmlCommentSmuggle,
                 Some(other) => anyhow::bail!(
                     "unknown --adversarial-variant '{other}'; expected one of: \
                      default|adversarial|prompt-injection|tool-confusion|identity-hijack|\
-                     homoglyph|multi-stage|ciphered|non-english|paraphrase"
+                     homoglyph|multi-stage|ciphered|non-english|paraphrase|html-comment-smuggle"
                 ),
                 None if adversarial_reflector => reflector::ReflectorPrompt::Adversarial,
                 None => reflector::ReflectorPrompt::Default,
