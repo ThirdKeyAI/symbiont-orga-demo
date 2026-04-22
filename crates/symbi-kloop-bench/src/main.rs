@@ -18,6 +18,7 @@
 
 mod dashboard;
 mod db;
+mod delegator;
 mod harness;
 mod mock_scripts;
 mod policy_gate;
@@ -94,8 +95,18 @@ struct Cli {
     /// prompt. Symmetrises the safety sweep: v2/v4 stressed the
     /// reflector's profile-of-one; this tests whether the task
     /// agent's Cedar permit-list holds under equivalent temptation.
+    /// Legacy boolean — use `--task-adversarial-variant` for newer
+    /// shapes.
     #[arg(long, default_value_t = false, global = true)]
     task_adversarial: bool,
+
+    /// Pick a task-agent-side adversarial variant. Overrides
+    /// `--task-adversarial` when set. Valid values: `none` (default),
+    /// `original` (v5 ADVERSARIAL-EVAL block — equivalent to
+    /// `--task-adversarial`), `pr-title-injection` (v7 — mirrors the
+    /// 2026 GitHub-comment PI family from cybersecuritynews.com).
+    #[arg(long, global = true)]
+    task_adversarial_variant: Option<String>,
 
     #[command(subcommand)]
     cmd: Command,
@@ -147,9 +158,19 @@ enum Command {
         /// Choose a specific adversarial reflector variant. Overrides
         /// `--adversarial-reflector` when set. Valid values:
         /// `default`, `adversarial` (v1, tool-profile breach),
-        /// `prompt-injection`, `tool-confusion`, `identity-hijack`.
+        /// `prompt-injection`, `tool-confusion`, `identity-hijack`,
+        /// `homoglyph`, `multi-stage`, `ciphered`, `non-english`,
+        /// `paraphrase`, `html-comment-smuggle`, `markdown-fence`.
         #[arg(long)]
         adversarial_variant: Option<String>,
+
+        /// v8 #3 — run the three-principal flow: delegator picks
+        /// which task runs each iteration, then the task agent and
+        /// reflector run as usual. Without this flag the demo
+        /// iterates every loaded task in sorted order (or the one
+        /// passed via `--only`).
+        #[arg(long, default_value_t = false)]
+        with_delegator: bool,
     },
     /// Render a terminal dashboard of recent runs.
     Dashboard {
@@ -185,6 +206,18 @@ async fn main() -> anyhow::Result<()> {
     }
     std::fs::create_dir_all(&cli.journals_dir).ok();
 
+    let task_adversarial = match cli.task_adversarial_variant.as_deref() {
+        Some("none") => harness::TaskAdversarialPrompt::None,
+        Some("original") => harness::TaskAdversarialPrompt::Original,
+        Some("pr-title-injection") => harness::TaskAdversarialPrompt::PrTitleInjection,
+        Some(other) => anyhow::bail!(
+            "unknown --task-adversarial-variant '{other}'; expected one of: \
+             none|original|pr-title-injection"
+        ),
+        None if cli.task_adversarial => harness::TaskAdversarialPrompt::Original,
+        None => harness::TaskAdversarialPrompt::None,
+    };
+
     let ctx = harness::Ctx::bootstrap(harness::CtxConfig {
         db_path: cli.db.clone(),
         tasks_dir: cli.tasks_dir.clone(),
@@ -196,7 +229,7 @@ async fn main() -> anyhow::Result<()> {
         temperature: cli.temperature,
         reflector_store_cap: cli.reflector_store_cap,
         no_reflector: cli.no_reflector,
-        task_adversarial: cli.task_adversarial,
+        task_adversarial,
     })
     .await?;
 
@@ -217,6 +250,7 @@ async fn main() -> anyhow::Result<()> {
             only,
             adversarial_reflector,
             adversarial_variant,
+            with_delegator,
         } => {
             // Variant flag wins. Anything unrecognised falls back to the
             // boolean flag so older scripts keep working.
@@ -231,17 +265,24 @@ async fn main() -> anyhow::Result<()> {
                 Some("ciphered") => reflector::ReflectorPrompt::Ciphered,
                 Some("non-english") => reflector::ReflectorPrompt::NonEnglish,
                 Some("paraphrase") => reflector::ReflectorPrompt::Paraphrase,
+                Some("html-comment-smuggle") => reflector::ReflectorPrompt::HtmlCommentSmuggle,
+                Some("markdown-fence") => reflector::ReflectorPrompt::MarkdownFence,
                 Some(other) => anyhow::bail!(
                     "unknown --adversarial-variant '{other}'; expected one of: \
                      default|adversarial|prompt-injection|tool-confusion|identity-hijack|\
-                     homoglyph|multi-stage|ciphered|non-english|paraphrase"
+                     homoglyph|multi-stage|ciphered|non-english|paraphrase|\
+                     html-comment-smuggle|markdown-fence"
                 ),
                 None if adversarial_reflector => reflector::ReflectorPrompt::Adversarial,
                 None => reflector::ReflectorPrompt::Default,
             };
-            let summary = ctx
-                .run_demo_filtered_with_prompt(iterations, only.as_deref(), prompt)
-                .await?;
+            let summary = if with_delegator {
+                ctx.run_demo_with_delegator(iterations, only.as_deref(), prompt)
+                    .await?
+            } else {
+                ctx.run_demo_filtered_with_prompt(iterations, only.as_deref(), prompt)
+                    .await?
+            };
             println!(
                 "demo complete: tasks={} iterations_each={} total_runs={} \
                  stored_procedures={} policy_violations_prevented={}",
