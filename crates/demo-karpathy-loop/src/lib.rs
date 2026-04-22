@@ -31,5 +31,5 @@ pub use knowledge::{sanitize_field, KnowledgeStore, Procedure};
 pub use ollama_provider::OllamaInferenceProvider;
 pub use openrouter_provider::{CallLog, OpenRouterInferenceProvider};
 pub use provider::MockInferenceProvider;
-pub use reflector_executor::ReflectorActionExecutor;
+pub use reflector_executor::{RawArgsRecord, ReflectorActionExecutor};
 pub use task::{ScoreDetail, Task, TaskOutcome};
