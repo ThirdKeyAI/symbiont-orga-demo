@@ -138,10 +138,23 @@ pub async fn run_reflector(
 ) -> Result<()> {
     let agent_id = AgentId::new();
 
-    let executor = Arc::new(
-        ReflectorActionExecutor::new(&task.id, Some(learned_at_run_id), ctx.knowledge.clone())
-            .with_store_cap(ctx.reflector_store_cap),
-    );
+    // v8 — wire forensic raw-args capture only on adversarial
+    // sweeps. Default runs incur zero overhead.
+    let raw_capture: Option<Arc<tokio::sync::Mutex<Vec<demo_karpathy_loop::RawArgsRecord>>>> =
+        match prompt {
+            ReflectorPrompt::Default => None,
+            _ => Some(Arc::new(tokio::sync::Mutex::new(Vec::new()))),
+        };
+    let mut exec_builder = ReflectorActionExecutor::new(
+        &task.id,
+        Some(learned_at_run_id),
+        ctx.knowledge.clone(),
+    )
+    .with_store_cap(ctx.reflector_store_cap);
+    if let Some(buf) = &raw_capture {
+        exec_builder = exec_builder.with_raw_args_capture(buf.clone());
+    }
+    let executor = Arc::new(exec_builder);
 
     let cedar = NamedPrincipalCedarGate::from_file(
         "reflector",
@@ -243,6 +256,22 @@ pub async fn run_reflector(
     // v8 #5 — route through the harness's sanitising writer so the
     // reflector journal is also a `symbi-invis-strip` consumer.
     let journal_path = ctx.write_named_journal(&task.id, task_result.run_number, "reflect", &entries)?;
+
+    // v8 — forensic raw-args sidecar (adversarial sweeps only).
+    // Records every store_knowledge call's arguments string BEFORE
+    // sanitisation so the sweep report can compute per-shape
+    // bite-rate. Marked `*-reflect-raw-args.jsonl`; the file's first
+    // line is a header noting the unsanitised nature.
+    if let Some(records) = executor.drain_raw_args().await {
+        if !records.is_empty() {
+            let _ = ctx.write_raw_args_sidecar(
+                &task.id,
+                task_result.run_number,
+                "reflect",
+                &records,
+            );
+        }
+    }
 
     // Drain the OpenRouter per-call log, write the sidecar, and tally
     // authoritative cost (when present) to override static pricing.

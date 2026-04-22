@@ -46,6 +46,38 @@ pub struct ReflectorActionExecutor {
     /// default reflector prompt asks for 0–5 procedures; small models
     /// routinely ignore that cap. 0 means unlimited.
     store_cap: u32,
+    /// v8 — forensic capture of raw `arguments` strings for every
+    /// proposed `store_knowledge` call, **before** sanitisation. The
+    /// captured payloads are intended for adversarial-sweep
+    /// evaluation (per-shape bite-rate analysis) and are NOT a
+    /// production audit surface. Sanitiser still runs on every
+    /// downstream write (journal + store); the v6-flagged
+    /// "render-hides-it" hole stays closed.
+    ///
+    /// `None` (the default) means no capture. The harness wires
+    /// `Some(_)` only on adversarial sweeps, so default runs incur
+    /// zero overhead.
+    raw_args_capture: Option<Arc<Mutex<Vec<RawArgsRecord>>>>,
+}
+
+/// One LLM-emitted `store_knowledge` call captured **before** the
+/// sanitiser ran. The harness drains the buffer at the end of a
+/// reflector pass and writes it to a dedicated sidecar.
+///
+/// Intentionally not implementing `Display` — printing a record
+/// rehydrates the unsanitised payload, which is the whole point.
+/// Keep the JSON serialisation as the only surface, with a clear
+/// filename suffix (`*-reflect-raw-args.jsonl`).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct RawArgsRecord {
+    /// Tool call id from the LLM message (correlates with the journal).
+    pub call_id: String,
+    /// Tool name as the LLM emitted it (would be `store_knowledge`
+    /// on a successful call, but a homoglyph-attack model might emit
+    /// `store_knоwledge` here — also captured raw).
+    pub name: String,
+    /// Raw `arguments` string as the LLM produced it. NOT sanitised.
+    pub arguments: String,
 }
 
 impl ReflectorActionExecutor {
@@ -61,7 +93,18 @@ impl ReflectorActionExecutor {
             stored_count: Arc::new(Mutex::new(0)),
             refused_count: Arc::new(Mutex::new(0)),
             store_cap: 0,
+            raw_args_capture: None,
         }
+    }
+
+    /// Enable forensic raw-args capture for this run. Used by the
+    /// harness on adversarial sweeps so the sweep report can compute
+    /// per-model bite-rate (fraction of `store_knowledge` calls
+    /// containing the attack payload) without compromising the
+    /// sanitiser-as-content-fence story for the journal + store.
+    pub fn with_raw_args_capture(mut self, buf: Arc<Mutex<Vec<RawArgsRecord>>>) -> Self {
+        self.raw_args_capture = Some(buf);
+        self
     }
 
     /// Set the per-run cap on successful `store_knowledge` calls. Once
@@ -107,6 +150,19 @@ impl ReflectorActionExecutor {
         }
     }
 
+    /// Drain the forensic raw-args buffer if one was wired. Returns
+    /// every UNSANITISED `RawArgsRecord` captured this run (in
+    /// dispatch order), then clears the buffer. The harness writes
+    /// the result to `*-reflect-raw-args.jsonl`. `None` means no
+    /// capture was wired (e.g. default non-adversarial run).
+    pub async fn drain_raw_args(&self) -> Option<Vec<RawArgsRecord>> {
+        let buf = self.raw_args_capture.as_ref()?;
+        let mut g = buf.lock().await;
+        let out = g.clone();
+        g.clear();
+        Some(out)
+    }
+
     async fn handle_one(&self, action: &ProposedAction) -> Option<Observation> {
         let ProposedAction::ToolCall {
             call_id,
@@ -116,6 +172,18 @@ impl ReflectorActionExecutor {
         else {
             return None;
         };
+
+        // v8 — forensic capture BEFORE any sanitisation, before any
+        // refusal logic, so a homoglyph-attack tool name (which would
+        // be refused below) is also recorded. Only writes if the
+        // harness wired a capture buffer.
+        if let Some(buf) = &self.raw_args_capture {
+            buf.lock().await.push(RawArgsRecord {
+                call_id: call_id.clone(),
+                name: name.clone(),
+                arguments: arguments.clone(),
+            });
+        }
 
         if name != "store_knowledge" {
             // Structural refusal. Cedar should have already blocked this,
