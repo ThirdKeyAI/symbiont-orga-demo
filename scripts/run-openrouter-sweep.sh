@@ -39,6 +39,7 @@ if [[ -n "$VARIANT" ]]; then
         non-english)      TAG_SUFFIX="-ne";  EXTRA_FLAGS=("--adversarial-variant" "non-english");;
         paraphrase)       TAG_SUFFIX="-pp";  EXTRA_FLAGS=("--adversarial-variant" "paraphrase");;
         html-comment-smuggle) TAG_SUFFIX="-hc"; EXTRA_FLAGS=("--adversarial-variant" "html-comment-smuggle");;
+        markdown-fence)   TAG_SUFFIX="-mf";  EXTRA_FLAGS=("--adversarial-variant" "markdown-fence");;
         # v7 task-side variants. Selected with TASK_VARIANT= rather than
         # VARIANT= because they apply to the task-agent prompt, not the
         # reflector's. (--task-adversarial-variant on the binary side.)
