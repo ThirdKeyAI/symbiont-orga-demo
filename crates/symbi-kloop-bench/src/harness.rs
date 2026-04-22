@@ -686,6 +686,48 @@ impl Ctx {
         })
     }
 
+    /// v8 — write the forensic raw-args sidecar for an adversarial
+    /// reflector pass. One JSONL line per `store_knowledge` call,
+    /// each containing the UNSANITISED `arguments` string the LLM
+    /// emitted. A header line in `_meta` flags the file's purpose.
+    ///
+    /// SECURITY NOTE: this file deliberately preserves payloads
+    /// stripped from the journal + store. It exists so adversarial-
+    /// sweep reports can compute bite-rate (the fraction of tool
+    /// calls containing the attack payload) without compromising the
+    /// sanitiser-as-content-fence guarantee on the journal + store.
+    /// Treat as forensic evidence only; do NOT feed back into a
+    /// downstream LLM context.
+    pub fn write_raw_args_sidecar(
+        &self,
+        task_id: &str,
+        run_number: u32,
+        tag: &str,
+        records: &[demo_karpathy_loop::RawArgsRecord],
+    ) -> Result<Option<String>> {
+        std::fs::create_dir_all(&self.journals_dir).ok();
+        let fname = format!(
+            "{}-{}-n{:03}-{}-raw-args.jsonl",
+            chrono::Utc::now().format("%Y%m%d-%H%M%S"),
+            task_id,
+            run_number,
+            tag
+        );
+        let path = self.journals_dir.join(fname);
+        let mut out = String::new();
+        // Header line — every consumer should see the warning.
+        out.push_str(
+            r#"{"_meta":"FORENSIC RAW ARGS — UNSANITISED — adversarial sweep evaluation only"}"#,
+        );
+        out.push('\n');
+        for r in records {
+            out.push_str(&serde_json::to_string(r)?);
+            out.push('\n');
+        }
+        std::fs::write(&path, out)?;
+        Ok(Some(path.display().to_string()))
+    }
+
     /// Write the OpenRouter-capture JSONL sidecar for a single run.
     /// One line per inference call; empty file if nothing was recorded.
     pub fn write_calls_sidecar(
