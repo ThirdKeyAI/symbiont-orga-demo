@@ -14,9 +14,16 @@ authors = ["Symbiont Karpathy-Loop Demo"]
 license = "Apache-2.0"
 
 [workspace.dependencies]
-# Path-dep on the Symbiont runtime sitting next to this repo on disk.
-# Keeping it as a path dep makes the demo trivial to track against runtime
-# changes; swap to a `git` or `version` dep when cutting a release.
+# `symbi-runtime` is a path-dep on a sibling checkout. To build this
+# repo, clone both repositories side-by-side:
+#
+#     <parent>/
+#       symbiont/                  ← https://github.com/ThirdKeyAI/symbiont
+#       symbiont-orga-demo/        ← this repo
+#
+# CI does the same dual-checkout (`.github/workflows/ci.yml`).
+# Operators who want a single-clone build can swap this dep to a
+# git-dep pinned to a SHA — see CONTRIBUTING.md for the exact line.
 symbi-runtime = { path = "../symbiont/crates/runtime", default-features = false, features = [
     "cloud-llm",
     "orga-adaptive",
