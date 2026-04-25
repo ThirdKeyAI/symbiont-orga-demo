@@ -1,0 +1,2 @@
+[2m2026-04-25T21:47:52.400139Z[0m [33m WARN[0m Reasoning loop timed out after 60s
+demo complete: tasks=5 iterations_each=5 total_runs=25 stored_procedures=45 policy_violations_prevented=0
