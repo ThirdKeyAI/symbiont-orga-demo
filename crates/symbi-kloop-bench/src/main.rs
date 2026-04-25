@@ -62,7 +62,8 @@ struct Cli {
     provider: Provider,
 
     /// Base URL for the Ollama OpenAI-compat endpoint. Only read when
-    /// `--provider ollama`. Example: `http://192.168.0.150:11434/v1`.
+    /// `--provider ollama`. Example: `http://localhost:11434/v1`
+    /// or `http://<host>:11434/v1` for a LAN Ollama.
     #[arg(long, global = true)]
     ollama_url: Option<String>,
 
