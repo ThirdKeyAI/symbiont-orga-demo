@@ -19,7 +19,7 @@ license = "Apache-2.0"
 #
 #     <parent>/
 #       symbiont/                  ← https://github.com/ThirdKeyAI/symbiont
-#       symbiont-karpathy-loop/    ← this repo
+#       symbiont-orga-demo/        ← this repo
 #
 # CI does the same dual-checkout (`.github/workflows/ci.yml`).
 # Operators who want a single-clone build can swap this dep to a
