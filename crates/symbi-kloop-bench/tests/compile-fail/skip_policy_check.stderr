@@ -1,0 +1,18 @@
+error[E0599]: no method named `dispatch_tools` found for struct `AgentLoop<symbi_runtime::reasoning::phases::Reasoning>` in the current scope
+  --> tests/compile-fail/skip_policy_check.rs:28:24
+   |
+28 |     let _ = agent_loop.dispatch_tools(
+   |             -----------^^^^^^^^^^^^^^ method not found in `AgentLoop<symbi_runtime::reasoning::phases::Reasoning>`
+   |
+   = note: the method was found for
+           - `AgentLoop<ToolDispatching>`
+
+warning: unreachable expression
+  --> tests/compile-fail/skip_policy_check.rs:30:9
+   |
+29 |         panic!("unreachable — this line must not type-check"),
+   |         ----------------------------------------------------- any code following this expression is unreachable
+30 |         panic!("unreachable — this line must not type-check"),
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unreachable expression
+   |
+   = note: `#[warn(unreachable_code)]` (part of `#[warn(unused)]`) on by default

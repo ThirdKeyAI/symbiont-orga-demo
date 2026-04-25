@@ -1,0 +1,11 @@
+error[E0382]: use of moved value: `agent_loop.state`
+  --> tests/compile-fail/reuse_after_consumed.rs:30:19
+   |
+19 |     agent_loop: AgentLoop<Reasoning>,
+   |     ---------- move occurs because `agent_loop` has type `AgentLoop<symbi_runtime::reasoning::phases::Reasoning>`, which does not implement the `Copy` trait
+...
+24 |     let _ = agent_loop.produce_output(&*provider, &ctx).await;
+   |             ---------- value moved here
+...
+30 |     let _stolen = agent_loop.state;
+   |                   ^^^^^^^^^^^^^^^^ value used here after move
