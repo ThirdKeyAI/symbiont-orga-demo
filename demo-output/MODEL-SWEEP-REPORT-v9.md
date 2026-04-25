@@ -77,6 +77,13 @@ budget when credentials are present.
 
 ### 1.3 Per-model aggregate (default arm, v9-default)
 
+> ⚠️ **Do not quote latency from this section in the paper.** This
+> table comes from the mock-provider arm (`v9-default`); see §6.1
+> for the real per-model latency / $/run table generated against
+> nine OpenRouter models. The mock arm exists to exercise the
+> aggregation pipeline at scale, not to characterise model
+> performance.
+
 Raw command:
 
 ```
@@ -90,14 +97,25 @@ symbi-kloop-bench --db data/v9-default/runs.db perf --axis model
 
 `model_id` is `unknown` because the mock provider is anonymous in
 this sweep; a real OpenRouter sweep populates it from
-`OPENROUTER_MODEL_TASK` / `OPENROUTER_MODEL_REFLECT`. The task-side
-p50 is 0 ms because the mock provider's response latency is
-dominated by microseconds that floor to 0 in the chrono
-millisecond-resolution diff — the latency column is meaningful
-**only for cloud / Ollama runs** where the provider actually waits
-on a remote model. **The reflector row is genuine**: 6 ms p50 / 8 ms
-p95 is the cost of the sanitiser pass + SQLite insert +
-`BufferedJournal` drain, and it is a real number for the paper.
+`OPENROUTER_MODEL_TASK` / `OPENROUTER_MODEL_REFLECT`.
+
+**Why task-side p50 reads 0 ms while reflect reads 6 ms — and
+why neither number generalises:** the mock provider returns from
+`complete()` in microseconds, so the wall-clock diff between
+`started_at` and `completed_at` floors to 0 ms on the task side
+(chrono RFC-3339 timestamps have millisecond resolution; the run
+genuinely completes in well under 1 ms). The reflect side is not
+a "real model" number either — it is the cost of *the post-loop
+bookkeeping per reflector run*: the sanitiser pass over the
+journal JSON, the rusqlite write of the procedure, the
+`BufferedJournal` drain to disk. That is a real cost (the paper
+*may* cite it as an upper bound on per-reflection overhead from
+sanitisation + storage), but it is **not** a model-latency number
+and it is **not** comparable to the cloud rows in §6.1, which are
+end-to-end including the network round-trip and model inference.
+For any latency claim in the paper, use §6.1 (cloud) and qualify
+the mock figures here as "in-process bookkeeping only" if they
+are cited at all.
 
 ### 1.4 Per-task aggregate (default arm)
 
@@ -143,6 +161,20 @@ The Markdown format above truncates; the CSV emits every column
 `mean_cost_usd`, `total_cost_usd`, `tokens_per_sec`,
 `violations_prevented`) for direct ingest into pandas / R / gnuplot.
 See `demo-output/v9-perf-default-modeltask.csv`.
+
+> ⚠️ The companion `demo-output/v9-perf-default-model.MOCK.json`
+> (renamed from `…model.json` in this revision so the mock origin
+> is unmissable) was dumped from the **mock** v9-default arm — it
+> has the same `unknown` group with `mean_latency_ms = 6.13`
+> (reflect) and `0.0` (task) discussed in §1.3. That JSON is the
+> *aggregator exemplar*, not paper data. For paper plots, use
+> the per-model cloud JSON / CSV files committed under
+> `demo-output/v9/perf-<tag>-{model.json,task.csv}` for the five
+> highest-signal cloud models (`haiku45`, `gpt5`, `gemini25pro`,
+> `deepseekv31`, `minimax-m27`), or regenerate against any
+> `data/<tag>/runs.db`:
+>
+> `symbi-kloop-bench --db data/haiku45/runs.db perf --axis model --format json`
 
 ### 1.7 What the adversarial arm shows (v9-adv)
 
