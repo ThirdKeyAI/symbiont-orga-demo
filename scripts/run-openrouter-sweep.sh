@@ -58,7 +58,7 @@ fi
 # dashboards (Langfuse/Helicone/PostHog, wired through OpenRouter
 # Settings → Observability) can pivot on default vs adversarial.
 export OPENROUTER_TRACE_ENV="${OPENROUTER_TRACE_ENV:-v4${TAG_SUFFIX:--default}}"
-export OPENROUTER_USER="${OPENROUTER_USER:-symbiont-karpathy-loop}"
+export OPENROUTER_USER="${OPENROUTER_USER:-symbiont-orga-demo}"
 
 cd "$(dirname "$0")/.."
 

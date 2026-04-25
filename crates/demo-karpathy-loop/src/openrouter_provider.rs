@@ -166,7 +166,7 @@ impl OpenRouterInferenceProvider {
         // Broadcast trace fields: observability dashboards hooked to
         // OpenRouter pick these up automatically.
         let user = std::env::var("OPENROUTER_USER")
-            .unwrap_or_else(|_| "symbiont-karpathy-loop".into());
+            .unwrap_or_else(|_| "symbiont-orga-demo".into());
         body["user"] = serde_json::Value::String(user);
 
         if let Some(t) = trace {
@@ -255,8 +255,8 @@ impl InferenceProvider for OpenRouterInferenceProvider {
             .header("content-type", "application/json")
             // Referer + X-Title help OpenRouter's dashboard group spend
             // by caller; nothing the demo relies on.
-            .header("HTTP-Referer", "https://github.com/anthropics/symbiont")
-            .header("X-Title", "symbiont-karpathy-loop");
+            .header("HTTP-Referer", "https://github.com/ThirdKeyAI/symbiont-orga-demo")
+            .header("X-Title", "symbiont-orga-demo");
         // Also send session id as a header — OpenRouter accepts it in
         // either place, and headers survive request rewriting that
         // upstream providers sometimes do.

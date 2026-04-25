@@ -11,8 +11,8 @@ issue first.
 ```bash
 mkdir <parent> && cd <parent>
 git clone https://github.com/ThirdKeyAI/symbiont
-git clone https://github.com/ThirdKeyAI/symbiont-karpathy-loop
-cd symbiont-karpathy-loop
+git clone https://github.com/ThirdKeyAI/symbiont-orga-demo
+cd symbiont-orga-demo
 cargo build -j2 --release
 ```
 
