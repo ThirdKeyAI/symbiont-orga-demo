@@ -2,7 +2,7 @@
 //! renderer-hidden markup from strings.
 //!
 //! This crate extracts the [`sanitize_field`] helper used by the
-//! `symbiont-karpathy-loop` demo's knowledge store, packaged as a
+//! `symbiont-orga-demo` knowledge store, packaged as a
 //! standalone zero-dep library for reuse by other agent frameworks
 //! that write user-influenced strings into long-term memory.
 //!

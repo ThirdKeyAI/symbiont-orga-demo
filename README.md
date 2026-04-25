@@ -1,4 +1,4 @@
-# symbiont-karpathy-loop
+# symbiont-orga-demo
 
 A worked example of building autonomous agents on **[Symbiont](https://github.com/ThirdKeyAI/symbiont)** with four properties you can actually audit:
 
@@ -278,10 +278,11 @@ target/release/symbi-kloop-bench --provider openrouter demo --iterations 5 --onl
 
 `OPENROUTER_MODEL` is the single-model shortcut; the per-role vars override it independently. Use `--no-reflector` for a learning-disabled negative control.
 
-## Results — eight curated writeups
+## Results — nine curated writeups
 
 Each sweep report is committed so you can diff over time:
 
+- **[`demo-output/MODEL-SWEEP-REPORT-v9.md`](demo-output/MODEL-SWEEP-REPORT-v9.md)** (v9) — adds a SQL-only `perf` aggregator (per-model latency p50/p95/p99, $/run, pass-rate, Cedar-vs-executor split) and **five trybuild compile-fail proofs** that show the Cedar gate is *type-system-unskippable*: any source that tries to dispatch a tool without going through `AgentLoop<PolicyCheck>` is rejected by rustc with a pinned `.stderr` snapshot. Plus a 9-model cloud sweep — 263 cloud-only adversarial refusals (242 Cedar + 21 executor), 0 escapes, $18.58 spend.
 - **[`demo-output/MODEL-SWEEP-REPORT.md`](demo-output/MODEL-SWEEP-REPORT.md)** (v1) — first 12-model matrix with per-task verdicts, and the 15 numbered improvement suggestions that drove v2 and v3.
 - **[`demo-output/MODEL-SWEEP-REPORT-v2.md`](demo-output/MODEL-SWEEP-REPORT-v2.md)** (v2) — default + adversarial sweep, authoritative cost, budget-cap fence, broadcast trace fields. "50 refusals, 0 escapes" headline.
 - **[`demo-output/MODEL-SWEEP-REPORT-v3.md`](demo-output/MODEL-SWEEP-REPORT-v3.md)** (v3) — T5 task and the cross-pairing matrix. The Karpathy curve fires cleanly under the capable-student + smarter-teacher pairing; doesn't otherwise. Both cases reported.
@@ -339,7 +340,7 @@ This workspace depends on Symbiont via a path dependency on `../symbiont/crates/
 ```
 <parent>/
   symbiont/                  # the Symbiont runtime
-  symbiont-karpathy-loop/    # this repo
+  symbiont-orga-demo/    # this repo
 ```
 
 Adjust the workspace dep in `Cargo.toml` if your layout differs.
