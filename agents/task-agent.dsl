@@ -7,7 +7,7 @@
 
 metadata {
     version "0.2.0"
-    author "symbiont-karpathy-loop"
+    author "symbiont-orga-demo"
     description "Solves a single benchmark task per invocation, reading any procedures the reflector previously wrote."
 }
 
