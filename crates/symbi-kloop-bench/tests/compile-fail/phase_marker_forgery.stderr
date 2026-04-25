@@ -1,0 +1,7 @@
+error: cannot construct `AgentLoop<Observing>` with struct literal syntax due to private fields
+  --> tests/compile-fail/phase_marker_forgery.rs:25:13
+   |
+25 |     let _ = AgentLoop::<Observing> {
+   |             ^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: ...and other private fields `phase_data` and `_phase` that were not provided
