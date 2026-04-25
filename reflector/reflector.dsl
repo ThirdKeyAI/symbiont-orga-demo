@@ -12,7 +12,7 @@
 
 metadata {
     version "0.1.0"
-    author "symbiont-karpathy-loop"
+    author "symbiont-orga-demo"
     description "Observes one task run and records at most five procedures for the next run of the same task."
 }
 
