@@ -148,8 +148,7 @@ Open on this repo:
 - **PR #1** — Extract sanitiser as `symbi-invis-strip` crate
   https://github.com/ThirdKeyAI/symbiont-karpathy-loop/pull/1
 
-Mirror branches pushed to the Symbiont upstream
-(`git.jascha.madhacker.biz:2222/jascha/symbiont`) for your forge's
+Mirror branches pushed to the Symbiont upstream for the upstream
 PR flow:
 
 - `feat/cedar-lint` — Cedar linter as `scripts/lint-cedar-policies.py`
