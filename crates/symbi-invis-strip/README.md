@@ -8,7 +8,7 @@ Zero dependencies. One public function. `no_std`-compatible in practice (uses on
 
 LLM agents that write to long-term memory are a ready channel for prompt injection. A reflector or planner can emit an innocent-looking `(subject, predicate, object)` triple whose `object` field contains zero-width characters, bidi overrides, the Unicode Tag block, or ASCII controls. Those payloads survive the roundtrip into storage and resurface when the **next** agent reads the store — turning the knowledge store into an instruction surface.
 
-This crate is the sanitiser extracted from [`symbiont-karpathy-loop`](https://github.com/ThirdKeyAI/symbiont-karpathy-loop) (v6), where it caught real attacks:
+This crate is the sanitiser extracted from [`symbiont-orga-demo`](https://github.com/ThirdKeyAI/symbiont-orga-demo) (v6), where it caught real attacks:
 
 - Multiple frontier models in a 9-model adversarial sweep attempted to smuggle payloads via `U+200B` (zero-width space) and the Unicode Tag block.
 - **GPT-5 was caught using `U+007F` (DEL)** as an inter-word separator in stored triples — an attack surface the original filter missed. The gap was closed and ships in this crate.
@@ -70,7 +70,7 @@ Legitimate printable content — ASCII printables, CJK, Cyrillic, diacritics, em
 
 ## Sync
 
-The upstream [`symbiont-karpathy-loop`](https://github.com/ThirdKeyAI/symbiont-karpathy-loop) repo mirrors the forbidden-range list in two Python scripts (`scripts/audit-knowledge-stores.py`, `scripts/lint-cedar-policies.py`). If you vend this crate inside a larger system, keep any companion scripts in sync with this table.
+The upstream [`symbiont-orga-demo`](https://github.com/ThirdKeyAI/symbiont-orga-demo) repo mirrors the forbidden-range list in two Python scripts (`scripts/audit-knowledge-stores.py`, `scripts/lint-cedar-policies.py`). If you vend this crate inside a larger system, keep any companion scripts in sync with this table.
 
 ## Licence
 

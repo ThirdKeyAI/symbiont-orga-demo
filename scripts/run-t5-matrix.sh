@@ -40,7 +40,7 @@ if [[ ! -x "$BIN" ]]; then
 fi
 
 # Broadcast trace labels so observability dashboards can split by arm.
-export OPENROUTER_USER="${OPENROUTER_USER:-symbiont-karpathy-loop}"
+export OPENROUTER_USER="${OPENROUTER_USER:-symbiont-orga-demo}"
 
 # Arm spec: `<arm_tag>:<reflector_model_or_empty>` — empty means
 # pass --no-reflector (no learning signal). Task agent is always
