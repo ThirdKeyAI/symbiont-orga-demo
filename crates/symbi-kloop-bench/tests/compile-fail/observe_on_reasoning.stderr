@@ -1,0 +1,8 @@
+error[E0599]: no method named `observe_results` found for struct `AgentLoop<symbi_runtime::reasoning::phases::Reasoning>` in the current scope
+  --> tests/compile-fail/observe_on_reasoning.rs:31:24
+   |
+31 |     let _ = agent_loop.observe_results();
+   |                        ^^^^^^^^^^^^^^^ method not found in `AgentLoop<symbi_runtime::reasoning::phases::Reasoning>`
+   |
+   = note: the method was found for
+           - `AgentLoop<Observing>`

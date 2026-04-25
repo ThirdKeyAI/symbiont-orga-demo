@@ -165,6 +165,8 @@ pub async fn run_reflector(
     // object. The gate's Arc is consumed by the runner, so we rely on the
     // counter's own `Arc<AtomicU32>` to read it back after the run.
     let cedar_denied = cedar.denied_counter();
+    // v10 — same pattern for the latency histogram.
+    let (gate_calls, gate_ns_total, gate_ns_max) = cedar.latency_counters();
     let gate: Arc<dyn ReasoningPolicyGate> = Arc::new(cedar);
 
     let journal = Arc::new(BufferedJournal::new(1_024));
@@ -247,6 +249,14 @@ pub async fn run_reflector(
         ..Default::default()
     };
 
+    // v10 — reset the process-wide sanitiser counters so the
+    // sidecar drained below reflects only this reflector run. The
+    // reflector is the most sanitiser-heavy principal in the demo
+    // (every store_knowledge call goes through the strip + the
+    // journal writer also strips every JSON string leaf), so the
+    // numbers here are the most paper-relevant.
+    symbi_invis_strip::metrics::reset();
+
     let started_at = Utc::now();
     let result: LoopResult = runner.run(agent_id, conv, config).await;
     let completed_at = Utc::now();
@@ -256,6 +266,17 @@ pub async fn run_reflector(
     // v8 #5 — route through the harness's sanitising writer so the
     // reflector journal is also a `symbi-invis-strip` consumer.
     let journal_path = ctx.write_named_journal(&task.id, task_result.run_number, "reflect", &entries)?;
+
+    // v10 — drain the sanitiser metrics into a per-run sidecar
+    // (one JSON file per reflector run alongside the existing
+    // raw-args / call sidecars).
+    let sanitiser_snap = symbi_invis_strip::metrics::snapshot();
+    let _ = ctx.write_sanitiser_metrics_sidecar(
+        &task.id,
+        task_result.run_number,
+        "reflect",
+        sanitiser_snap,
+    );
 
     // v8 — forensic raw-args sidecar (adversarial sweeps only).
     // Records every store_knowledge call's arguments string BEFORE
@@ -338,6 +359,9 @@ pub async fn run_reflector(
             ct,
             cedar_n,
             executor_n,
+            gate_calls.load(std::sync::atomic::Ordering::Relaxed),
+            gate_ns_total.load(std::sync::atomic::Ordering::Relaxed),
+            gate_ns_max.load(std::sync::atomic::Ordering::Relaxed),
         )
         .await?;
 

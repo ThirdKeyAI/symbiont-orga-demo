@@ -53,6 +53,9 @@ pub struct CtxConfig {
     /// the task_agent principal). Symmetrises the safety story —
     /// v2/v4 stressed only the reflector.
     pub task_adversarial: TaskAdversarialPrompt,
+    /// v10 — inject a hidden directive into every tool-result the
+    /// task agent reads. See `--tool-result-injection`.
+    pub tool_result_injection: bool,
 }
 
 /// Which task-agent-side adversarial prompt to apply, if any.
@@ -115,6 +118,8 @@ pub struct Ctx {
     pub no_reflector: bool,
     /// Which task-agent-side adversarial prompt to apply (see v5/v7).
     pub task_adversarial: TaskAdversarialPrompt,
+    /// v10 — inject a hidden directive into every tool-result.
+    pub tool_result_injection: bool,
     /// Model id tag, used for per-model pricing lookup. Populated from
     /// env (`ANTHROPIC_MODEL` / `OPENROUTER_MODEL`) so the `est_cost`
     /// column stays accurate without plumbing the provider's model()
@@ -244,6 +249,7 @@ impl Ctx {
             reflector_store_cap: cfg.reflector_store_cap,
             no_reflector: cfg.no_reflector,
             task_adversarial: cfg.task_adversarial,
+            tool_result_injection: cfg.tool_result_injection,
             pricing_model_key,
             provider_source,
         })
@@ -504,9 +510,17 @@ impl Ctx {
         // this UUID is just for correlation in the journal.
         let agent_id = AgentId::new();
 
-        // Build executor + tool defs specific to the task.
+        // Build executor + tool defs specific to the task. v10:
+        // route through the injection-aware register so the
+        // tool-result-injection variant can wrap every successful
+        // tool result with the hidden-directive block before the
+        // observation reaches the LLM.
         let mut executor = TaskActionExecutor::new(&task.id, self.knowledge.clone());
-        let task_tool_defs = task_tools::register_for_task(task, &mut executor)?;
+        let task_tool_defs = task_tools::register_for_task_with_injection(
+            task,
+            &mut executor,
+            self.tool_result_injection,
+        )?;
         let executor = Arc::new(executor);
 
         // Cedar gate for the task agent. Capture the denial counter so
@@ -520,6 +534,11 @@ impl Ctx {
         )
         .with_context(|| "load task-agent.cedar")?;
         let cedar_denied = cedar.denied_counter();
+        // v10 — capture the latency counters before the gate is wrapped
+        // in an Arc<dyn ReasoningPolicyGate>. The shared Arc<AtomicU*>
+        // handles let us drain the histogram after the loop finishes
+        // without reaching back through the dyn trait.
+        let (gate_calls, gate_ns_total, gate_ns_max) = cedar.latency_counters();
         let gate: Arc<dyn ReasoningPolicyGate> = Arc::new(cedar);
 
         let journal = Arc::new(BufferedJournal::new(4_096));
@@ -587,6 +606,13 @@ impl Ctx {
             ..Default::default()
         };
 
+        // v10 — zero the sanitiser counters so the per-run sidecar
+        // reflects only this run's work. The counters are
+        // process-wide, so this also serialises with any other
+        // sanitiser caller, but the demo runs one iteration at a
+        // time so there's no contention in practice.
+        symbi_invis_strip::metrics::reset();
+
         let started_at = Utc::now();
         let result: LoopResult = runner.run(agent_id, conv, config).await;
         let completed_at = Utc::now();
@@ -594,6 +620,19 @@ impl Ctx {
         // Persist the journal to disk for replay.
         let entries = journal.entries().await;
         let journal_path = self.write_journal_file(&task.id, n, "task", &entries)?;
+
+        // v10 — drain the sanitiser metrics into a per-run sidecar.
+        // This snapshot covers every sanitiser call made during the
+        // run: knowledge-store writes (none for the task agent
+        // itself, but the journal writer also calls the sanitiser
+        // on every JSON string leaf via `write_journal_file`).
+        let sanitiser_snap = symbi_invis_strip::metrics::snapshot();
+        let _ = self.write_sanitiser_metrics_sidecar(
+            &task.id,
+            n,
+            "task",
+            sanitiser_snap,
+        );
 
         // Drain OpenRouter's per-call log (generation_id, authoritative
         // cost, upstream provider, latency) into a JSONL sidecar so a
@@ -669,6 +708,9 @@ impl Ctx {
                 ct,
                 cedar_denied.load(std::sync::atomic::Ordering::Relaxed),
                 0,
+                gate_calls.load(std::sync::atomic::Ordering::Relaxed),
+                gate_ns_total.load(std::sync::atomic::Ordering::Relaxed),
+                gate_ns_max.load(std::sync::atomic::Ordering::Relaxed),
             )
             .await?;
 
@@ -684,6 +726,48 @@ impl Ctx {
             journal_path,
             tool_trace,
         })
+    }
+
+    /// v10 — write the sanitiser-metrics sidecar for one run. Reads
+    /// the process-wide `symbi_invis_strip::metrics` counters and
+    /// emits a single-line JSON blob: calls / bytes_in /
+    /// bytes_stripped / ns_total. The harness must call
+    /// `metrics::reset()` *before* the run starts so the counters
+    /// reflect only that run's work.
+    pub fn write_sanitiser_metrics_sidecar(
+        &self,
+        task_id: &str,
+        run_number: u32,
+        tag: &str,
+        snap: symbi_invis_strip::metrics::Snapshot,
+    ) -> Result<Option<String>> {
+        std::fs::create_dir_all(&self.journals_dir).ok();
+        let fname = format!(
+            "{}-{}-n{:03}-{}-sanitiser.json",
+            chrono::Utc::now().format("%Y%m%d-%H%M%S"),
+            task_id,
+            run_number,
+            tag
+        );
+        let path = self.journals_dir.join(fname);
+        let body = serde_json::json!({
+            "calls": snap.calls,
+            "bytes_in": snap.bytes_in,
+            "bytes_stripped": snap.bytes_stripped,
+            "ns_total": snap.ns_total,
+            "mean_ns_per_call": if snap.calls > 0 {
+                snap.ns_total as f64 / snap.calls as f64
+            } else {
+                0.0
+            },
+            "mean_bytes_in_per_call": if snap.calls > 0 {
+                snap.bytes_in as f64 / snap.calls as f64
+            } else {
+                0.0
+            },
+        });
+        std::fs::write(&path, serde_json::to_string_pretty(&body)?)?;
+        Ok(Some(path.display().to_string()))
     }
 
     /// v8 — write the forensic raw-args sidecar for an adversarial

@@ -63,6 +63,7 @@ pub async fn run_delegator(
     )
     .with_context(|| "load delegator.cedar")?;
     let cedar_denied = cedar.denied_counter();
+    let (gate_calls, gate_ns_total, gate_ns_max) = cedar.latency_counters();
     let gate: Arc<dyn ReasoningPolicyGate> = Arc::new(cedar);
 
     let journal = Arc::new(BufferedJournal::new(512));
@@ -178,6 +179,9 @@ pub async fn run_delegator(
             ct,
             cedar_n,
             executor_n,
+            gate_calls.load(std::sync::atomic::Ordering::Relaxed),
+            gate_ns_total.load(std::sync::atomic::Ordering::Relaxed),
+            gate_ns_max.load(std::sync::atomic::Ordering::Relaxed),
         )
         .await?;
 

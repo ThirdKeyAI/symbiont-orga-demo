@@ -14,8 +14,9 @@
 
 use std::path::Path;
 use std::str::FromStr;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::Instant;
 
 use async_trait::async_trait;
 use cedar_policy::{
@@ -38,6 +39,19 @@ pub struct NamedPrincipalCedarGate {
     policies: PolicySet,
     allowed_count: Arc<AtomicU32>,
     denied_count: Arc<AtomicU32>,
+    /// v10 — Cedar gate latency instrumentation. The pair
+    /// `(call_count, ns_total)` lets the harness compute mean
+    /// per-call gate latency without any further runtime dep, and
+    /// `ns_max` lets the report cite a worst-case figure. Updated
+    /// inside `evaluate()` with `Instant::now()` spans, so the
+    /// numbers reflect *only* the Cedar authoriser's work
+    /// (request build + `Authorizer::is_authorized` call), not
+    /// the LLM's wall time. Atomics are `Relaxed` because every
+    /// call site is a single-shot accumulator with no
+    /// happens-before contract on the histogram itself.
+    gate_calls: Arc<AtomicU32>,
+    gate_ns_total: Arc<AtomicU64>,
+    gate_ns_max: Arc<AtomicU64>,
 }
 
 impl NamedPrincipalCedarGate {
@@ -65,7 +79,22 @@ impl NamedPrincipalCedarGate {
             policies,
             allowed_count: Arc::new(AtomicU32::new(0)),
             denied_count: Arc::new(AtomicU32::new(0)),
+            gate_calls: Arc::new(AtomicU32::new(0)),
+            gate_ns_total: Arc::new(AtomicU64::new(0)),
+            gate_ns_max: Arc::new(AtomicU64::new(0)),
         })
+    }
+
+    /// v10 — shared handles to the latency counters. Same
+    /// drain-after-handoff pattern as `denied_counter`. Used by
+    /// the harness to fold per-run gate latency into the runs
+    /// table.
+    pub fn latency_counters(&self) -> (Arc<AtomicU32>, Arc<AtomicU64>, Arc<AtomicU64>) {
+        (
+            self.gate_calls.clone(),
+            self.gate_ns_total.clone(),
+            self.gate_ns_max.clone(),
+        )
     }
 
     /// Shared counter handle. Clone-and-read-at-end: the runner owns an
@@ -113,6 +142,33 @@ impl NamedPrincipalCedarGate {
     /// trait method so the implementation is easy to unit-test without
     /// spinning a runtime.
     pub fn evaluate(&self, action: &ProposedAction) -> LoopDecision {
+        let started = Instant::now();
+        let result = self.evaluate_inner(action);
+        // Histogram bookkeeping. We measure *the gate's own work*: build
+        // the cedar request + run the authoriser. Excluded: time the
+        // executor takes to dispatch the approved action, time the LLM
+        // takes to produce the next message — both happen elsewhere.
+        // `gate_ns_max` is the only field that needs a CAS loop; the
+        // others are `fetch_add(Relaxed)`.
+        let elapsed_ns = started.elapsed().as_nanos() as u64;
+        self.gate_calls.fetch_add(1, Ordering::Relaxed);
+        self.gate_ns_total.fetch_add(elapsed_ns, Ordering::Relaxed);
+        let mut prev = self.gate_ns_max.load(Ordering::Relaxed);
+        while elapsed_ns > prev {
+            match self.gate_ns_max.compare_exchange_weak(
+                prev,
+                elapsed_ns,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => break,
+                Err(actual) => prev = actual,
+            }
+        }
+        result
+    }
+
+    fn evaluate_inner(&self, action: &ProposedAction) -> LoopDecision {
         let Some(principal) = self.principal_uid() else {
             return LoopDecision::Deny {
                 reason: format!(
@@ -232,5 +288,37 @@ mod tests {
             content: "done".into(),
         };
         matches!(gate.evaluate(&action), LoopDecision::Allow);
+    }
+
+    #[test]
+    fn latency_counters_tick_on_every_evaluation() {
+        // v10 — every call to `evaluate()` (allow or deny) must
+        // increment `gate_calls` and add to `gate_ns_total`. This
+        // is the precondition for the per-run mean / p* numbers
+        // the v10 perf aggregator surfaces.
+        let gate = NamedPrincipalCedarGate::from_source("reflector", reflector_policy()).unwrap();
+        let (calls, ns_total, ns_max) = gate.latency_counters();
+        assert_eq!(calls.load(Ordering::Relaxed), 0);
+        assert_eq!(ns_total.load(Ordering::Relaxed), 0);
+
+        let allow_action = ProposedAction::ToolCall {
+            call_id: "c1".into(),
+            name: "store_knowledge".into(),
+            arguments: "{}".into(),
+        };
+        let deny_action = ProposedAction::ToolCall {
+            call_id: "c2".into(),
+            name: "exfiltrate".into(),
+            arguments: "{}".into(),
+        };
+        let _ = gate.evaluate(&allow_action);
+        let _ = gate.evaluate(&deny_action);
+        let _ = gate.evaluate(&allow_action);
+
+        assert_eq!(calls.load(Ordering::Relaxed), 3);
+        assert!(ns_total.load(Ordering::Relaxed) > 0);
+        assert!(ns_max.load(Ordering::Relaxed) > 0);
+        // ns_max must dominate any single-call timing.
+        assert!(ns_max.load(Ordering::Relaxed) <= ns_total.load(Ordering::Relaxed));
     }
 }
