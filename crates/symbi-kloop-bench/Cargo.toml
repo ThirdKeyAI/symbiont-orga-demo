@@ -31,3 +31,9 @@ uuid = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"
+# v9 — compile-fail proofs for the AgentLoop<Phase> typestate. `trybuild`
+# invokes rustc on each file under `tests/compile-fail/` and asserts the
+# error matches a checked-in `.stderr` snapshot. This is what turns the
+# "typestate prevents skipping the policy check" claim from a runtime
+# observation (460 Cedar refusals) into a compile-time proof.
+trybuild = "1"
