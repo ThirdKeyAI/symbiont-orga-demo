@@ -139,8 +139,15 @@ def main(argv: list[str]) -> int:
     else:
         paths = sorted(root.glob("data/*/knowledge.db"))
     if not paths:
-        print("no knowledge.db files found")
-        return 2
+        # Vacuously clean — there is nothing to audit. This is the
+        # normal state on a fresh clone (the `data/` tree is
+        # gitignored) and on CI runs that don't pre-populate sweep
+        # databases. Treat as PASS rather than FAIL: the audit
+        # script's contract is "if any escape lives in storage,
+        # fail" — no storage means no escape. Returning 2 here would
+        # break every CI run that didn't first run a sweep.
+        print("no knowledge.db files found — nothing to audit (PASS)")
+        return 0
 
     allowlist = load_allowlist(root) if strict else set()
 
