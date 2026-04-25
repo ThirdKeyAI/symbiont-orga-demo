@@ -63,15 +63,18 @@ jobs:
         with:
           path: symbiont-karpathy-loop
 
-      # The workspace's `Cargo.toml` declares the runtime as
+      # `Cargo.toml` declares the runtime as
       # `path = "../symbiont/crates/runtime"`. CI must place the
-      # upstream side-by-side or the build fails on resolve.
+      # upstream side-by-side or the build fails on resolve. We pin
+      # to a specific Symbiont SHA in the public-release branch so a
+      # main-branch refactor in the runtime cannot break this CI
+      # without a deliberate bump here.
       - name: Check out Symbiont runtime side-by-side
         uses: actions/checkout@v4
         with:
           repository: ThirdKeyAI/symbiont
           path: symbiont
-          ref: main
+          ref: cbddea16e787fbb9562a24a7cc69ed011769acb4
 
       - name: Install Rust toolchain (stable)
         uses: dtolnay/rust-toolchain@stable
@@ -106,6 +109,17 @@ jobs:
         run: |
           cargo test --release --test no_shell_out -p demo-karpathy-loop -- --nocapture
 
+      - name: Targeted — typestate compile-fail proofs (v9 §2)
+        working-directory: symbiont-karpathy-loop
+        # Belt-and-suspenders against a refactor that weakens
+        # AgentLoop<Phase> from a typestate to a runtime check. Each
+        # of the five files under tests/compile-fail/ asserts a
+        # specific illegal phase transition is rejected by rustc with
+        # the expected error code (E0599 / E0382 / E0603).
+        run: |
+          cargo test --release -p symbi-kloop-bench \
+              --test typestate_compile_fail -- --nocapture
+
   clippy:
     runs-on: ubuntu-latest
     steps:
@@ -117,7 +131,7 @@ jobs:
         with:
           repository: ThirdKeyAI/symbiont
           path: symbiont
-          ref: main
+          ref: cbddea16e787fbb9562a24a7cc69ed011769acb4
 
       - uses: dtolnay/rust-toolchain@stable
         with:

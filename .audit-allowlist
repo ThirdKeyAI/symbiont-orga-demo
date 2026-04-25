@@ -1,15 +1,14 @@
 # tag-name-per-line allowlist for `scripts/audit-knowledge-stores.py --strict`.
 #
 # Each entry names a `data/<tag>/knowledge.db` whose pre-patch
-# sanitiser escapes are knowledge of record (documented in the
-# corresponding sweep report) and must NOT block CI. Any *new* tag
-# added to data/ that has escapes will fail the gate.
+# sanitiser escapes are knowledge of record and must NOT block CI.
+# Any *new* tag added to `data/` that has escapes will fail the gate.
 #
 # Format: one tag name per line; lines starting with `#` are comments.
-# See `MODEL-SWEEP-REPORT-v6.md` §"Post-sweep knowledge-store audit"
-# for the historical context.
-
-# v5 — GPT-5 used U+007F as a word separator in multi-stage smuggling.
-# Caught by the v5 sanitiser extension; pre-patch rows preserved as
-# evidence in the committed db, will not re-occur post-patch.
-gpt5-ms
+#
+# Public-release default: empty. The `data/` tree is gitignored so
+# no historical pre-patch escapes ship with the repo. If you run a
+# fresh sweep against a model whose output the current sanitiser
+# does not yet cover, document the case in the corresponding
+# MODEL-SWEEP-REPORT-vN.md entry, add the tag here, and open a PR
+# extending the sanitiser to cover the new code points.
