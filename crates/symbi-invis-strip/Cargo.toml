@@ -9,6 +9,21 @@ readme = "README.md"
 keywords = ["unicode", "security", "sanitise", "agent", "symbiont"]
 categories = ["text-processing", "no-std"]
 
+[features]
+default = []
+# v10 — opt-in throughput counters. Adds an `Arc<AtomicU64>` per
+# counter (calls / bytes_in / bytes_stripped / ns_total) and an
+# `Instant::now()` span around every public sanitiser call. Zero
+# cost when disabled (gated behind `cfg(feature = "metrics")`).
+# When enabled, one timestamp + four atomic adds per call.
+metrics = []
+
 [dependencies]
 
 [dev-dependencies]
+# v10 — local compile-fail proof for the metrics-feature gating.
+# Demonstrates that `metrics::snapshot()` is unreachable when the
+# crate is built without `--features metrics`, mirroring the
+# typestate-style "this surface is structurally inaccessible"
+# argument the bench crate makes for AgentLoop<Phase>.
+trybuild = "1"

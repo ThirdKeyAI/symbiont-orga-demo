@@ -1,0 +1,13 @@
+error[E0433]: cannot find `metrics` in `symbi_invis_strip`
+ --> tests/compile-fail/metrics_without_feature.rs:7:32
+  |
+7 |     let _ = symbi_invis_strip::metrics::snapshot();
+  |                                ^^^^^^^ could not find `metrics` in `symbi_invis_strip`
+  |
+note: found an item that was configured out
+ --> src/lib.rs
+  |
+  | #[cfg(feature = "metrics")]
+  |       ------------------- the item is gated behind the `metrics` feature
+  | pub mod metrics {
+  |         ^^^^^^^

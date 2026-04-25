@@ -32,8 +32,11 @@ symbi-runtime = { path = "../symbiont/crates/runtime", default-features = false,
 
 # Sanitiser crate — extracted in v6 so any Symbiont-adjacent agent
 # framework with a knowledge-store / long-term-memory surface can reuse
-# the same forbidden-range table without copying it.
-symbi-invis-strip = { path = "crates/symbi-invis-strip" }
+# the same forbidden-range table without copying it. v10 enables the
+# `metrics` feature so the harness can drain throughput counters per
+# run; the feature is opt-in at the crate level so external consumers
+# of the library default to zero overhead.
+symbi-invis-strip = { path = "crates/symbi-invis-strip", features = ["metrics"] }
 
 anyhow = "1"
 async-trait = "0.1"
