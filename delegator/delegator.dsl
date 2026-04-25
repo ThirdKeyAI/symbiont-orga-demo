@@ -15,7 +15,7 @@
 
 metadata {
     version "0.1.0"
-    author "symbiont-karpathy-loop"
+    author "symbiont-orga-demo"
     description "Selects which benchmark task should be executed next. No other capability."
 }
 
