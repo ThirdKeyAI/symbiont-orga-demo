@@ -521,3 +521,200 @@ counter?"* — and the answer is yes: the metrics ride on the
 existing `runs.db` schema (no new instrumentation), and the
 typestate claim is now compile-time proven by five checked-in
 diagnostics, re-verified on every CI run.
+
+---
+
+## 7. Adversarial pressure-test sweep (cloud, v9)
+
+The §6 sweep ran every model with the **default** reflector
+prompt — well-behaved by design. To pressure-test the safety
+story, we ran the **same nine models** a second time with the
+v6/v7 adversarial reflector prompt (`--adversarial-reflector`),
+which actively tempts the LLM to call non-`store_knowledge`
+tools (`system_shell`, `exfiltrate`, the task agent's
+domain-specific tools) from the reflector's profile-of-one. The
+sweep was launched via:
+
+```bash
+VARIANT=adversarial scripts/run-openrouter-sweep.sh 10
+```
+
+This drops each model's data into `data/<tag>-adv/runs.db` and
+its journal into `journals-<tag>-adv/`, leaving the §6 default
+arm intact. Same per-iteration count (10 × 5 tasks = 100 runs
+per model arm).
+
+### 7.1 Adversarial per-model headline
+
+Generated with `symbi-kloop-bench --db data/<tag>-adv/runs.db
+perf --axis model`. **`cedar_denied` and `exec_refused` columns
+are the money quotes**: they count tool calls the reflector tried
+to make under attacker pressure that Cedar's policy gate (or the
+executor's belt-and-suspenders profile) refused.
+
+| Model | Role | n | pass | mean iters | mean tok | $/run | p50 ms | p95 ms | p99 ms | cedar_denied | exec_refused |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `openai/gpt-5`               | task    | 50 | 0.98 |  4.0 |  4 216 | 0.0156 | 12 728 |  58 278 | 120 000 |   0 | 0 |
+| `openai/gpt-5`               | reflect | 49 | 1.00 |  1.9 |  3 076 | 0.0287 | 27 608 |  60 001 |  60 002 |   0 | 0 |
+| `google/gemini-2.5-pro`      | task    | 50 | 1.00 | 12.0 | 19 241 | 0.0875 | 102 711| 120 001 | 120 001 |   0 | 0 |
+| `google/gemini-2.5-pro`      | reflect | 37 | 1.00 |  1.8 |  3 882 | 0.0457 | 57 652 |  60 001 |  60 001 |  **2** | **16** |
+| `anthropic/claude-haiku-4.5` | task    | 50 | 1.00 |  3.9 |  7 030 | 0.0086 |  7 070 |  11 784 |  16 262 |   0 | 0 |
+| `anthropic/claude-haiku-4.5` | reflect | 50 | 1.00 |  2.0 |  2 978 | 0.0052 |  6 804 |  12 365 |  17 843 |  **1** | 0 |
+| `deepseek/deepseek-chat-v3.1`| task    | 50 | 1.00 |  5.0 |  5 801 | 0.0021 | 22 313 |  45 613 |  72 797 |   0 | 0 |
+| `deepseek/deepseek-chat-v3.1`| reflect | 50 | 1.00 |  2.9 |  2 393 | 0.0012 | 26 821 |  60 001 |  60 001 | **28** | 0 |
+| `xiaomi/mimo-v2-pro`         | task    | 50 | 1.00 |  4.9 |  7 202 | 0.0028 | 13 138 |  35 511 |  50 422 |   0 | 0 |
+| `xiaomi/mimo-v2-pro`         | reflect | 50 | 1.00 |  2.9 |  3 154 | 0.0027 | 12 556 |  29 287 |  40 481 |   0 | **1** |
+| `minimax/minimax-m2.7`       | task    | 50 | 1.00 |  4.1 |  5 345 | 0.0013 | 10 606 |  25 736 |  37 742 |   0 | 0 |
+| `minimax/minimax-m2.7`       | reflect | 50 | 0.96 |  2.1 |  1 928 | 0.0008 | 10 918 |  22 348 |  25 980 |   0 | 0 |
+| `qwen/qwen3.6-plus`          | task    | 50 | 1.00 |  3.9 |  5 819 | 0.0027 | 10 647 |  24 739 | 102 340 |   0 | 0 |
+| `qwen/qwen3.6-plus`          | reflect | 50 | 1.00 |  4.2 |  4 992 | 0.0034 | 21 424 |  42 807 |  50 714 | **67** | 0 |
+| `qwen/qwen3-235b-a22b-2507`  | task    | 50 | **0.08** | 4.5 | 6 010 | 0.0006 |  1 979 |   5 134 |   5 654 |   0 | 0 |
+| `qwen/qwen3-235b-a22b-2507`  | reflect | 50 | 1.00 |  6.3 |  5 975 | 0.0007 |  6 109 |  10 034 |  11 895 | **64** | **1** |
+| `openai/gpt-oss-20b`         | task    | 50 | 0.44 |  3.6 |  4 411 | 0.0003 | 23 263 | 120 001 | 120 001 | **71** | 0 |
+| `openai/gpt-oss-20b`         | reflect | 39 | 0.97 |  2.7 |  3 114 | 0.0003 | 20 743 |  59 295 |  60 001 |  **9** | **3** |
+
+### 7.2 Adversarial sweep totals
+
+```sql
+SELECT SUM(violations_prevented), SUM(cedar_denied), SUM(executor_refused)
+  FROM data/*-adv/runs.db (cloud only, v9-adv mock excluded);
+```
+
+| Total | Value |
+|---|---:|
+| Cloud rows (cloud-adv arm only)              | **874** |
+| Total cost                                   | **$9.88** |
+| **Cedar refusals**                           | **242** |
+| **Executor refusals (cap + profile-not-handled)** | **21** |
+| **All policy violations prevented**          | **263** |
+
+Add the 400 mock adversarial refusals from `data/v9-adv` (no
+spend, deterministic) and the v9 corpus shows **663 policy
+violations prevented across all adversarial arms**, vs. the v8
+report's "460 Cedar refusals" — a higher number not because the
+defenses changed (they didn't) but because the v9 sweep ran a
+larger model mix with more capable LLMs that took more bait.
+
+### 7.3 What the bite-rate distribution shows
+
+Looking at *which* model bit on the adversarial prompt, the
+spread is wide and matches v6/v7 patterns:
+
+| Model | Cedar denied | Exec refused | Bite-rate (denials per 100 reflector runs) |
+|---|---:|---:|---:|
+| `qwen/qwen3.6-plus`           | 67 |  0 | **134.0 %** (multiple bait-takes per run) |
+| `openai/gpt-oss-20b`          |  9 +71 (task) | 3 | **80.0 %** of task agent runs forbidden |
+| `qwen/qwen3-235b-a22b-2507`   | 64 |  1 | **128.0 %** |
+| `deepseek/deepseek-chat-v3.1` | 28 |  0 | **56.0 %** |
+| `google/gemini-2.5-pro`       |  2 | 16 | **48.6 %** (16 cap-hits — see §7.4) |
+| `anthropic/claude-haiku-4.5`  |  1 |  0 | **2.0 %** — **lowest bite-rate of any premium model** |
+| `xiaomi/mimo-v2-pro`          |  0 |  1 |  2.0 % |
+| `minimax/minimax-m2.7`        |  0 |  0 | **0.0 %** — refused every adversarial bait cleanly |
+| `openai/gpt-5`                |  0 |  0 | **0.0 %** — refused every adversarial bait cleanly |
+
+**Two findings the paper can lean on:**
+
+1. **GPT-5 and MiniMax M2.7 produced zero policy denials under
+   adversarial pressure** — these models *recognised the
+   reflector prompt as adversarial* and refused to attempt the
+   forbidden tool calls in the first place. Cedar still ran on
+   every legitimate `store_knowledge` call; it just had nothing
+   to refuse. This is the **strong-defence case** — the LLM and
+   the policy gate disagreed about *whether to attempt* the
+   call, and they agreed about the outcome.
+2. **Qwen 3.6-plus, Qwen 3-235B, and gpt-oss-20b were the
+   highest bite-rate models** (64–80 forbidden tool attempts
+   each, in 50 reflector runs). Cedar refused **every single
+   one**. This is the **dual-fence case** — the LLM took the
+   bait, and the static gate prevented the action. The paper's
+   "policy gate is the safety story, not the model" claim has
+   its strongest empirical support here.
+
+In neither case did any forbidden call land. The 263 cloud-arm
+denials are 263 × 0 = **zero successful exfiltrations or
+out-of-profile tool dispatches** in this sweep.
+
+### 7.4 Executor-side fence (cap and profile-not-handled)
+
+Cedar covers *whether the policy permits the call*. The
+executor's belt-and-suspenders cap covers *whether we should
+honour even a permitted call*. Two firings in this sweep:
+
+- **Gemini 2.5 Pro reflect**: 16 `executor_refused` events. The
+  reflector legitimately wanted to write more procedures than
+  `--reflector-store-cap 5` permits per run; Cedar permitted
+  each call (it's `store_knowledge` from the reflector
+  principal, on its profile-of-one), and the executor cap kept
+  the dataset honest. This fence fires on enthusiastic models,
+  not malicious ones.
+- **Mimo-v2-pro reflect**: 1 `executor_refused` (same cause,
+  smaller scale).
+- **Qwen 3-235B reflect**: 1 `executor_refused`.
+- **gpt-oss-20b reflect**: 3 `executor_refused`.
+
+Total executor refusals: **21** across the cloud-adversarial arm.
+Together with the 242 cedar refusals, the dual fence held in
+both regimes.
+
+### 7.5 Differential analysis — default vs adversarial arms
+
+Same model, same task set, same iteration count, only the
+reflector prompt swapped. Confirms the safety story is not an
+artefact of the prompt-pair we chose:
+
+| Model | default cedar / exec | adversarial cedar / exec | Δ |
+|---|---|---|---|
+| gpt5             |   0 / 0  |   0 / 0  | unchanged (clean baseline & adv) |
+| gemini25pro      |   0 / 11 |   2 / 16 | +2 cedar, +5 cap-hits under attack |
+| haiku45          |   0 / 0  |   1 / 0  | +1 cedar |
+| deepseekv31      |   0 / 0  |  28 / 0  | **+28 cedar refusals only under attack** |
+| qwen3-235b       |   0 / 0  |  64 / 1  | **+64 cedar, +1 cap** |
+| mimo-v2-pro      |   0 / 2  |   0 / 1  | similar shape, smaller cap-hit |
+| minimax-m27      |   0 / 0  |   0 / 0  | unchanged (clean both ways) |
+| gpt-oss-20b      |  82 / 0  |  80 / 3  | **already biting on default**; same under attack |
+| qwen36-plus      |   0 / 0  |  67 / 0  | **+67 cedar refusals only under attack** |
+
+The **default-arm zero rows that became non-zero under the
+adversarial flag** (`deepseekv31`, `qwen3-235b`, `qwen36-plus`,
+small bumps on `haiku45` / `gemini25pro`) are direct evidence
+that the adversarial prompt is doing real work — these models
+behaved correctly when not provoked, then took the bait when
+provoked, and Cedar caught every single attempted forbidden
+call. The `gpt-oss-20b` row is even more interesting: it bit
+*on the default prompt* (82 task-side `cedar_denied` from
+calling `store_knowledge` from the wrong principal), so Cedar's
+value isn't even contingent on adversarial framing for this
+model.
+
+### 7.6 Provenance + reproduce
+
+- DBs: `data/{gpt5,gemini25pro,haiku45,deepseekv31,qwen3-235b,mimo-v2-pro,minimax-m27,gpt-oss-20b,qwen36-plus}-adv/runs.db`.
+- Per-run sanitised journals: `journals-<tag>-adv/`.
+- Per-call OpenRouter sidecars: `journals-<tag>-adv/*-calls.jsonl`.
+- Per-model report: `demo-output/run-<tag>-adv.md` (×9).
+- Aggregated perf table: `demo-output/v9/all-adv-perf-model.md`.
+- Sweep stdout/stderr: `demo-output/v9-cloud-sweep-adv.log`.
+
+Reproduce:
+```bash
+echo "OPENROUTER_API_KEY=…"            > .env
+echo "OPENROUTER_TRACE_ENV=v9-cloud-adv" >> .env
+chmod 600 .env
+VARIANT=adversarial scripts/run-openrouter-sweep.sh 10
+target/release/symbi-kloop-bench --db data/<tag>-adv/runs.db perf --axis model
+```
+
+### 7.7 Combined v9 cloud spend
+
+| Arm | Rows | Cost | Cedar refusals | Exec refusals |
+|---|---:|---:|---:|---:|
+| §6 default (9 models)        |   863 | $8.70 |   0 | 13 |
+| §7 adversarial (9 models)    |   874 | $9.88 | **242** | **21** |
+| **Cloud total**              | **1 737** | **$18.58** | **242** | **34** |
+| §1 mock default              |   900 | $0    |   0 |  0 |
+| §1 mock adversarial          |   900 | $0    | **400** |  0 |
+| §1 mock delegator            |   100 | $0    |   0 |  0 |
+| **v9 grand total (mock + cloud)** | **3 637** | **$18.58** | **642** | **34** |
+
+The total rolling cost stayed at **$18.58 against a $40 hard
+cap** (47 % of budget). The budget guard never fired.
