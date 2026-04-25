@@ -1,0 +1,19 @@
+warning: unreachable statement
+  --> tests/compile-fail/observe_before_dispatch.rs:30:5
+   |
+26 |     let _fake: AgentLoop<PolicyCheck> = panic!("cannot be constructed by outside code");
+   |                                         ----------------------------------------------- any code following this expression is unreachable
+...
+30 |     let _ = _fake.observe_results();
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unreachable statement
+   |
+   = note: `#[warn(unreachable_code)]` (part of `#[warn(unused)]`) on by default
+
+error[E0599]: no method named `observe_results` found for struct `AgentLoop<PolicyCheck>` in the current scope
+  --> tests/compile-fail/observe_before_dispatch.rs:30:19
+   |
+30 |     let _ = _fake.observe_results();
+   |                   ^^^^^^^^^^^^^^^ method not found in `AgentLoop<PolicyCheck>`
+   |
+   = note: the method was found for
+           - `AgentLoop<Observing>`

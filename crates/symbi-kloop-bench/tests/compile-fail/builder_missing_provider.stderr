@@ -1,0 +1,8 @@
+error[E0599]: no method named `build` found for struct `ReasoningLoopRunnerBuilder<(), ()>` in the current scope
+  --> tests/compile-fail/builder_missing_provider.rs:18:44
+   |
+18 |     let _ = ReasoningLoopRunner::builder().build();
+   |                                            ^^^^^ method not found in `ReasoningLoopRunnerBuilder<(), ()>`
+   |
+   = note: the method was found for
+           - `ReasoningLoopRunnerBuilder<Arc<(dyn InferenceProvider + 'static)>, Arc<(dyn ActionExecutor + 'static)>>`

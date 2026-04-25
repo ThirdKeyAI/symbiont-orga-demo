@@ -21,6 +21,7 @@ mod db;
 mod delegator;
 mod harness;
 mod mock_scripts;
+mod perf;
 mod policy_gate;
 mod pricing;
 mod reflector;
@@ -185,6 +186,19 @@ enum Command {
         #[arg(long, default_value = "demo-output/run-latest.md")]
         out: PathBuf,
     },
+    /// v9 — performance aggregates over the runs table.
+    ///
+    /// Consumes the same SQLite schema used by `dashboard` and `report`
+    /// and emits per-group latency / tokens / cost / pass-rate numbers.
+    /// Pure read-only SQL; safe to run against any historical runs.db.
+    Perf {
+        /// Aggregation axis: `model`, `task`, `model-task`, or `termination`.
+        #[arg(long, default_value = "model")]
+        axis: String,
+        /// Output format: `md` (default), `csv`, or `json`.
+        #[arg(long, default_value = "md")]
+        format: String,
+    },
 }
 
 fn init_tracing() {
@@ -206,6 +220,17 @@ async fn main() -> anyhow::Result<()> {
         std::fs::create_dir_all(parent).ok();
     }
     std::fs::create_dir_all(&cli.journals_dir).ok();
+
+    // `perf` is a pure read-only SQL aggregation over an existing
+    // runs.db. It doesn't need tasks / policies / provider loaded, and
+    // bootstrap would fail when pointed at a db whose companion
+    // tasks/policies dirs no longer exist (common for paper-archive
+    // databases). Short-circuit before the full bootstrap runs.
+    if let Command::Perf { axis, format } = &cli.cmd {
+        let axis = perf::PerfAxis::parse(axis)?;
+        let fmt = perf::PerfFormat::parse(format)?;
+        return perf::run(&cli.db, axis, fmt);
+    }
 
     let task_adversarial = match cli.task_adversarial_variant.as_deref() {
         Some("none") => harness::TaskAdversarialPrompt::None,
@@ -301,6 +326,7 @@ async fn main() -> anyhow::Result<()> {
             report::write(&ctx, &out).await?;
             println!("wrote {}", out.display());
         }
+        Command::Perf { .. } => unreachable!("handled before bootstrap"),
     }
 
     Ok(())
