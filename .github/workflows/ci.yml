@@ -58,20 +58,23 @@ jobs:
   rust-tests:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out this repo (under <parent>/symbiont-karpathy-loop)
+      - name: Check out this repo (under <parent>/symbiont-orga-demo)
         uses: actions/checkout@v4
         with:
-          path: symbiont-karpathy-loop
+          path: symbiont-orga-demo
 
-      # The workspace's `Cargo.toml` declares the runtime as
+      # `Cargo.toml` declares the runtime as
       # `path = "../symbiont/crates/runtime"`. CI must place the
-      # upstream side-by-side or the build fails on resolve.
+      # upstream side-by-side or the build fails on resolve. We pin
+      # to a specific Symbiont SHA in the public-release branch so a
+      # main-branch refactor in the runtime cannot break this CI
+      # without a deliberate bump here.
       - name: Check out Symbiont runtime side-by-side
         uses: actions/checkout@v4
         with:
           repository: ThirdKeyAI/symbiont
           path: symbiont
-          ref: main
+          ref: cbddea16e787fbb9562a24a7cc69ed011769acb4
 
       - name: Install Rust toolchain (stable)
         uses: dtolnay/rust-toolchain@stable
@@ -82,15 +85,15 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            symbiont-karpathy-loop/target
-          key: cargo-${{ runner.os }}-${{ hashFiles('symbiont-karpathy-loop/Cargo.lock') }}
+            symbiont-orga-demo/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('symbiont-orga-demo/Cargo.lock') }}
 
       - name: cargo test --workspace
-        working-directory: symbiont-karpathy-loop
+        working-directory: symbiont-orga-demo
         run: cargo test --release --workspace
 
       - name: Targeted — exhaustive sanitiser fuzz must run
-        working-directory: symbiont-karpathy-loop
+        working-directory: symbiont-orga-demo
         # Belt-and-suspenders against `cargo test --workspace` ever
         # accidentally filtering this test out (e.g. via a target
         # selector). The 243-code-point sweep is the central evidence
@@ -100,24 +103,35 @@ jobs:
               sanitize_covers_every_declared_range -- --nocapture
 
       - name: Targeted — process-spawn guard must run
-        working-directory: symbiont-karpathy-loop
+        working-directory: symbiont-orga-demo
         # v7 #3 — proves no executor file imports `Command::new`. The
         # MCP STDIO RCE class lands here; this gate refuses it pre-merge.
         run: |
           cargo test --release --test no_shell_out -p demo-karpathy-loop -- --nocapture
+
+      - name: Targeted — typestate compile-fail proofs (v9 §2)
+        working-directory: symbiont-orga-demo
+        # Belt-and-suspenders against a refactor that weakens
+        # AgentLoop<Phase> from a typestate to a runtime check. Each
+        # of the five files under tests/compile-fail/ asserts a
+        # specific illegal phase transition is rejected by rustc with
+        # the expected error code (E0599 / E0382 / E0603).
+        run: |
+          cargo test --release -p symbi-kloop-bench \
+              --test typestate_compile_fail -- --nocapture
 
   clippy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          path: symbiont-karpathy-loop
+          path: symbiont-orga-demo
 
       - uses: actions/checkout@v4
         with:
           repository: ThirdKeyAI/symbiont
           path: symbiont
-          ref: main
+          ref: cbddea16e787fbb9562a24a7cc69ed011769acb4
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -129,11 +143,11 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            symbiont-karpathy-loop/target
-          key: clippy-${{ runner.os }}-${{ hashFiles('symbiont-karpathy-loop/Cargo.lock') }}
+            symbiont-orga-demo/target
+          key: clippy-${{ runner.os }}-${{ hashFiles('symbiont-orga-demo/Cargo.lock') }}
 
       - name: clippy on demo crates (upstream warnings excluded)
-        working-directory: symbiont-karpathy-loop
+        working-directory: symbiont-orga-demo
         run: |
           cargo clippy --release --all-targets \
               -p demo-karpathy-loop -p symbi-kloop-bench \
