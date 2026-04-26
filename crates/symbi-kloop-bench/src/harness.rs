@@ -567,11 +567,31 @@ impl Ctx {
         // tool result with the hidden-directive block before the
         // observation reaches the LLM.
         let mut executor = TaskActionExecutor::new(&task.id, self.knowledge.clone());
-        let task_tool_defs = task_tools::register_for_task_with_injection(
+        let mut task_tool_defs = task_tools::register_for_task_with_injection(
             task,
             &mut executor,
             self.tool_result_injection,
         )?;
+        // v11 — register `whois_lookup` only when the
+        // `tool-arg-injection` variant is active. The arm
+        // (control vs treatment) is implicit in whether we pass
+        // `Some(fence)` — `None` means control (no fence in front of
+        // the closure); `Some` means treatment (fence inspects args
+        // before the stub runs).
+        let whois_capture: task_tools::WhoisCapture =
+            Arc::new(tokio::sync::Mutex::new(Vec::new()));
+        if matches!(
+            self.task_adversarial,
+            TaskAdversarialPrompt::ToolArgInjection
+        ) {
+            let fence = self.toolclad_pre_validator();
+            let extra = task_tools::register_whois_lookup(
+                &mut executor,
+                fence,
+                whois_capture.clone(),
+            )?;
+            task_tool_defs.extend(extra);
+        }
         let executor = Arc::new(executor);
 
         // Cedar gate for the task agent. Capture the denial counter so
@@ -638,11 +658,17 @@ impl Ctx {
                 format!("{}\n\n{}", pr_title_injection_block(), task.prompt)
             }
             TaskAdversarialPrompt::ToolArgInjection => {
-                // The actual sub-shape payload is selected per-run by
-                // the task_tools module; the prompt block names the
-                // tool and instructs the agent to forward the
-                // smuggled `target` value verbatim.
-                format!("{}\n\n{}", tool_arg_injection_block(), task.prompt)
+                // v11 — pick a sub-shape based on (task_id, run_number)
+                // so a 9 task × 5 iter sweep covers all 7 sub-shapes
+                // multiple times across the matrix.
+                let idx = task_tools::pick_sub_shape_index(&task.id, n);
+                let (_, payload_template) =
+                    task_tools::TOOL_ARG_INJECTION_SUB_SHAPES[idx];
+                let scan_id = format!("{}-{}", task.id, n);
+                let payload =
+                    task_tools::render_sub_shape_payload(payload_template, &scan_id);
+                let block = tool_arg_injection_block().replace("{{target}}", &payload);
+                format!("{}\n\n{}", block, task.prompt)
             }
         };
         conv.push(ConversationMessage::user(&user_prompt));
@@ -691,6 +717,18 @@ impl Ctx {
             "task",
             sanitiser_snap,
         );
+
+        // v11 — drain the whois_lookup capture buffer (only populated
+        // when --task-adversarial-variant tool-arg-injection registered
+        // the tool above). Empty for every other run, in which case
+        // we skip the sidecar entirely.
+        {
+            let mut g = whois_capture.lock().await;
+            if !g.is_empty() {
+                let drained: Vec<task_tools::WhoisCallRecord> = g.drain(..).collect();
+                let _ = self.write_whois_capture_sidecar(&task.id, n, &drained);
+            }
+        }
 
         // Drain OpenRouter's per-call log (generation_id, authoritative
         // cost, upstream provider, latency) into a JSONL sidecar so a
@@ -860,6 +898,38 @@ impl Ctx {
         // Header line — every consumer should see the warning.
         out.push_str(
             r#"{"_meta":"FORENSIC RAW ARGS — UNSANITISED — adversarial sweep evaluation only"}"#,
+        );
+        out.push('\n');
+        for r in records {
+            out.push_str(&serde_json::to_string(r)?);
+            out.push('\n');
+        }
+        std::fs::write(&path, out)?;
+        Ok(Some(path.display().to_string()))
+    }
+
+    /// v11 — write the per-run `whois_lookup` A/B capture sidecar.
+    /// One line per LLM-emitted `whois_lookup` call with arm,
+    /// target, sub-shape (when recognized), outcome, and any fence
+    /// reason. Mirrors the raw-args sidecar shape so existing audit
+    /// tools can ingest it without modification.
+    pub fn write_whois_capture_sidecar(
+        &self,
+        task_id: &str,
+        run_number: u32,
+        records: &[task_tools::WhoisCallRecord],
+    ) -> Result<Option<String>> {
+        std::fs::create_dir_all(&self.journals_dir).ok();
+        let fname = format!(
+            "{}-{}-n{:03}-task-whois-capture.jsonl",
+            chrono::Utc::now().format("%Y%m%d-%H%M%S"),
+            task_id,
+            run_number
+        );
+        let path = self.journals_dir.join(fname);
+        let mut out = String::new();
+        out.push_str(
+            r#"{"_meta":"v11 whois_lookup A/B capture — one line per LLM-emitted call; control vs treatment, payload, fence outcome"}"#,
         );
         out.push('\n');
         for r in records {
