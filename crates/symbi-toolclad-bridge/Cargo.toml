@@ -1,0 +1,17 @@
+[package]
+name = "symbi-toolclad-bridge"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Adapter from ToolClad .clad.toml manifests to the symbi-kloop-bench fence pipeline. Validates LLM-supplied tool arguments, executes via toolclad's array-exec path, and emits per-call fence-type records compatible with the existing reflector / task / delegator JSONL schemas."
+repository = "https://github.com/ThirdKeyAI/symbiont-orga-demo"
+
+[dependencies]
+toolclad = { path = "../../../ToolClad/rust" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+# Used by the per-sub-shape attack-payload table tests.
+tempfile = "3"
