@@ -121,16 +121,19 @@ pub fn validate_and_execute(
         FenceOutcome::Validated(map) => {
             let envelope = toolclad::executor::execute(&loaded.manifest, &map)
                 .map_err(|e| BridgeError::Executor(e.to_string()))?;
-            Ok(ExecOutcome::Executed(envelope))
+            Ok(ExecOutcome::Executed(Box::new(envelope)))
         }
     }
 }
 
-/// Outcome of a validate-then-execute round-trip.
+/// Outcome of a validate-then-execute round-trip. The `Executed`
+/// variant boxes its envelope because `EvidenceEnvelope` is large
+/// (~280 bytes) — clippy's `large_enum_variant` lint flagged the size
+/// difference vs. `Refused`.
 #[derive(Debug)]
 pub enum ExecOutcome {
     Refused { field: String, reason: String },
-    Executed(EvidenceEnvelope),
+    Executed(Box<EvidenceEnvelope>),
 }
 
 /// Pull (name, def) tuples out of a manifest's `[args.*]` table without
