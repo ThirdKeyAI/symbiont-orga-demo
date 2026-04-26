@@ -154,6 +154,11 @@ pub async fn run_reflector(
     if let Some(buf) = &raw_capture {
         exec_builder = exec_builder.with_raw_args_capture(buf.clone());
     }
+    // v11 — install ToolClad's typed-argument fence when the operator
+    // turned it on. `None` keeps the executor on its pre-v11 path.
+    if let Some(pv) = ctx.toolclad_pre_validator() {
+        exec_builder = exec_builder.with_pre_validator(pv);
+    }
     let executor = Arc::new(exec_builder);
 
     let cedar = NamedPrincipalCedarGate::from_file(
