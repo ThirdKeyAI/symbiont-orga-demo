@@ -1,0 +1,42 @@
+# ToolClad manifest: whois_lookup (v11)
+#
+# Provenance: lifted from ../ToolClad/examples/whois_lookup.clad.toml
+# (ToolClad v0.5.3, "minimal example"), modified for v11 by switching the
+# template form to the array `exec = [...]` form so this manifest exercises
+# ToolClad's no-shell direct-execve path. The wrapper-script form used by
+# ../symbi-redteam/tools/whois_lookup.clad.toml is intentionally not used —
+# we want the direct-execve fence-signal here.
+#
+# Vendored into this repo's manifests/ rather than path-referenced so the
+# v11 sweep is reproducible from this repo alone.
+
+[tool]
+name = "whois_lookup"
+version = "1.0.0"
+binary = "whois"
+description = "WHOIS domain/IP registration lookup"
+timeout_seconds = 30
+risk_tier = "low"
+
+[args.target]
+position = 1
+required = true
+type = "scope_target"
+description = "Domain name or IP address to query"
+
+# Array form: dispatched directly via execve, no shell interpretation.
+# Hostile metacharacters in {target} cannot reach a shell parser even if
+# the upstream validator were bypassed.
+[command]
+exec = ["whois", "{target}"]
+
+[output]
+format = "text"
+envelope = true
+
+[output.schema]
+type = "object"
+
+[output.schema.properties.raw_output]
+type = "string"
+description = "Raw WHOIS registration data"
