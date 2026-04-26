@@ -306,6 +306,21 @@ impl Db {
         Ok(n)
     }
 
+    /// v11 — cumulative `est_cost_usd` across every row in the runs
+    /// table. Used by the demo loop's cost-cap check; the column has
+    /// been populated from authoritative `usage.cost` since v2 when
+    /// available, with the static pricing estimate as a fallback.
+    /// Returns 0.0 when the table is empty.
+    pub async fn total_est_cost_usd(&self) -> Result<f64> {
+        let conn = self.conn.lock().await;
+        let n: f64 = conn.query_row(
+            "SELECT COALESCE(SUM(est_cost_usd), 0.0) FROM runs",
+            [],
+            |r| r.get(0),
+        )?;
+        Ok(n)
+    }
+
     fn row_from(row: &rusqlite::Row<'_>) -> rusqlite::Result<RunRow> {
         let started_at: String = row.get("started_at")?;
         let completed_at: String = row.get("completed_at")?;
