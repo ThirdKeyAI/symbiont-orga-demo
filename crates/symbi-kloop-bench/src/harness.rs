@@ -150,8 +150,8 @@ pub struct Ctx {
     #[allow(dead_code)]
     pub toolclad_mode: ToolCladMode,
     /// v11 — hard cap on cumulative `usage.cost` (USD). Consumed by
-    /// the demo loop's cost-cap check in a follow-up commit.
-    #[allow(dead_code)]
+    /// the demo loop's cost-cap check before each iteration. `<=0.0`
+    /// disables the check (for unit tests / mock provider).
     pub max_spend_usd: f64,
     /// v11 — shared `Arc<dyn PreValidator>` wrapping the ToolClad
     /// bridge for every tool the bench has ported. `None` when the
@@ -533,8 +533,30 @@ impl Ctx {
         let task_count = task_ids.len();
 
         let mut total_runs = 0u32;
-        for n in 1..=iterations {
+        let mut spend_aborted = false;
+        'outer: for n in 1..=iterations {
             for id in &task_ids {
+                // v11 — cost-cap check BEFORE each run so we never
+                // overrun. Reads the cumulative est_cost column from
+                // the runs table; OpenRouter's authoritative
+                // usage.cost lands there via the existing per-run
+                // path. Skip the check when the cap is disabled
+                // (<= 0.0) or when the runs db is empty.
+                if self.max_spend_usd > 0.0 {
+                    if let Ok(spent) =
+                        self.db.total_est_cost_usd().await
+                    {
+                        if spent >= self.max_spend_usd {
+                            tracing::warn!(
+                                spent = spent,
+                                cap = self.max_spend_usd,
+                                "v11 cost cap reached — aborting sweep with partial results"
+                            );
+                            spend_aborted = true;
+                            break 'outer;
+                        }
+                    }
+                }
                 match self.run_iteration_with(id, n, prompt).await {
                     Ok(_) => total_runs += 1,
                     Err(e) => tracing::error!(task = %id, error = %e, "iteration failed"),
@@ -544,6 +566,14 @@ impl Ctx {
 
         let stored_procedures = self.knowledge.total().await.unwrap_or(0);
         let violations = self.db.total_violations_prevented().await.unwrap_or(0);
+
+        if spend_aborted {
+            tracing::warn!(
+                "v11 sweep ended early due to cost cap (MAX_SPEND_USD={}); \
+                 partial results in data/<tag>/runs.db",
+                self.max_spend_usd
+            );
+        }
 
         Ok(DemoSummary {
             task_count,
