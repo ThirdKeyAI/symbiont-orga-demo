@@ -1,49 +1,53 @@
 # ToolClad manifest: store_knowledge (v11)
 #
 # Re-backs the reflector's existing `store_knowledge` tool surface
-# (crates/symbi-kloop-bench/src/reflector.rs) with a typed-argument fence.
-# Both fields are plain `string` — ToolClad's default string validator
-# rejects shell metacharacters and newlines, which is the relevant fence
-# signal for this surface. The body is otherwise allowed to be free-form
-# prose; payload neutralisation is a separate fence (symbi-invis-strip).
+# (crates/symbi-kloop-bench/src/reflector.rs, ReflectorActionExecutor in
+# crates/demo-karpathy-loop/src/reflector_executor.rs) with a
+# typed-argument fence. The three string fields are plain `string` —
+# ToolClad's default string validator rejects shell metacharacters and
+# newlines, which is the relevant fence signal for this surface. The
+# values are otherwise allowed to be free-form prose; payload
+# neutralisation is a separate fence (symbi-invis-strip).
 #
-# This manifest does NOT carry [command] / [http] / [mcp] sections — the
-# reflector dispatches via a Rust callback after the bridge accepts the
-# args. The bridge's validate_args path is sufficient; ToolClad's
-# executor::execute is not invoked.
+# `confidence` is a numeric in [0, 1] — ToolClad has no float type, so
+# this field is intentionally NOT declared in [args]. The reflector's
+# Rust path clamps it independently. Argument-fence focus is the three
+# string fields.
+#
+# This manifest does NOT carry a real [command] backend — the reflector
+# dispatches via Rust callback after the bridge accepts the args. The
+# placeholder `exec = ["true"]` satisfies ToolClad's schema; the bridge
+# calls only `validate_args`, never `execute()`.
 
 [tool]
 name = "store_knowledge"
 version = "1.0.0"
 binary = "<rust-callback>"
-description = "Persist a key/body pair into the reflector's knowledge store"
+description = "Persist a single subject-predicate-object procedure into the reflector's knowledge store"
 timeout_seconds = 5
 risk_tier = "low"
 
-[args.key]
+[args.subject]
 position = 1
 required = true
 type = "string"
-description = "Short identifier for this knowledge entry"
+description = "Subject of the procedure (under 60 characters)"
 
-[args.body]
+[args.predicate]
 position = 2
 required = true
 type = "string"
-description = "Free-form lessons-learned body (sanitiser runs after acceptance)"
+description = "Predicate of the procedure"
 
-# ToolClad's manifest schema requires at least one execution backend.
-# `store_knowledge` is dispatched in-process by a Rust callback, not by
-# the toolclad executor — the bridge calls only `validate_args`, never
-# `execute()`. The placeholder `true` binary is a no-op that satisfies
-# the schema; if ever invoked accidentally it returns 0 with empty
-# output, which would surface as a missing-knowledge-entry test failure
-# rather than a security hole.
+[args.object]
+position = 3
+required = true
+type = "string"
+description = "Object of the procedure"
+
 [command]
 exec = ["true"]
 
-# Required by ToolClad's manifest schema. The reflector's ack envelope
-# is constant-shaped.
 [output]
 format = "json"
 envelope = true

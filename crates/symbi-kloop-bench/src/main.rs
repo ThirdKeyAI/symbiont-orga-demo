@@ -27,6 +27,7 @@ mod pricing;
 mod reflector;
 mod report;
 mod task_tools;
+mod toolclad_fence;
 
 use std::path::PathBuf;
 
@@ -122,8 +123,48 @@ struct Cli {
     #[arg(long, default_value_t = false, global = true)]
     tool_result_injection: bool,
 
+    /// v11 — gate ToolClad's typed-argument fence on tool calls.
+    ///
+    /// - `off` (default): no behavioural change; the harness is
+    ///   byte-identical to v10. Use for re-running other-vector
+    ///   sweeps without contamination.
+    /// - `on`: `store_knowledge` (and any future ported tool) routes
+    ///   through `symbi-toolclad-bridge::validate_args` BEFORE the
+    ///   existing executor logic. A ToolClad refusal is recorded as a
+    ///   `fence_type=toolclad-args` event in the per-call JSONL and
+    ///   the call is short-circuited the same way Cedar denials are.
+    /// - `only`: same as `on`, plus refuse to dispatch any tool that
+    ///   does not have a `manifests/<name>.clad.toml`. Used for the
+    ///   v11 dedicated sweep where we don't want hand-rolled
+    ///   fallbacks to skew the per-model bite-rate column.
+    #[arg(long, value_enum, default_value_t = ToolCladMode::Off, global = true)]
+    toolclad_mode: ToolCladMode,
+
+    /// v11 — hard cap on cumulative `usage.cost` (USD) reported by
+    /// the OpenRouter capturing client. The harness aborts the
+    /// current sweep with a partial-results report rather than
+    /// silently overrunning. Default 40.0 — see `MAX_SPEND_USD` in
+    /// `scripts/run-openrouter-sweep.sh`.
+    #[arg(long, default_value_t = 40.0, global = true)]
+    max_spend_usd: f64,
+
     #[command(subcommand)]
     cmd: Command,
+}
+
+/// v11 — toggle for the ToolClad typed-argument fence. See the
+/// `--toolclad-mode` help text on `Cli` for semantic details.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
+pub enum ToolCladMode {
+    Off,
+    On,
+    Only,
+}
+
+impl ToolCladMode {
+    pub fn is_active(self) -> bool {
+        matches!(self, ToolCladMode::On | ToolCladMode::Only)
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
@@ -248,9 +289,10 @@ async fn main() -> anyhow::Result<()> {
         Some("none") => harness::TaskAdversarialPrompt::None,
         Some("original") => harness::TaskAdversarialPrompt::Original,
         Some("pr-title-injection") => harness::TaskAdversarialPrompt::PrTitleInjection,
+        Some("tool-arg-injection") => harness::TaskAdversarialPrompt::ToolArgInjection,
         Some(other) => anyhow::bail!(
             "unknown --task-adversarial-variant '{other}'; expected one of: \
-             none|original|pr-title-injection"
+             none|original|pr-title-injection|tool-arg-injection"
         ),
         None if cli.task_adversarial => harness::TaskAdversarialPrompt::Original,
         None => harness::TaskAdversarialPrompt::None,
@@ -269,6 +311,8 @@ async fn main() -> anyhow::Result<()> {
         no_reflector: cli.no_reflector,
         task_adversarial,
         tool_result_injection: cli.tool_result_injection,
+        toolclad_mode: cli.toolclad_mode,
+        max_spend_usd: cli.max_spend_usd,
     })
     .await?;
 
