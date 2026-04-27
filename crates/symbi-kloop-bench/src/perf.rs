@@ -90,6 +90,16 @@ pub struct PerfRow {
     pub cedar_denied: u32,
     pub executor_refused: u32,
     pub violations_prevented: u32,
+    /// v10 — Cedar-gate latency aggregates.
+    /// `gate_calls_total` is the count summed across the group;
+    /// `gate_mean_ns` is `ns_total / gate_calls_total`;
+    /// `gate_max_ns` is the max of the per-run `gate_ns_max` values
+    /// (an upper-bound estimate of the worst observed gate call in
+    /// the group; the true cross-run p99 needs the per-call data
+    /// which we do not store).
+    pub gate_calls_total: u64,
+    pub gate_mean_ns: f64,
+    pub gate_max_ns: u64,
 }
 
 /// Read every row the aggregator needs. Keeps the SQL in one place so
@@ -110,6 +120,9 @@ struct RawRow {
     cedar_denied: u32,
     executor_refused: u32,
     violations_prevented: u32,
+    gate_calls: u32,
+    gate_ns_total: u64,
+    gate_ns_max: u64,
 }
 
 fn fetch_raw(db_path: &Path) -> Result<Vec<RawRow>> {
@@ -120,7 +133,8 @@ fn fetch_raw(db_path: &Path) -> Result<Vec<RawRow>> {
                   score, iterations, total_tokens,
                   prompt_tokens, completion_tokens, est_cost,
                   started_at, completed_at,
-                  cedar_denied, executor_refused, violations_prevented
+                  cedar_denied, executor_refused, violations_prevented,
+                  gate_calls, gate_ns_total, gate_ns_max
              FROM runs"#,
     )?;
     let mut out = Vec::new();
@@ -144,6 +158,9 @@ fn fetch_raw(db_path: &Path) -> Result<Vec<RawRow>> {
             cedar_denied: r.get::<_, i64>(12).unwrap_or(0) as u32,
             executor_refused: r.get::<_, i64>(13).unwrap_or(0) as u32,
             violations_prevented: r.get::<_, i64>(14).unwrap_or(0) as u32,
+            gate_calls: r.get::<_, i64>(15).unwrap_or(0) as u32,
+            gate_ns_total: r.get::<_, i64>(16).unwrap_or(0) as u64,
+            gate_ns_max: r.get::<_, i64>(17).unwrap_or(0) as u64,
         });
     }
     Ok(out)
@@ -219,6 +236,14 @@ fn aggregate(rows: Vec<RawRow>, axis: PerfAxis) -> Vec<PerfRow> {
         let cedar_denied: u32 = rs.iter().map(|r| r.cedar_denied).sum();
         let executor_refused: u32 = rs.iter().map(|r| r.executor_refused).sum();
         let violations_prevented: u32 = rs.iter().map(|r| r.violations_prevented).sum();
+        let gate_calls_total: u64 = rs.iter().map(|r| r.gate_calls as u64).sum();
+        let gate_ns_total_sum: u64 = rs.iter().map(|r| r.gate_ns_total).sum();
+        let gate_mean_ns = if gate_calls_total > 0 {
+            gate_ns_total_sum as f64 / gate_calls_total as f64
+        } else {
+            0.0
+        };
+        let gate_max_ns: u64 = rs.iter().map(|r| r.gate_ns_max).max().unwrap_or(0);
         out.push(PerfRow {
             group,
             kind,
@@ -239,6 +264,9 @@ fn aggregate(rows: Vec<RawRow>, axis: PerfAxis) -> Vec<PerfRow> {
             cedar_denied,
             executor_refused,
             violations_prevented,
+            gate_calls_total,
+            gate_mean_ns,
+            gate_max_ns,
         });
     }
     out
@@ -271,11 +299,11 @@ fn axis_header(axis: PerfAxis) -> &'static str {
 }
 
 fn emit_markdown(rows: &[PerfRow], axis: PerfAxis) {
-    println!("| {} | kind | n | pass | mean_iters | mean_tok | $/run | lat p50 ms | p95 | p99 | tok/s | cedar_denied | exec_refused |", axis_header(axis));
-    println!("|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|");
+    println!("| {} | kind | n | pass | mean_iters | mean_tok | $/run | lat p50 ms | p95 | p99 | tok/s | gate_calls | gate µs/call | gate max µs | cedar_denied | exec_refused |", axis_header(axis));
+    println!("|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|");
     for r in rows {
         println!(
-            "| {} | {} | {} | {:.2} | {:.1} | {:.0} | {:.4} | {:.0} | {:.0} | {:.0} | {:.0} | {} | {} |",
+            "| {} | {} | {} | {:.2} | {:.1} | {:.0} | {:.4} | {:.0} | {:.0} | {:.0} | {:.0} | {} | {:.1} | {:.1} | {} | {} |",
             r.group,
             r.kind,
             r.n,
@@ -287,6 +315,9 @@ fn emit_markdown(rows: &[PerfRow], axis: PerfAxis) {
             r.p95_latency_ms,
             r.p99_latency_ms,
             r.tokens_per_sec,
+            r.gate_calls_total,
+            r.gate_mean_ns / 1_000.0,
+            r.gate_max_ns as f64 / 1_000.0,
             r.cedar_denied,
             r.executor_refused,
         );
@@ -298,11 +329,12 @@ fn emit_csv(rows: &[PerfRow]) {
         "group,kind,n,pass_rate,mean_score,mean_iters,mean_tokens,mean_prompt_tokens,\
          mean_completion_tokens,mean_cost_usd,total_cost_usd,mean_latency_ms,\
          p50_latency_ms,p95_latency_ms,p99_latency_ms,tokens_per_sec,\
-         cedar_denied,executor_refused,violations_prevented"
+         cedar_denied,executor_refused,violations_prevented,\
+         gate_calls_total,gate_mean_ns,gate_max_ns"
     );
     for r in rows {
         println!(
-            "{},{},{},{:.4},{:.4},{:.2},{:.1},{:.1},{:.1},{:.6},{:.6},{:.2},{:.2},{:.2},{:.2},{:.2},{},{},{}",
+            "{},{},{},{:.4},{:.4},{:.2},{:.1},{:.1},{:.1},{:.6},{:.6},{:.2},{:.2},{:.2},{:.2},{:.2},{},{},{},{},{:.1},{}",
             csv_escape(&r.group),
             r.kind,
             r.n,
@@ -322,6 +354,9 @@ fn emit_csv(rows: &[PerfRow]) {
             r.cedar_denied,
             r.executor_refused,
             r.violations_prevented,
+            r.gate_calls_total,
+            r.gate_mean_ns,
+            r.gate_max_ns,
         );
     }
 }
@@ -374,6 +409,9 @@ mod tests {
                 cedar_denied: 0,
                 executor_refused: 0,
                 violations_prevented: 0,
+                gate_calls: 5,
+                gate_ns_total: 5_000,
+                gate_ns_max: 1_500,
             })
             .collect();
         let out = aggregate(rows, PerfAxis::Model);
@@ -385,6 +423,10 @@ mod tests {
         assert!((r.p50_latency_ms - 500.0).abs() < 15.0, "p50 was {}", r.p50_latency_ms);
         assert!((r.p95_latency_ms - 950.0).abs() < 15.0, "p95 was {}", r.p95_latency_ms);
         assert!((r.p99_latency_ms - 990.0).abs() < 15.0, "p99 was {}", r.p99_latency_ms);
+        // v10 — gate aggregates: 100 runs × 5 calls × 1000 ns / call = 500 000 ns total.
+        assert_eq!(r.gate_calls_total, 500);
+        assert!((r.gate_mean_ns - 1_000.0).abs() < 1.0, "gate_mean_ns was {}", r.gate_mean_ns);
+        assert_eq!(r.gate_max_ns, 1_500);
     }
 
     #[test]

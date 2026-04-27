@@ -73,6 +73,15 @@ pub struct RunRow {
     /// the usage block). Zero for providers that don't break it down.
     pub prompt_tokens: u32,
     pub completion_tokens: u32,
+    /// v10 — Cedar gate latency, summed over every action evaluated
+    /// during this run (task or reflector). `gate_calls` is the
+    /// denominator for the mean; `gate_ns_total` the numerator;
+    /// `gate_ns_max` the worst-case single call. Together they back
+    /// the v10 paper claim "the policy gate adds ≈ X µs per call,
+    /// regardless of model".
+    pub gate_calls: u32,
+    pub gate_ns_total: u64,
+    pub gate_ns_max: u64,
 }
 
 #[derive(Clone)]
@@ -109,7 +118,10 @@ impl Db {
                 prompt_tokens       INTEGER NOT NULL DEFAULT 0,
                 completion_tokens   INTEGER NOT NULL DEFAULT 0,
                 cedar_denied        INTEGER NOT NULL DEFAULT 0,
-                executor_refused    INTEGER NOT NULL DEFAULT 0
+                executor_refused    INTEGER NOT NULL DEFAULT 0,
+                gate_calls          INTEGER NOT NULL DEFAULT 0,
+                gate_ns_total       INTEGER NOT NULL DEFAULT 0,
+                gate_ns_max         INTEGER NOT NULL DEFAULT 0
             );
             CREATE INDEX IF NOT EXISTS idx_runs_task ON runs(task_id, run_number, kind);
             "#,
@@ -125,6 +137,9 @@ impl Db {
             "ALTER TABLE runs ADD COLUMN completion_tokens INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE runs ADD COLUMN cedar_denied INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE runs ADD COLUMN executor_refused INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE runs ADD COLUMN gate_calls INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE runs ADD COLUMN gate_ns_total INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE runs ADD COLUMN gate_ns_max INTEGER NOT NULL DEFAULT 0",
         ] {
             let _ = conn.execute(sql, []);
         }
@@ -159,6 +174,9 @@ impl Db {
         completion_tokens: u32,
         cedar_denied: u32,
         executor_refused: u32,
+        gate_calls: u32,
+        gate_ns_total: u64,
+        gate_ns_max: u64,
     ) -> Result<i64> {
         let conn = self.conn.lock().await;
         conn.execute(
@@ -167,9 +185,10 @@ impl Db {
                 score, iterations, total_tokens, journal_path,
                 termination_reason, violations_prevented,
                 model_id, est_cost, prompt_tokens, completion_tokens,
-                cedar_denied, executor_refused)
+                cedar_denied, executor_refused,
+                gate_calls, gate_ns_total, gate_ns_max)
                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11,
-                       ?12, ?13, ?14, ?15, ?16, ?17)"#,
+                       ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)"#,
             rusqlite::params![
                 task_id,
                 run_number,
@@ -188,6 +207,9 @@ impl Db {
                 completion_tokens,
                 cedar_denied,
                 executor_refused,
+                gate_calls,
+                gate_ns_total as i64,
+                gate_ns_max as i64,
             ],
         )?;
         Ok(conn.last_insert_rowid())
@@ -200,7 +222,8 @@ impl Db {
             r#"SELECT run_id, task_id, run_number, kind, started_at, completed_at,
                       score, iterations, total_tokens, journal_path, termination_reason,
                       violations_prevented, model_id, est_cost, prompt_tokens,
-                      completion_tokens, cedar_denied, executor_refused
+                      completion_tokens, cedar_denied, executor_refused,
+                      gate_calls, gate_ns_total, gate_ns_max
                FROM runs
                ORDER BY run_id DESC"#
                 .to_string()
@@ -208,7 +231,9 @@ impl Db {
             format!(
                 r#"SELECT run_id, task_id, run_number, kind, started_at, completed_at,
                           score, iterations, total_tokens, journal_path, termination_reason,
-                          violations_prevented
+                          violations_prevented, model_id, est_cost, prompt_tokens,
+                          completion_tokens, cedar_denied, executor_refused,
+                          gate_calls, gate_ns_total, gate_ns_max
                    FROM runs
                    ORDER BY run_id DESC
                    LIMIT {limit}"#
@@ -230,7 +255,8 @@ impl Db {
             r#"SELECT run_id, task_id, run_number, kind, started_at, completed_at,
                       score, iterations, total_tokens, journal_path, termination_reason,
                       violations_prevented, model_id, est_cost, prompt_tokens,
-                      completion_tokens, cedar_denied, executor_refused
+                      completion_tokens, cedar_denied, executor_refused,
+                      gate_calls, gate_ns_total, gate_ns_max
                FROM runs
                WHERE task_id = ?1 AND kind = ?2
                ORDER BY run_number ASC, run_id ASC"#,
@@ -280,6 +306,21 @@ impl Db {
         Ok(n)
     }
 
+    /// v11 — cumulative `est_cost` across every row in the runs
+    /// table. Used by the demo loop's cost-cap check; the column has
+    /// been populated from authoritative `usage.cost` since v2 when
+    /// available, with the static pricing estimate as a fallback.
+    /// Returns 0.0 when the table is empty.
+    pub async fn total_est_cost_usd(&self) -> Result<f64> {
+        let conn = self.conn.lock().await;
+        let n: f64 = conn.query_row(
+            "SELECT COALESCE(SUM(est_cost), 0.0) FROM runs",
+            [],
+            |r| r.get(0),
+        )?;
+        Ok(n)
+    }
+
     fn row_from(row: &rusqlite::Row<'_>) -> rusqlite::Result<RunRow> {
         let started_at: String = row.get("started_at")?;
         let completed_at: String = row.get("completed_at")?;
@@ -322,6 +363,9 @@ impl Db {
             executor_refused: row
                 .get::<_, i64>("executor_refused")
                 .unwrap_or(0) as u32,
+            gate_calls: row.get::<_, i64>("gate_calls").unwrap_or(0) as u32,
+            gate_ns_total: row.get::<_, i64>("gate_ns_total").unwrap_or(0) as u64,
+            gate_ns_max: row.get::<_, i64>("gate_ns_max").unwrap_or(0) as u64,
         })
     }
 }

@@ -1,0 +1,8 @@
+error[E0599]: no method named `policy_summary` found for struct `AgentLoop<symbi_runtime::reasoning::phases::Reasoning>` in the current scope
+  --> tests/compile-fail/accessor_on_wrong_phase.rs:30:24
+   |
+30 |     let _ = agent_loop.policy_summary();
+   |                        ^^^^^^^^^^^^^^ method not found in `AgentLoop<symbi_runtime::reasoning::phases::Reasoning>`
+   |
+   = note: the method was found for
+           - `AgentLoop<ToolDispatching>`

@@ -83,6 +83,72 @@
 
 #![forbid(unsafe_code)]
 
+#[cfg(feature = "metrics")]
+pub mod metrics {
+    //! v10 — process-wide throughput counters.
+    //!
+    //! Enabled with `--features metrics`. Every public sanitiser
+    //! entrypoint (`sanitize_field`, `sanitize_field_with_markup`,
+    //! `strip_html_comments`, `strip_md_fences`) accumulates into
+    //! the same set of atomics. Use [`snapshot`] to read the
+    //! current values and [`reset`] to zero them between runs.
+    //!
+    //! Why process-wide and not per-call: every reflector run goes
+    //! through the same sanitiser many times (once per stored
+    //! triple, once per journal-string leaf), so the harness only
+    //! needs aggregate numbers. A per-call API would force the
+    //! caller to thread state through every call site.
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static CALLS: AtomicU64 = AtomicU64::new(0);
+    static BYTES_IN: AtomicU64 = AtomicU64::new(0);
+    static BYTES_STRIPPED: AtomicU64 = AtomicU64::new(0);
+    static NS_TOTAL: AtomicU64 = AtomicU64::new(0);
+
+    /// Counter snapshot at one instant. Read with [`snapshot`].
+    #[derive(Debug, Clone, Copy, Default)]
+    pub struct Snapshot {
+        /// Number of public-API sanitiser calls.
+        pub calls: u64,
+        /// Sum of `s.len()` across every input.
+        pub bytes_in: u64,
+        /// Sum of `bytes_in - output.len()` across every call —
+        /// total bytes removed by either the unicode strip, the
+        /// HTML-comment strip, or the markdown-fence strip.
+        pub bytes_stripped: u64,
+        /// Sum of `Instant::elapsed()` across every call (ns).
+        pub ns_total: u64,
+    }
+
+    /// Read the current counter values.
+    pub fn snapshot() -> Snapshot {
+        Snapshot {
+            calls: CALLS.load(Ordering::Relaxed),
+            bytes_in: BYTES_IN.load(Ordering::Relaxed),
+            bytes_stripped: BYTES_STRIPPED.load(Ordering::Relaxed),
+            ns_total: NS_TOTAL.load(Ordering::Relaxed),
+        }
+    }
+
+    /// Atomically zero every counter. The harness calls this at
+    /// the start of each run so the per-run sidecar reflects only
+    /// that run's work.
+    pub fn reset() {
+        CALLS.store(0, Ordering::Relaxed);
+        BYTES_IN.store(0, Ordering::Relaxed);
+        BYTES_STRIPPED.store(0, Ordering::Relaxed);
+        NS_TOTAL.store(0, Ordering::Relaxed);
+    }
+
+    pub(crate) fn record(bytes_in: usize, bytes_out: usize, ns: u64) {
+        CALLS.fetch_add(1, Ordering::Relaxed);
+        BYTES_IN.fetch_add(bytes_in as u64, Ordering::Relaxed);
+        let stripped = bytes_in.saturating_sub(bytes_out) as u64;
+        BYTES_STRIPPED.fetch_add(stripped, Ordering::Relaxed);
+        NS_TOTAL.fetch_add(ns, Ordering::Relaxed);
+    }
+}
+
 /// Remove every forbidden code point from `s`, returning a sanitised
 /// [`String`]. Idempotent: `sanitize_field(sanitize_field(x)) ==
 /// sanitize_field(x)`.
@@ -90,6 +156,16 @@
 /// See the [crate-level documentation](crate) for the full list of
 /// forbidden ranges and the rationale for each.
 pub fn sanitize_field(s: &str) -> String {
+    #[cfg(feature = "metrics")]
+    let started = std::time::Instant::now();
+    let out = sanitize_field_inner(s);
+    #[cfg(feature = "metrics")]
+    metrics::record(s.len(), out.len(), started.elapsed().as_nanos() as u64);
+    out
+}
+
+#[inline]
+fn sanitize_field_inner(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
         if !is_forbidden(c as u32) {
@@ -122,12 +198,32 @@ pub fn sanitize_field(s: &str) -> String {
 ///
 /// Idempotent.
 pub fn sanitize_field_with_markup(s: &str) -> String {
-    sanitize_field(&strip_md_fences(&strip_html_comments(s)))
+    // Note: when the `metrics` feature is enabled, this records ONE
+    // call with bytes_in/bytes_out spanning the full sanitisation,
+    // not three calls (one per inner pass). The single-call
+    // accounting matches how downstream consumers think about the
+    // sanitiser ("one strip per field write").
+    #[cfg(feature = "metrics")]
+    let started = std::time::Instant::now();
+    let out = sanitize_field_inner(&strip_md_fences_inner(&strip_html_comments_inner(s)));
+    #[cfg(feature = "metrics")]
+    metrics::record(s.len(), out.len(), started.elapsed().as_nanos() as u64);
+    out
 }
 
 /// Strip balanced/unbalanced `<!-- ... -->` blocks. Exposed for
 /// callers that want markup-only or composition.
 pub fn strip_html_comments(s: &str) -> String {
+    #[cfg(feature = "metrics")]
+    let started = std::time::Instant::now();
+    let out = strip_html_comments_inner(s);
+    #[cfg(feature = "metrics")]
+    metrics::record(s.len(), out.len(), started.elapsed().as_nanos() as u64);
+    out
+}
+
+#[inline]
+fn strip_html_comments_inner(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let bytes = s.as_bytes();
     let mut i = 0;
@@ -152,6 +248,16 @@ pub fn strip_html_comments(s: &str) -> String {
 /// newlines). Unmatched opener strips to end. Inline single-backtick
 /// `code` is left intact.
 pub fn strip_md_fences(s: &str) -> String {
+    #[cfg(feature = "metrics")]
+    let started = std::time::Instant::now();
+    let out = strip_md_fences_inner(s);
+    #[cfg(feature = "metrics")]
+    metrics::record(s.len(), out.len(), started.elapsed().as_nanos() as u64);
+    out
+}
+
+#[inline]
+fn strip_md_fences_inner(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let bytes = s.as_bytes();
     let mut i = 0;
@@ -218,6 +324,26 @@ mod tests {
     #[test]
     fn strips_zero_width() {
         assert_eq!(sanitize_field("a\u{200B}b"), "ab");
+    }
+
+    #[cfg(feature = "metrics")]
+    #[test]
+    fn metrics_counters_tick_on_every_public_call() {
+        // The metrics module is process-wide, so we serialise the
+        // test by reset()-then-call. Run alone with
+        // `--features metrics --test-threads=1` if tests start
+        // racing; for now `cargo test` defaults serialise within
+        // one binary by file.
+        crate::metrics::reset();
+        let _ = sanitize_field("a\u{200B}b");
+        let _ = sanitize_field_with_markup("ok<!-- bad -->done");
+        let s = crate::metrics::snapshot();
+        assert_eq!(s.calls, 2, "expected exactly 2 recorded calls");
+        // First call: 4 bytes in (a + 3 for U+200B), 2 bytes out.
+        // Second call: 18 bytes in, 6 bytes out.
+        assert!(s.bytes_in >= 22, "bytes_in was {}", s.bytes_in);
+        assert!(s.bytes_stripped > 0, "bytes_stripped was {}", s.bytes_stripped);
+        assert!(s.ns_total > 0, "ns_total should be non-zero");
     }
 
     #[test]
