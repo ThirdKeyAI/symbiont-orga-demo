@@ -1,6 +1,6 @@
 # symbiont-orga-demo
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19746724.svg?v=1)](https://doi.org/10.5281/zenodo.19746724)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19746723.svg?v=1)](https://doi.org/10.5281/zenodo.19746723)
 
 A worked example of building autonomous agents on **[Symbiont](https://github.com/ThirdKeyAI/symbiont)** with four properties you can actually audit:
 
