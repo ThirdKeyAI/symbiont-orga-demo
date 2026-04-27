@@ -13,6 +13,7 @@ path = "src/main.rs"
 demo-karpathy-loop = { path = "../demo-karpathy-loop" }
 symbi-runtime = { workspace = true }
 symbi-invis-strip = { workspace = true }
+symbi-toolclad-bridge = { path = "../symbi-toolclad-bridge" }
 cedar-policy = "4"
 
 anyhow = { workspace = true }

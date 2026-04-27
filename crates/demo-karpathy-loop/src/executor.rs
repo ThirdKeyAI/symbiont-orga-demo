@@ -49,6 +49,18 @@ pub struct TaskActionExecutor {
     handlers: HashMap<String, ToolHandler>,
     /// Captured final answer, for `outcome()`.
     captured_answer: Arc<Mutex<Option<String>>>,
+    /// v10 — optional post-process hook applied to every successful
+    /// tool-result string (`Ok(...)` from a registered handler). The
+    /// tool-result-injection adversarial variant uses this to append
+    /// an injection block to every observation the LLM reads, modelling
+    /// the v6 `cybersecuritynews.com` GitHub-comment / MCP-result
+    /// hidden-directive class. The hook is `None` by default; setting
+    /// it is opt-in via `--tool-result-injection`. Applies only to
+    /// task-domain handlers (the `other` branch of `handle_one`); does
+    /// NOT touch built-in answer / recall_knowledge / store_knowledge
+    /// observations (those are runtime-internal strings, not
+    /// model-influenced content).
+    tool_result_postprocess: Option<ToolResultPostprocess>,
 }
 
 /// Signature for a task-domain tool handler.
@@ -60,6 +72,11 @@ pub type ToolHandler = Arc<
     dyn Fn(&str) -> Result<String, String> + Send + Sync + 'static,
 >;
 
+/// v10 — postprocess hook applied to every successful tool-result
+/// string. Used by the tool-result-injection adversarial variant
+/// to wrap each observation with a hidden directive.
+pub type ToolResultPostprocess = Arc<dyn Fn(&str) -> String + Send + Sync>;
+
 impl TaskActionExecutor {
     pub fn new(task_id: impl Into<String>, knowledge: KnowledgeStore) -> Self {
         Self {
@@ -67,7 +84,21 @@ impl TaskActionExecutor {
             knowledge,
             handlers: HashMap::new(),
             captured_answer: Arc::new(Mutex::new(None)),
+            tool_result_postprocess: None,
         }
+    }
+
+    /// v10 — install a tool-result postprocess hook. The hook is
+    /// invoked on every `Ok(...)` string returned by a registered
+    /// task-domain tool handler before the result becomes part of
+    /// the agent's `Observation` content. Adversarial-sweep callers
+    /// use this to inject prompt-injection payloads; non-adversarial
+    /// callers leave it unset.
+    pub fn set_tool_result_postprocess<F>(&mut self, hook: Arc<F>)
+    where
+        F: Fn(&str) -> String + Send + Sync + 'static,
+    {
+        self.tool_result_postprocess = Some(hook);
     }
 
     /// Register a task-domain tool.
@@ -229,13 +260,24 @@ impl TaskActionExecutor {
             }
             other => match self.handlers.get(other) {
                 Some(h) => match h(arguments) {
-                    Ok(result) => Some(Observation {
-                        source: other.into(),
-                        content: result,
-                        is_error: false,
-                        call_id: Some(call_id.clone()),
-                        metadata: Default::default(),
-                    }),
+                    Ok(result) => {
+                        // v10 — apply the optional tool-result
+                        // postprocess hook (used by the
+                        // tool-result-injection adversarial
+                        // variant). When unset, the result is
+                        // forwarded unchanged.
+                        let content = match &self.tool_result_postprocess {
+                            Some(hook) => hook(&result),
+                            None => result,
+                        };
+                        Some(Observation {
+                            source: other.into(),
+                            content,
+                            is_error: false,
+                            call_id: Some(call_id.clone()),
+                            metadata: Default::default(),
+                        })
+                    }
                     Err(reason) => Some(Observation {
                         source: other.into(),
                         content: reason,

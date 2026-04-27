@@ -1,0 +1,8 @@
+error: unexpected argument '--adversarial-reflector' found
+
+  tip: 'demo --adversarial-reflector' exists
+
+Usage: symbi-kloop-bench --db <DB> --journals-dir <JOURNALS_DIR> --provider <PROVIDER> <COMMAND>
+
+For more information, try '--help'.
+demo complete: tasks=5 iterations_each=5 total_runs=25 stored_procedures=36 policy_violations_prevented=1
