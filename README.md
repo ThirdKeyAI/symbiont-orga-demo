@@ -2,6 +2,8 @@
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19746723.svg?v=1)](https://doi.org/10.5281/zenodo.19746723)
 
+Part of the **[Open Agent Trust Stack (OATS)](https://openagenttruststack.org)**.
+
 A worked example of building autonomous agents on **[Symbiont](https://github.com/ThirdKeyAI/symbiont)** with four properties you can actually audit:
 
 1. **Layered safety that holds under pressure.** Action-level (Cedar policy + executor tool-profile-of-one), content-level (`symbi-invis-strip` sanitiser strips invisible Unicode + HTML comments + Markdown fences), grader-level (wrong answers score 0), process-spawn (static cargo test refuses any executor that imports `Command::new`), registry-level (delegator allow-list refuses unregistered task ids), and typed-argument (v11 — `symbi-toolclad-bridge` rejects shell metacharacters / traversal / scope wildcards in tool-call args before execve) — six fence types, every one CI-gated.
