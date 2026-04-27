@@ -12,7 +12,12 @@ use std::sync::Arc;
 
 use demo_karpathy_loop::{PreValidator, Task, TaskActionExecutor};
 use symbi_runtime::reasoning::inference::ToolDefinition;
-use tokio::sync::Mutex;
+// std::sync::Mutex (not tokio::sync::Mutex) so the Fn closure
+// register_tool wants can lock synchronously without blocking_lock-
+// panicking inside the tokio runtime. Contention is impossible in
+// practice — one tool call at a time per executor — and the lock is
+// held for microseconds (single Vec::push).
+use std::sync::Mutex;
 
 /// v11 — the seven `tool-arg-injection` sub-shapes from the spec
 /// (canary-form, observable but non-destructive). Iter rotation
@@ -320,12 +325,10 @@ pub fn register_whois_lookup(
             Ok(stub_whois_response(&target))
         };
 
-        // Push the record. The closure is `Fn`, so we use a tokio
-        // mutex via `blocking_lock` — TaskActionExecutor dispatches
-        // closures off the loop's task and this mutex sees no
-        // multi-thread contention in practice (one tool call at a
-        // time per executor).
-        if let Ok(mut g) = capture_clone.try_lock() {
+        // Push the record. std::sync::Mutex is fine here — the
+        // closure runs sync inside the runtime task and the lock is
+        // held only for the push.
+        if let Ok(mut g) = capture_clone.lock() {
             g.push(record);
         }
 

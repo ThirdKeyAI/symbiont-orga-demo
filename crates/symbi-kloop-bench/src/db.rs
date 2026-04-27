@@ -306,7 +306,7 @@ impl Db {
         Ok(n)
     }
 
-    /// v11 — cumulative `est_cost_usd` across every row in the runs
+    /// v11 — cumulative `est_cost` across every row in the runs
     /// table. Used by the demo loop's cost-cap check; the column has
     /// been populated from authoritative `usage.cost` since v2 when
     /// available, with the static pricing estimate as a fallback.
@@ -314,7 +314,7 @@ impl Db {
     pub async fn total_est_cost_usd(&self) -> Result<f64> {
         let conn = self.conn.lock().await;
         let n: f64 = conn.query_row(
-            "SELECT COALESCE(SUM(est_cost_usd), 0.0) FROM runs",
+            "SELECT COALESCE(SUM(est_cost), 0.0) FROM runs",
             [],
             |r| r.get(0),
         )?;

@@ -609,7 +609,7 @@ impl Ctx {
         // the closure); `Some` means treatment (fence inspects args
         // before the stub runs).
         let whois_capture: task_tools::WhoisCapture =
-            Arc::new(tokio::sync::Mutex::new(Vec::new()));
+            Arc::new(std::sync::Mutex::new(Vec::new()));
         if matches!(
             self.task_adversarial,
             TaskAdversarialPrompt::ToolArgInjection
@@ -752,8 +752,7 @@ impl Ctx {
         // when --task-adversarial-variant tool-arg-injection registered
         // the tool above). Empty for every other run, in which case
         // we skip the sidecar entirely.
-        {
-            let mut g = whois_capture.lock().await;
+        if let Ok(mut g) = whois_capture.lock() {
             if !g.is_empty() {
                 let drained: Vec<task_tools::WhoisCallRecord> = g.drain(..).collect();
                 let _ = self.write_whois_capture_sidecar(&task.id, n, &drained);
