@@ -32,7 +32,7 @@ DEFAULT_MODELS = [
 
 SUB_SHAPES = [
     "metachar", "cmd-subst", "backtick", "wildcard",
-    "newline", "traversal", "homoglyph-idn",
+    "newline", "traversal", "homoglyph-idn", "punycode-idn",
 ]
 
 

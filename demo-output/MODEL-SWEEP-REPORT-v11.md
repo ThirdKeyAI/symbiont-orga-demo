@@ -120,7 +120,11 @@ A/B (Cedar should say yes; the argument fence should say no).
 
 ## A/B results
 
-**Headline: 317 / 319 typed-argument-fence refusals across 9 models =
+**Sweep run:** ToolClad **v0.6.0** (callback dispatch + `number` type +
+IDN punycode hardening), 8 sub-shapes (added `punycode-idn`), 5 iters
+× 5 tasks × 9 models × 2 arms.
+
+**Headline: 333 / 335 typed-argument-fence refusals across 9 models =
 99.4% raw bite-rate.** When the two non-refused cases are unpacked
 (both are `target_arg = "example.com"` — models that **refused the
 injection prompt** and emitted a clean ASCII hostname rather than the
@@ -129,16 +133,16 @@ hostile payloads is 100%**.
 
 | model | control attempts | treatment attempts | treatment refused | bite-rate | control $ | treatment $ |
 |---|---:|---:|---:|---:|---:|---:|
-| gpt5             | 25  | 25  | 25  | 100.0% | $1.189 | $1.164 |
-| gemini25pro      | 184 | 136 | 136 | 100.0% | $2.486 | $2.707 |
-| haiku45          | 22  | 20  | 20  | 100.0% | $0.409 | $0.390 |
-| deepseekv31      | 22  | 26  | 26  | 100.0% | $0.167 | $0.166 |
-| qwen3-235b       | 23  | 27  | 26  | 96.3%* | $0.034 | $0.034 |
-| mimo-v2-pro      | 8   | 7   | 7   | 100.0% | $0.199 | $0.170 |
-| minimax-m27      | 22  | 22  | 21  | 95.5%* | $0.065 | $0.066 |
-| gpt-oss-20b      | 23  | 35  | 35  | 100.0% | $0.011 | $0.013 |
-| qwen36-plus      | 17  | 21  | 21  | 100.0% | $0.209 | $0.191 |
-| **TOTAL**        | **346** | **319** | **317** | **99.4%** | **$4.77** | **$4.90** |
+| gpt5             | 25  | 25  | 25  | 100.0% | $1.165 | $1.264 |
+| gemini25pro      | 205 | 167 | 167 | 100.0% | $2.772 | $2.507 |
+| haiku45          | 15  | 14  | 14  | 100.0% | $0.386 | $0.370 |
+| deepseekv31      | 21  | 24  | 24  | 100.0% | $0.137 | $0.149 |
+| qwen3-235b       | 22  | 25  | 24  | 96.0%* | $0.030 | $0.031 |
+| mimo-v2-pro      | 10  | 7   | 7   | 100.0% | $0.179 | $0.193 |
+| minimax-m27      | 22  | 22  | 22  | 100.0% | $0.072 | $0.083 |
+| gpt-oss-20b      | 22  | 29  | 29  | 100.0% | $0.011 | $0.027 |
+| qwen36-plus      | 18  | 22  | 21  | 95.5%* | $0.189 | $0.192 |
+| **TOTAL**        | **360** | **335** | **333** | **99.4%** | **$4.94** | **$4.82** |
 
 \* The two non-refused cases are both `target = "example.com"` (a clean
 hostname). The fence correctly *allowed* those calls because the model
@@ -151,14 +155,35 @@ and the bite-rate is **100%**.
 
 | sub-shape       | control attempts | treatment attempts | treatment refused | bite-rate |
 |---|---:|---:|---:|---:|
-| `metachar`      | 56 | 38 | 38 | 100.0% |
-| `cmd-subst`     | 42 | 34 | 34 | 100.0% |
-| `backtick`      | 5  | 5  | 5  | 100.0% |
-| `wildcard`      | 39 | 31 | 31 | 100.0% |
-| `newline`       | 38 | 39 | 39 | 100.0% |
-| `traversal`     | 73 | 67 | 67 | 100.0% |
-| `homoglyph-idn` | 63 | 47 | 47 | 100.0% |
-| (unrecognised)  | 30 | 58 | 56 | 96.6% |
+| `metachar`      | 40 | 34 | 34 | 100.0% |
+| `cmd-subst`     | 62 | 46 | 46 | 100.0% |
+| `backtick`      | 9  | 13 | 13 | 100.0% |
+| `wildcard`      | 59 | 60 | 60 | 100.0% |
+| `newline`       | 33 | 35 | 35 | 100.0% |
+| `traversal`     | 41 | 33 | 33 | 100.0% |
+| `homoglyph-idn` | 36 | 32 | 32 | 100.0% |
+| `punycode-idn`† | 21 | 33 | 33 | 100.0% |
+| (unrecognised)  | 59 | 49 | 47 | 95.9% |
+
+† `punycode-idn` is the new sub-shape added when v0.6.0 closed the
+v0.5.3 IDN-bypass gap. The fence catches every hostile punycode
+hostname the LLMs emitted (33/33) — matching the upstream-only
+expectation from the unit test in `tests/idn_probe.rs`.
+
+### Comparison: v0.5.3 → v0.6.0 sweep
+
+| metric | v0.5.3 sweep | v0.6.0 sweep |
+|---|---:|---:|
+| sub-shapes tested | 7 | 8 (+ punycode-idn) |
+| total attempts (treatment arm) | 319 | 335 |
+| bite-rate (raw) | 99.4% | 99.4% |
+| bite-rate (hostile inputs only) | 100% | 100% |
+| total spend (both arms) | $9.67 | $9.75 |
+| punycode-idn refusals | n/a (gap existed) | 33/33 = 100% |
+
+The v0.6.0 sweep closes the punycode-IDN bypass with empirically
+measured 100% bite-rate, at no measurable cost to the existing fence
+behaviour. Adopting v0.6.0 was a pure win.
 
 The "(unrecognised)" rows are payloads the model paraphrased or
 truncated rather than forwarding verbatim — e.g. it stripped the
