@@ -11,6 +11,13 @@
 #   ONLY=gpt5 scripts/run-openrouter-sweep.sh    # one model by tag
 #   ADVERSARIAL=1 scripts/run-openrouter-sweep.sh   # safety sweep (adds -adv suffix)
 #
+# v11 ToolClad fence (additive, default off):
+#   VARIANT=tool-arg-injection scripts/run-openrouter-sweep.sh 5
+#       # control arm — no fence, captures LLM-emitted hostile targets
+#   TOOLCLAD=only VARIANT=tool-arg-injection scripts/run-openrouter-sweep.sh 5
+#       # treatment arm — bridge refuses, dirs suffixed -tcd
+#   MAX_SPEND_USD=20 TOOLCLAD=on ...   # tighten the cost cap
+#
 # Provider: uses --provider openrouter (the capturing variant), which
 # writes generation_id / upstream provider / authoritative
 # usage.cost per call into journals-$tag/<ts>-<task>-n<NNN>-<kind>-calls.jsonl.
@@ -44,6 +51,10 @@ if [[ -n "$VARIANT" ]]; then
         # VARIANT= because they apply to the task-agent prompt, not the
         # reflector's. (--task-adversarial-variant on the binary side.)
         pr-title-injection) TAG_SUFFIX="-pti"; EXTRA_FLAGS=("--task-adversarial-variant" "pr-title-injection");;
+        # v11 — tool-arg-injection. Task-side. Designed to be paired with
+        # `TOOLCLAD=on` or `TOOLCLAD=only` for the treatment arm; the
+        # control arm is the same variant with `TOOLCLAD=off`.
+        tool-arg-injection) TAG_SUFFIX="-tai"; EXTRA_FLAGS=("--task-adversarial-variant" "tool-arg-injection");;
         *) echo "unknown VARIANT='$VARIANT'" >&2; exit 2;;
     esac
 elif [[ "$ADVERSARIAL" == "1" ]]; then
@@ -53,6 +64,26 @@ else
     TAG_SUFFIX=""
     EXTRA_FLAGS=()
 fi
+
+# v11 — gate the ToolClad typed-argument fence. `off` is the default
+# and matches v10 byte-for-byte. `on` and `only` activate the bridge
+# and append `-tcd` to the per-model directory suffix so A/B
+# comparisons live in side-by-side directories
+# (e.g. journals-haiku45-tai vs journals-haiku45-tai-tcd).
+TOOLCLAD=${TOOLCLAD:-off}
+case "$TOOLCLAD" in
+    off)  ;;
+    on)   TAG_SUFFIX="${TAG_SUFFIX}-tcd"; EXTRA_FLAGS+=("--toolclad-mode" "on");;
+    only) TAG_SUFFIX="${TAG_SUFFIX}-tcd"; EXTRA_FLAGS+=("--toolclad-mode" "only");;
+    *) echo "unknown TOOLCLAD='$TOOLCLAD'; expected off|on|only" >&2; exit 2;;
+esac
+
+# v11 — hard cap on cumulative `usage.cost` (USD) read by the binary.
+# Default 40 (the v11 design doc's value); operators can override
+# downward for tighter budgets. The harness aborts cleanly with a
+# partial-results report if cumulative spend crosses this number.
+MAX_SPEND_USD=${MAX_SPEND_USD:-40}
+EXTRA_FLAGS+=("--max-spend-usd" "$MAX_SPEND_USD")
 
 # Broadcast trace label shipped on every request so observability
 # dashboards (Langfuse/Helicone/PostHog, wired through OpenRouter

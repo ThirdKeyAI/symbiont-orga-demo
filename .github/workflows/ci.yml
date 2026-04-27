@@ -49,6 +49,12 @@ jobs:
       - name: Cedar policy linter (homoglyph + invisible-char fence)
         run: scripts/lint-cedar-policies.py
 
+      - name: DSL linter (homoglyph + invisible-char fence — v10)
+        # v10 — symmetric to the Cedar linter. Catches a PR that
+        # adds `tool "answеr"` (Cyrillic `е`) to agents/*.dsl,
+        # reflector/*.dsl, or delegator/*.dsl.
+        run: scripts/lint-dsl-files.py
+
       - name: Knowledge-store audit (sanitiser-escape fence)
         # --strict respects .audit-allowlist (gpt5-ms historical pre-patch
         # escapes from v5; documented in MODEL-SWEEP-REPORT-v6.md). Any

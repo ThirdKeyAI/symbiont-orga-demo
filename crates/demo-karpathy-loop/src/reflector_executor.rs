@@ -58,6 +58,32 @@ pub struct ReflectorActionExecutor {
     /// `Some(_)` only on adversarial sweeps, so default runs incur
     /// zero overhead.
     raw_args_capture: Option<Arc<Mutex<Vec<RawArgsRecord>>>>,
+    /// v11 — optional pre-dispatch fence. Wired by the harness when
+    /// `--toolclad-mode` is `on` or `only`. `None` is the default and
+    /// preserves byte-identical pre-v11 behaviour.
+    pre_validator: Option<crate::pre_validator::SharedPreValidator>,
+    /// v11 — number of tool-call attempts refused by the pre-validator
+    /// (typically the ToolClad typed-argument fence). Counted
+    /// separately from `refused_count` so per-fence numbers stay
+    /// disambiguated in the report.
+    pre_validator_refused_count: Arc<Mutex<u32>>,
+    /// v11 — captured pre-validator refusals for the per-call JSONL
+    /// sidecar. Each entry pairs a refusal with the call id that
+    /// triggered it; the harness drains the buffer the same way it
+    /// drains `raw_args_capture`.
+    pre_validator_refusals: Arc<Mutex<Vec<PreValidationRefusalRecord>>>,
+}
+
+/// v11 — captured refusal pairing the original call id with the
+/// fence-type / reason emitted by the pre-validator. Persisted to the
+/// per-call JSONL so reports can pivot bite-rate by fence.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct PreValidationRefusalRecord {
+    pub call_id: String,
+    pub tool_name: String,
+    pub fence_type: String,
+    pub field: Option<String>,
+    pub reason: String,
 }
 
 /// One LLM-emitted `store_knowledge` call captured **before** the
@@ -94,7 +120,38 @@ impl ReflectorActionExecutor {
             refused_count: Arc::new(Mutex::new(0)),
             store_cap: 0,
             raw_args_capture: None,
+            pre_validator: None,
+            pre_validator_refused_count: Arc::new(Mutex::new(0)),
+            pre_validator_refusals: Arc::new(Mutex::new(Vec::new())),
         }
+    }
+
+    /// v11 — install a pre-dispatch fence (typically the ToolClad
+    /// typed-argument bridge). `None` keeps the executor on its
+    /// pre-v11 path. Refusals are counted and captured for the
+    /// per-call sidecar; the LLM sees them as an error observation.
+    pub fn with_pre_validator(
+        mut self,
+        pv: crate::pre_validator::SharedPreValidator,
+    ) -> Self {
+        self.pre_validator = Some(pv);
+        self
+    }
+
+    /// How many tool-call attempts the pre-validator refused this run.
+    pub async fn pre_validator_refused_count(&self) -> u32 {
+        *self.pre_validator_refused_count.lock().await
+    }
+
+    /// Drain the captured pre-validator refusals (for the per-call
+    /// JSONL sidecar). Cleared after read.
+    pub async fn drain_pre_validator_refusals(
+        &self,
+    ) -> Vec<PreValidationRefusalRecord> {
+        let mut g = self.pre_validator_refusals.lock().await;
+        let out = g.clone();
+        g.clear();
+        out
     }
 
     /// Enable forensic raw-args capture for this run. Used by the
@@ -201,6 +258,42 @@ impl ReflectorActionExecutor {
                 call_id: Some(call_id.clone()),
                 metadata: Default::default(),
             });
+        }
+
+        // v11 — pre-dispatch typed-argument fence (ToolClad bridge,
+        // when wired). Runs after Cedar permitted the action and after
+        // raw-args capture, but before any sanitisation or storage.
+        // Distinct from `refused_count` so per-fence bite-rate stays
+        // legible in the report.
+        if let Some(pv) = &self.pre_validator {
+            if let Some(refusal) = pv.validate(name, arguments) {
+                *self.pre_validator_refused_count.lock().await += 1;
+                self.pre_validator_refusals.lock().await.push(
+                    PreValidationRefusalRecord {
+                        call_id: call_id.clone(),
+                        tool_name: name.clone(),
+                        fence_type: refusal.fence_type.clone(),
+                        field: refusal.field.clone(),
+                        reason: refusal.reason.clone(),
+                    },
+                );
+                return Some(Observation {
+                    source: name.clone(),
+                    content: format!(
+                        "tool '{}' refused at {} fence: {}{}",
+                        name,
+                        refusal.fence_type,
+                        refusal.reason,
+                        refusal
+                            .field
+                            .map(|f| format!(" (field: {f})"))
+                            .unwrap_or_default()
+                    ),
+                    is_error: true,
+                    call_id: Some(call_id.clone()),
+                    metadata: Default::default(),
+                });
+            }
         }
 
         // v6 #2: sanitise tool-call arguments at the executor layer so
