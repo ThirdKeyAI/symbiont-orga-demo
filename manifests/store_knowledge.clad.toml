@@ -1,4 +1,4 @@
-# ToolClad manifest: store_knowledge (v11)
+# ToolClad manifest: store_knowledge (v11, updated for ToolClad v0.6.0)
 #
 # Re-backs the reflector's existing `store_knowledge` tool surface
 # (crates/symbi-kloop-bench/src/reflector.rs, ReflectorActionExecutor in
@@ -9,23 +9,20 @@
 # values are otherwise allowed to be free-form prose; payload
 # neutralisation is a separate fence (symbi-invis-strip).
 #
-# `confidence` is a numeric in [0, 1] — ToolClad has no float type, so
-# this field is intentionally NOT declared in [args]. The reflector's
-# Rust path clamps it independently. Argument-fence focus is the three
-# string fields.
-#
-# This manifest does NOT carry a real [command] backend — the reflector
-# dispatches via Rust callback after the bridge accepts the args. The
-# placeholder `exec = ["true"]` satisfies ToolClad's schema; the bridge
-# calls only `validate_args`, never `execute()`.
+# Uses `dispatch = "callback"` (added in ToolClad v0.6.0) so the
+# manifest can declare a validator-only contract without a placeholder
+# [command] backend. The reflector dispatches via Rust callback after
+# the bridge accepts the args; the bridge calls only `validate_args`,
+# never `execute()`.
 
 [tool]
 name = "store_knowledge"
 version = "1.0.0"
-binary = "<rust-callback>"
+binary = "callback"
 description = "Persist a single subject-predicate-object procedure into the reflector's knowledge store"
 timeout_seconds = 5
 risk_tier = "low"
+dispatch = "callback"
 
 [args.subject]
 position = 1
@@ -45,16 +42,12 @@ required = true
 type = "string"
 description = "Object of the procedure"
 
-[command]
-exec = ["true"]
-
-[output]
-format = "json"
-envelope = true
-
-[output.schema]
-type = "object"
-
-[output.schema.properties.stored]
-type = "boolean"
-description = "True when the entry was accepted into the knowledge store"
+# v0.6.0 added the `number` type, so confidence can now be properly
+# range-validated rather than left out of the typed-argument fence.
+[args.confidence]
+position = 4
+required = false
+type = "number"
+min_float = 0.0
+max_float = 1.0
+description = "Self-reported confidence in [0.0, 1.0]"
