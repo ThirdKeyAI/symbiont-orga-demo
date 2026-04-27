@@ -199,6 +199,20 @@ permit(
     resource
 );
 
+// ── v11: tool-arg-injection target tool ───────────────────────────────
+//
+// `whois_lookup` is permitted for the task agent so the v11 sweep can
+// exercise the typed-argument fence. Cedar permits the action; the
+// ToolClad bridge inspects the `target` field. The whole point of the
+// A/B is that the action layer says yes and the argument layer says no
+// — adding this permit is what makes the experiment legible.
+
+permit(
+    principal == Agent::"task_agent",
+    action == Action::"tool_call::whois_lookup",
+    resource
+);
+
 // ── Forbids ────────────────────────────────────────────────────────────
 
 // Never let the task agent write knowledge. This is the half of the
