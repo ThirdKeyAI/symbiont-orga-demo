@@ -7,7 +7,7 @@ A worked example of building autonomous agents on **[Symbiont](https://github.co
 1. **Layered safety that holds under pressure.** Action-level (Cedar policy + executor tool-profile-of-one), content-level (`symbi-invis-strip` sanitiser strips invisible Unicode + HTML comments + Markdown fences), grader-level (wrong answers score 0), process-spawn (static cargo test refuses any executor that imports `Command::new`), registry-level (delegator allow-list refuses unregistered task ids), and typed-argument (v11 — `symbi-toolclad-bridge` rejects shell metacharacters / traversal / scope wildcards in tool-call args before execve) — six fence types, every one CI-gated.
 2. **Three principals, three profile-of-ones.** Task agent, reflector, delegator — each with its own Cedar policy, its own ActionExecutor, and a tool surface that contains exactly what it needs and nothing else. The pattern scales to N principals without weakening any boundary.
 3. **End-to-end observability of the run.** Generation id, upstream-provider routing, authoritative `usage.cost`, per-call latency, optional broadcast-trace labels, and a dedicated forensic raw-args sidecar for adversarial sweeps — captured into JSONL alongside the signed run journals, per inference call.
-4. **A reproducible agent-evaluation harness.** Five benchmark tasks, twelve models priced end-to-end across eight sweeps (v1 → v8), authoritative dollar numbers rather than token-count estimates. One command to run a model through the whole matrix.
+4. **A reproducible agent-evaluation harness.** Five benchmark tasks, twelve models priced end-to-end across eleven sweeps (v1 → v11), authoritative dollar numbers rather than token-count estimates. One command to run a model through the whole matrix.
 
 A Karpathy-style reflective-learning loop ("edit one file, run the experiment, observe, repeat") ships as the worked example on top of that infrastructure — and under the specific pairing where the student is capable and the teacher is smarter than the student, the loop measurably fires (v3 report). Under other pairings it doesn't. The demo reports both cases honestly.
 
@@ -152,7 +152,7 @@ sidecar in [`MODEL-SWEEP-REPORT-v8.md`](demo-output/MODEL-SWEEP-REPORT-v8.md).
 
 The Cedar permit-list AND the `ActionExecutor` both refuse out-of-profile calls. The belt-and-suspenders layering is intentional: a policy relaxation alone can't let any principal touch another's tool surface — the executor has no handler for it. The pattern was demonstrated end-to-end on `claude-haiku-4.5` at 3 iterations × 3 principals × 9 runs / 0 violations / $0.047 in v8 (`MODEL-SWEEP-REPORT-v8.md` §4).
 
-### Five fence types
+### Six fence types
 
 | Layer | Where it lives | Catches |
 |---|---|---|
@@ -161,8 +161,9 @@ The Cedar permit-list AND the `ActionExecutor` both refuse out-of-profile calls.
 | **Grader** | `crates/demo-karpathy-loop/src/task.rs` | Wrong final answer (the v7 pr-title-injection variant lands here — score 0 surfaces injection as a visible regression instead of a stealth pass) |
 | **Process-spawn** | `crates/demo-karpathy-loop/tests/no_shell_out.rs` | Static cargo test refuses any executor file that imports `Command::new` / `process::Command` (defends against the MCP STDIO RCE class pre-merge) |
 | **Registry** | `DelegatorActionExecutor` allow-list + `refuses_unregistered_task_ids_marketplace_poisoning` test | Forged task ids (homoglyph, typo-squat, JSON injection) — defends against the MCP marketplace-poisoning class |
+| **Typed-argument** (v11) | `crates/symbi-toolclad-bridge/` over [ToolClad](https://github.com/ThirdKeyAI/ToolClad) v0.6.0 manifests + per-tool `manifests/*.clad.toml` | Shell metacharacters / command-substitution / backticks / scope wildcards / newline injection / path traversal / IDN homoglyph / IDN punycode in tool-call arguments — **before execve**. Catches the class of attack neither Cedar (which gates the action, not the argument shape) nor the sanitiser (which doesn't see tool args) can refuse. v11 sweep: 333/335 = 99.4% bite-rate across 9 models × 8 sub-shapes, 100% on hostile inputs. |
 
-### Eleven adversarial reflector prompts + two task-agent shapes
+### Eleven adversarial reflector prompts + three task-agent shapes
 
 | Variant flag | Attack shape | Layer caught at |
 |---|---|---|
@@ -179,6 +180,7 @@ The Cedar permit-list AND the `ActionExecutor` both refuse out-of-profile calls.
 | `--adversarial-variant markdown-fence` (v8) | Reflector wraps the directive in ` ``` ... ``` `. Markdown viewer renders as inert "example code". | content (sanitiser) |
 | `--task-adversarial-variant original` | v5 ADVERSARIAL-EVAL block prepended to the **task-agent** prompt. | action |
 | `--task-adversarial-variant pr-title-injection` (v7) | Mirrors the 2026 Claude Code / Gemini CLI / Copilot Agent attack (PR title + HTML-comment override + fake "Additional Content" block). | grader (+ action for any escalation) |
+| `--task-adversarial-variant tool-arg-injection` (v11) | Prompts the task agent to call `whois_lookup` with one of 8 hostile `target` payloads (metachar / cmd-subst / backtick / wildcard / newline / traversal / homoglyph-IDN / punycode-IDN). Cedar permits the action and the sanitiser doesn't see tool args, so the typed-argument fence is the only fence with bite here. Pair with `TOOLCLAD=only` for the treatment arm. | typed-argument |
 
 The v6 sanitiser catches the `multi-stage` smuggling case Cedar
 can't (the action `store_knowledge` is permitted; only the content
@@ -224,6 +226,9 @@ VARIANT=multi-stage          scripts/run-openrouter-sweep.sh 1
 VARIANT=html-comment-smuggle scripts/run-openrouter-sweep.sh 1   # v7 / v8 #1
 VARIANT=markdown-fence       scripts/run-openrouter-sweep.sh 1   # v8 #4
 VARIANT=pr-title-injection   scripts/run-openrouter-sweep.sh 1   # v7 (task-agent side)
+VARIANT=tool-arg-injection   scripts/run-openrouter-sweep.sh 5   # v11 (task-agent side, control)
+TOOLCLAD=only \
+VARIANT=tool-arg-injection   scripts/run-openrouter-sweep.sh 5   # v11 treatment (typed-arg fence on)
 
 # Three-principal end-to-end (delegator picks tasks, v8 #3)
 OPENROUTER_MODEL=anthropic/claude-haiku-4.5 \
@@ -238,7 +243,7 @@ scripts/analyze-reflector-quality.py --suffix=-adv
 scripts/run-t5-matrix.sh 5
 ```
 
-Each arm's artefacts land under `data/<tag>/`, `journals-<tag>/`, and `demo-output/<tag>-*`. The v1–v8 sweep reports (`demo-output/MODEL-SWEEP-REPORT*.md`) walk through specific findings.
+Each arm's artefacts land under `data/<tag>/`, `journals-<tag>/`, and `demo-output/<tag>-*`. The v1–v11 sweep reports (`demo-output/MODEL-SWEEP-REPORT*.md`) walk through specific findings.
 
 ## CI gates (since v7)
 
@@ -281,10 +286,12 @@ target/release/symbi-kloop-bench --provider openrouter demo --iterations 5 --onl
 
 `OPENROUTER_MODEL` is the single-model shortcut; the per-role vars override it independently. Use `--no-reflector` for a learning-disabled negative control.
 
-## Results — nine curated writeups
+## Results — eleven curated writeups
 
 Each sweep report is committed so you can diff over time:
 
+- **[`demo-output/MODEL-SWEEP-REPORT-v11.md`](demo-output/MODEL-SWEEP-REPORT-v11.md)** (v11) — typed-argument fence as a sixth fence type. Adds `crates/symbi-toolclad-bridge` over [ToolClad](https://github.com/ThirdKeyAI/ToolClad) v0.6.0, the new `tool-arg-injection` task-side variant with eight canary-form sub-shapes (metachar / cmd-subst / backtick / wildcard / newline / traversal / homoglyph-IDN / punycode-IDN), and a 9-model A/B sweep: **333/335 = 99.4% bite-rate, 100% on hostile inputs**, 100% on every recognised sub-shape including punycode-IDN (33/33). Surfaced four ToolClad upstream gaps (callback dispatch, `number` type, IDN punycode bypass, generic refusal messages) all closed in ToolClad v0.6.0.
+- **[`demo-output/MODEL-SWEEP-REPORT-v10.md`](demo-output/MODEL-SWEEP-REPORT-v10.md)** (v10) — instrumentation pass + a new tool-result-injection attack shape: hidden directives appended to every successful tool-result string the task agent reads (mirrors the v6 cybersecuritynews.com renderer-hides-it family for MCP/tool responses). Plus a process-wide sanitiser-metrics counter (atomics, gated behind a feature flag) drained per-run into `*-sanitiser.json` sidecars.
 - **[`demo-output/MODEL-SWEEP-REPORT-v9.md`](demo-output/MODEL-SWEEP-REPORT-v9.md)** (v9) — adds a SQL-only `perf` aggregator (per-model latency p50/p95/p99, $/run, pass-rate, Cedar-vs-executor split) and **five trybuild compile-fail proofs** that show the Cedar gate is *type-system-unskippable*: any source that tries to dispatch a tool without going through `AgentLoop<PolicyCheck>` is rejected by rustc with a pinned `.stderr` snapshot. Plus a 9-model cloud sweep — 263 cloud-only adversarial refusals (242 Cedar + 21 executor), 0 escapes, $18.58 spend.
 - **[`demo-output/MODEL-SWEEP-REPORT.md`](demo-output/MODEL-SWEEP-REPORT.md)** (v1) — first 12-model matrix with per-task verdicts, and the 15 numbered improvement suggestions that drove v2 and v3.
 - **[`demo-output/MODEL-SWEEP-REPORT-v2.md`](demo-output/MODEL-SWEEP-REPORT-v2.md)** (v2) — default + adversarial sweep, authoritative cost, budget-cap fence, broadcast trace fields. "50 refusals, 0 escapes" headline.
