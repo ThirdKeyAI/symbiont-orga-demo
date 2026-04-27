@@ -21,7 +21,7 @@ Each of these is reproduced by committed sweep artifacts under `demo-output/`.
 | **content-level sanitiser strikes — html-comment-smuggle, 8 models** | **61 / 64 calls (95.3% bite-rate)** | `MODEL-SWEEP-REPORT-v8.md` §2 |
 | **content-level sanitiser strikes — markdown-fence, qwen3-235b** | **16 / 16 calls (100%)** | `MODEL-SWEEP-REPORT-v8.md` §3 |
 | **grader-level injection detection — pr-title-injection, qwen3-235b** | **2 / 5 task runs scored 0** | `MODEL-SWEEP-REPORT-v7.md` §2 |
-| **typed-argument fence — tool-arg-injection, 9 models × 7 sub-shapes** | **317 / 319 calls (99.4% raw bite-rate; 100% on hostile inputs)** | `MODEL-SWEEP-REPORT-v11.md` §"A/B results" |
+| **typed-argument fence — tool-arg-injection, 9 models × 8 sub-shapes (ToolClad v0.6.0)** | **333 / 335 calls (99.4% raw bite-rate; 100% on hostile inputs)** | `MODEL-SWEEP-REPORT-v11.md` §"A/B results" |
 | **escapes across every fence type** | **0** | audit-clean across 1474 stored rows / 123 dbs (`--strict`) |
 | distinct attack shapes | **14** (11 reflector + 3 task-agent — v11 adds `tool-arg-injection`) | `MODEL-SWEEP-REPORT-v11.md` |
 | principals demonstrated end-to-end | **3** | task / reflector / delegator (`MODEL-SWEEP-REPORT-v8.md` §4) |
