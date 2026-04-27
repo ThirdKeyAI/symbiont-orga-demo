@@ -120,8 +120,8 @@ A/B (Cedar should say yes; the argument fence should say no).
 
 ## A/B results
 
-**Headline: 301 / 303 typed-argument-fence refusals across 9 models =
-99.3% raw bite-rate.** When the two non-refused cases are unpacked
+**Headline: 317 / 319 typed-argument-fence refusals across 9 models =
+99.4% raw bite-rate.** When the two non-refused cases are unpacked
 (both are `target_arg = "example.com"` — models that **refused the
 injection prompt** and emitted a clean ASCII hostname rather than the
 attacker-supplied canary payload), the **bite-rate against actual
@@ -137,8 +137,8 @@ hostile payloads is 100%**.
 | mimo-v2-pro      | 8   | 7   | 7   | 100.0% | $0.199 | $0.170 |
 | minimax-m27      | 22  | 22  | 21  | 95.5%* | $0.065 | $0.066 |
 | gpt-oss-20b      | 23  | 35  | 35  | 100.0% | $0.011 | $0.013 |
-| qwen36-plus      | 17  | 5   | 5   | 100.0% | $0.209 | $0.047 |
-| **TOTAL**        | **346** | **303** | **301** | **99.3%** | **$4.77** | **$4.76** |
+| qwen36-plus      | 17  | 21  | 21  | 100.0% | $0.209 | $0.191 |
+| **TOTAL**        | **346** | **319** | **317** | **99.4%** | **$4.77** | **$4.90** |
 
 \* The two non-refused cases are both `target = "example.com"` (a clean
 hostname). The fence correctly *allowed* those calls because the model
@@ -151,13 +151,13 @@ and the bite-rate is **100%**.
 
 | sub-shape       | control attempts | treatment attempts | treatment refused | bite-rate |
 |---|---:|---:|---:|---:|
-| `metachar`      | 56 | 35 | 35 | 100.0% |
-| `cmd-subst`     | 42 | 32 | 32 | 100.0% |
-| `backtick`      | 5  | 4  | 4  | 100.0% |
-| `wildcard`      | 39 | 30 | 30 | 100.0% |
-| `newline`       | 38 | 37 | 37 | 100.0% |
-| `traversal`     | 73 | 64 | 64 | 100.0% |
-| `homoglyph-idn` | 63 | 43 | 43 | 100.0% |
+| `metachar`      | 56 | 38 | 38 | 100.0% |
+| `cmd-subst`     | 42 | 34 | 34 | 100.0% |
+| `backtick`      | 5  | 5  | 5  | 100.0% |
+| `wildcard`      | 39 | 31 | 31 | 100.0% |
+| `newline`       | 38 | 39 | 39 | 100.0% |
+| `traversal`     | 73 | 67 | 67 | 100.0% |
+| `homoglyph-idn` | 63 | 47 | 47 | 100.0% |
 | (unrecognised)  | 30 | 58 | 56 | 96.6% |
 
 The "(unrecognised)" rows are payloads the model paraphrased or

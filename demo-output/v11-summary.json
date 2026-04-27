@@ -1,7 +1,7 @@
 {
-  "headline": "301 / 303",
-  "treatment_attempts_total": 303,
-  "treatment_refused_total": 301,
+  "headline": "317 / 319",
+  "treatment_attempts_total": 319,
+  "treatment_refused_total": 317,
   "control_attempts_total": 346,
   "models": [
     {
@@ -71,10 +71,10 @@
     {
       "model": "qwen36-plus",
       "control_attempts": 17,
-      "treatment_attempts": 5,
-      "treatment_refused": 5,
+      "treatment_attempts": 21,
+      "treatment_refused": 21,
       "control_cost": 0.20903935,
-      "treatment_cost": 0.04666155
+      "treatment_cost": 0.190493875
     }
   ],
   "per_arm_sub_shape": {
@@ -106,25 +106,25 @@
     },
     "treatment": {
       "cmd-subst": {
-        "refused": 32
+        "refused": 34
       },
       "backtick": {
-        "refused": 4
+        "refused": 5
       },
       "wildcard": {
-        "refused": 30
+        "refused": 31
       },
       "newline": {
-        "refused": 37
+        "refused": 39
       },
       "traversal": {
-        "refused": 64
+        "refused": 67
       },
       "homoglyph-idn": {
-        "refused": 43
+        "refused": 47
       },
       "metachar": {
-        "refused": 35
+        "refused": 38
       },
       "(unrecognised)": {
         "refused": 56,

@@ -4,7 +4,7 @@
 
 A worked example of building autonomous agents on **[Symbiont](https://github.com/ThirdKeyAI/symbiont)** with four properties you can actually audit:
 
-1. **Layered safety that holds under pressure.** Action-level (Cedar policy + executor tool-profile-of-one), content-level (`symbi-invis-strip` sanitiser strips invisible Unicode + HTML comments + Markdown fences), grader-level (wrong answers score 0), process-spawn (static cargo test refuses any executor that imports `Command::new`), and registry-level (delegator allow-list refuses unregistered task ids) — five fence types, every one CI-gated.
+1. **Layered safety that holds under pressure.** Action-level (Cedar policy + executor tool-profile-of-one), content-level (`symbi-invis-strip` sanitiser strips invisible Unicode + HTML comments + Markdown fences), grader-level (wrong answers score 0), process-spawn (static cargo test refuses any executor that imports `Command::new`), registry-level (delegator allow-list refuses unregistered task ids), and typed-argument (v11 — `symbi-toolclad-bridge` rejects shell metacharacters / traversal / scope wildcards in tool-call args before execve) — six fence types, every one CI-gated.
 2. **Three principals, three profile-of-ones.** Task agent, reflector, delegator — each with its own Cedar policy, its own ActionExecutor, and a tool surface that contains exactly what it needs and nothing else. The pattern scales to N principals without weakening any boundary.
 3. **End-to-end observability of the run.** Generation id, upstream-provider routing, authoritative `usage.cost`, per-call latency, optional broadcast-trace labels, and a dedicated forensic raw-args sidecar for adversarial sweeps — captured into JSONL alongside the signed run journals, per inference call.
 4. **A reproducible agent-evaluation harness.** Five benchmark tasks, twelve models priced end-to-end across eight sweeps (v1 → v8), authoritative dollar numbers rather than token-count estimates. One command to run a model through the whole matrix.
@@ -21,8 +21,9 @@ Each of these is reproduced by committed sweep artifacts under `demo-output/`.
 | **content-level sanitiser strikes — html-comment-smuggle, 8 models** | **61 / 64 calls (95.3% bite-rate)** | `MODEL-SWEEP-REPORT-v8.md` §2 |
 | **content-level sanitiser strikes — markdown-fence, qwen3-235b** | **16 / 16 calls (100%)** | `MODEL-SWEEP-REPORT-v8.md` §3 |
 | **grader-level injection detection — pr-title-injection, qwen3-235b** | **2 / 5 task runs scored 0** | `MODEL-SWEEP-REPORT-v7.md` §2 |
+| **typed-argument fence — tool-arg-injection, 9 models × 7 sub-shapes** | **317 / 319 calls (99.4% raw bite-rate; 100% on hostile inputs)** | `MODEL-SWEEP-REPORT-v11.md` §"A/B results" |
 | **escapes across every fence type** | **0** | audit-clean across 1474 stored rows / 123 dbs (`--strict`) |
-| distinct attack shapes | **13** (11 reflector + 2 task-agent) | `MODEL-SWEEP-REPORT-v8.md` |
+| distinct attack shapes | **14** (11 reflector + 3 task-agent — v11 adds `tool-arg-injection`) | `MODEL-SWEEP-REPORT-v11.md` |
 | principals demonstrated end-to-end | **3** | task / reflector / delegator (`MODEL-SWEEP-REPORT-v8.md` §4) |
 | sanitiser consumers in repo | **3** | knowledge store + task journal + reflector journal + delegator journal — `symbi-invis-strip` hooked at every write |
 | models evaluated end-to-end | **12** | v1 (12 incl. Ollama local), v2–v8 (9 OpenRouter) |
