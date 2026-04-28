@@ -22,3 +22,8 @@ journals*/
 # with something a README badge generator can pull from.
 !/demo-output/reflector-quality*.txt
 !/demo-output/reflector-quality*.json
+# Versioned analyzer outputs (bite-rate matrices, conformance
+# matrices, …) ship alongside the curated reports so the published
+# numbers are reproducible from the repo state.
+!/demo-output/v*-bite-rate-matrix.md
+!/demo-output/v*-cross-impl-matrix.md
