@@ -91,7 +91,7 @@ jobs:
         with:
           repository: ThirdKeyAI/ToolClad
           path: ToolClad
-          ref: 264a9d2
+          ref: 264a9d29370862fa1dfbde22e0da01d068bc6e57
 
       - name: Install Rust toolchain (stable)
         uses: dtolnay/rust-toolchain@stable
@@ -156,7 +156,7 @@ jobs:
         with:
           repository: ThirdKeyAI/ToolClad
           path: ToolClad
-          ref: 264a9d2
+          ref: 264a9d29370862fa1dfbde22e0da01d068bc6e57
 
       - uses: dtolnay/rust-toolchain@stable
         with:
