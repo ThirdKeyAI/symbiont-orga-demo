@@ -83,6 +83,45 @@
 
 #![forbid(unsafe_code)]
 
+/// v12.1 — process-wide bypass switch for the stack-stripping
+/// ablation sweep. When enabled, `sanitize_field` /
+/// `sanitize_field_with_markup` / `strip_html_comments` /
+/// `strip_md_fences` all return their input unchanged so the
+/// harness can measure what the *other* fences catch when the
+/// content layer is removed. Default-disabled; the bench harness
+/// flips it at run start when `--sanitiser-mode off` is set.
+///
+/// Lives at process scope (single AtomicBool) because the
+/// sanitiser entrypoints are free functions, not methods on a
+/// configurable instance. This is a deliberate ablation hook, not
+/// a production knob — production callers should leave it
+/// disabled.
+pub mod bypass {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    static BYPASS: AtomicBool = AtomicBool::new(false);
+
+    /// Enable bypass. Subsequent sanitiser calls return their input
+    /// unchanged. Idempotent.
+    pub fn enable() {
+        BYPASS.store(true, Ordering::Relaxed);
+    }
+
+    /// Disable bypass (default). Subsequent sanitiser calls run normally.
+    pub fn disable() {
+        BYPASS.store(false, Ordering::Relaxed);
+    }
+
+    /// Read the current bypass state. Hot-path on every sanitiser
+    /// call; the relaxed atomic load compiles to a single mov on
+    /// every supported ISA so the cost is one branch when bypass
+    /// is disabled.
+    #[inline]
+    pub fn is_enabled() -> bool {
+        BYPASS.load(Ordering::Relaxed)
+    }
+}
+
 #[cfg(feature = "metrics")]
 pub mod metrics {
     //! v10 — process-wide throughput counters.
@@ -156,6 +195,9 @@ pub mod metrics {
 /// See the [crate-level documentation](crate) for the full list of
 /// forbidden ranges and the rationale for each.
 pub fn sanitize_field(s: &str) -> String {
+    if bypass::is_enabled() {
+        return s.to_string();
+    }
     #[cfg(feature = "metrics")]
     let started = std::time::Instant::now();
     let out = sanitize_field_inner(s);
@@ -198,6 +240,9 @@ fn sanitize_field_inner(s: &str) -> String {
 ///
 /// Idempotent.
 pub fn sanitize_field_with_markup(s: &str) -> String {
+    if bypass::is_enabled() {
+        return s.to_string();
+    }
     // Note: when the `metrics` feature is enabled, this records ONE
     // call with bytes_in/bytes_out spanning the full sanitisation,
     // not three calls (one per inner pass). The single-call
@@ -214,6 +259,9 @@ pub fn sanitize_field_with_markup(s: &str) -> String {
 /// Strip balanced/unbalanced `<!-- ... -->` blocks. Exposed for
 /// callers that want markup-only or composition.
 pub fn strip_html_comments(s: &str) -> String {
+    if bypass::is_enabled() {
+        return s.to_string();
+    }
     #[cfg(feature = "metrics")]
     let started = std::time::Instant::now();
     let out = strip_html_comments_inner(s);
@@ -248,6 +296,9 @@ fn strip_html_comments_inner(s: &str) -> String {
 /// newlines). Unmatched opener strips to end. Inline single-backtick
 /// `code` is left intact.
 pub fn strip_md_fences(s: &str) -> String {
+    if bypass::is_enabled() {
+        return s.to_string();
+    }
     #[cfg(feature = "metrics")]
     let started = std::time::Instant::now();
     let out = strip_md_fences_inner(s);

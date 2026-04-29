@@ -57,14 +57,29 @@ pub async fn run_delegator(
         allowed_task_ids.to_vec(),
     ));
 
-    let cedar = NamedPrincipalCedarGate::from_file(
-        "delegator",
-        &ctx.policies_dir.join("delegator.cedar"),
-    )
-    .with_context(|| "load delegator.cedar")?;
-    let cedar_denied = cedar.denied_counter();
-    let (gate_calls, gate_ns_total, gate_ns_max) = cedar.latency_counters();
-    let gate: Arc<dyn ReasoningPolicyGate> = Arc::new(cedar);
+    // v12.1 — branch on cedar_mode for ablation.
+    let (cedar_denied, gate_calls, gate_ns_total, gate_ns_max, gate) = {
+        if ctx.cedar_mode.is_active() {
+            let cedar = NamedPrincipalCedarGate::from_file(
+                "delegator",
+                &ctx.policies_dir.join("delegator.cedar"),
+            )
+            .with_context(|| "load delegator.cedar")?;
+            let denied = cedar.denied_counter();
+            let (calls, ns_total, ns_max) = cedar.latency_counters();
+            let g: Arc<dyn ReasoningPolicyGate> = Arc::new(cedar);
+            (denied, calls, ns_total, ns_max, g)
+        } else {
+            tracing::warn!(
+                "v12.1 ablation: delegator --cedar-mode off — gate is permissive stub"
+            );
+            let p = crate::policy_gate::PermissiveGate::new();
+            let denied = p.denied_counter();
+            let (calls, ns_total, ns_max) = p.latency_counters();
+            let g: Arc<dyn ReasoningPolicyGate> = Arc::new(p);
+            (denied, calls, ns_total, ns_max, g)
+        }
+    };
 
     let journal = Arc::new(BufferedJournal::new(512));
     let or_handle = ctx.fresh_openrouter_task_provider();

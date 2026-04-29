@@ -33,7 +33,9 @@ use crate::db::{Db, RunKind};
 use crate::policy_gate::NamedPrincipalCedarGate;
 use crate::reflector;
 use crate::task_tools;
+use crate::CedarMode;
 use crate::Provider;
+use crate::SanitiserMode;
 use crate::ToolCladMode;
 
 pub struct CtxConfig {
@@ -64,6 +66,12 @@ pub struct CtxConfig {
     /// the OpenRouter capturing client. Threaded down so the demo
     /// loop can compare and abort with a partial-results report.
     pub max_spend_usd: f64,
+    /// v12.1 — Cedar policy gate toggle. `Off` swaps in a permissive
+    /// stub for the stack-stripping ablation sweep.
+    pub cedar_mode: CedarMode,
+    /// v12.1 — sanitiser toggle. `Off` makes every sanitize_field
+    /// call a passthrough.
+    pub sanitiser_mode: SanitiserMode,
 }
 
 /// Which task-agent-side adversarial prompt to apply, if any.
@@ -159,6 +167,11 @@ pub struct Ctx {
     /// byte-identical pre-v11 behaviour. Built once at bootstrap so
     /// missing manifests fail fast.
     toolclad_fence: Option<Arc<dyn demo_karpathy_loop::PreValidator>>,
+    /// v12.1 — Cedar gate toggle. Read at gate-construction sites.
+    pub cedar_mode: CedarMode,
+    /// v12.1 — sanitiser toggle. Read at every sanitize_field site.
+    #[allow(dead_code)]
+    pub sanitiser_mode: SanitiserMode,
     /// Model id tag, used for per-model pricing lookup. Populated from
     /// env (`ANTHROPIC_MODEL` / `OPENROUTER_MODEL`) so the `est_cost`
     /// column stays accurate without plumbing the provider's model()
@@ -292,6 +305,24 @@ impl Ctx {
             toolclad_mode: cfg.toolclad_mode,
             max_spend_usd: cfg.max_spend_usd,
             toolclad_fence: build_toolclad_fence(cfg.toolclad_mode)?,
+            cedar_mode: cfg.cedar_mode,
+            sanitiser_mode: {
+                // v12.1 — flip the process-wide bypass at bootstrap.
+                // Idempotent across multiple Ctx instances in the
+                // same process (tests / benches), and reset to
+                // disabled at the end of the run is intentionally NOT
+                // done — the harness is single-config per process.
+                if !cfg.sanitiser_mode.is_active() {
+                    tracing::warn!(
+                        "v12.1 ablation: --sanitiser-mode off — \
+                         symbi_invis_strip::bypass enabled process-wide"
+                    );
+                    symbi_invis_strip::bypass::enable();
+                } else {
+                    symbi_invis_strip::bypass::disable();
+                }
+                cfg.sanitiser_mode
+            },
             pricing_model_key,
             provider_source,
         })
@@ -629,18 +660,31 @@ impl Ctx {
         // — v5 adds a task-adversarial mode that pushes the task agent
         // toward `store_knowledge` (forbidden for this principal), and
         // the counter surfaces the Cedar refusal explicitly.
-        let cedar = NamedPrincipalCedarGate::from_file(
-            "task_agent",
-            &self.policies_dir.join("task-agent.cedar"),
-        )
-        .with_context(|| "load task-agent.cedar")?;
-        let cedar_denied = cedar.denied_counter();
-        // v10 — capture the latency counters before the gate is wrapped
-        // in an Arc<dyn ReasoningPolicyGate>. The shared Arc<AtomicU*>
-        // handles let us drain the histogram after the loop finishes
-        // without reaching back through the dyn trait.
-        let (gate_calls, gate_ns_total, gate_ns_max) = cedar.latency_counters();
-        let gate: Arc<dyn ReasoningPolicyGate> = Arc::new(cedar);
+        // v12.1 — build either the real Cedar gate or a permissive
+        // stub depending on `--cedar-mode`. Both expose the same
+        // counter API so the post-construction code is identical.
+        let (cedar_denied, gate_calls, gate_ns_total, gate_ns_max, gate) = {
+            if self.cedar_mode.is_active() {
+                let cedar = NamedPrincipalCedarGate::from_file(
+                    "task_agent",
+                    &self.policies_dir.join("task-agent.cedar"),
+                )
+                .with_context(|| "load task-agent.cedar")?;
+                let denied = cedar.denied_counter();
+                let (calls, ns_total, ns_max) = cedar.latency_counters();
+                let g: Arc<dyn ReasoningPolicyGate> = Arc::new(cedar);
+                (denied, calls, ns_total, ns_max, g)
+            } else {
+                tracing::warn!(
+                    "v12.1 ablation: --cedar-mode off — gate is permissive stub"
+                );
+                let p = crate::policy_gate::PermissiveGate::new();
+                let denied = p.denied_counter();
+                let (calls, ns_total, ns_max) = p.latency_counters();
+                let g: Arc<dyn ReasoningPolicyGate> = Arc::new(p);
+                (denied, calls, ns_total, ns_max, g)
+            }
+        };
 
         let journal = Arc::new(BufferedJournal::new(4_096));
         // Mint a provider for this run. When we're on OpenRouter we
