@@ -1,6 +1,12 @@
 /target
 /data
 .claude/
+docs/superpowers/
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+COPILOT.md
+CURSOR.md
 *.db
 *.db-wal
 *.db-shm
