@@ -9,7 +9,7 @@ picks → task agent solves → reflector teaches) end-to-end.
 
 | File | Purpose |
 |---|---|
-| `delegator.dsl` | DSL declaration of the delegator's profile. The delegator's only permitted tool is `pick_task`. It cannot probe, store, answer, or shell out. |
+| `delegator.symbi` | Symbiont DSL declaration of the delegator's profile. The delegator's only permitted tool is `pick_task`. It cannot probe, store, answer, or shell out. |
 
 The matching Cedar policy lives at `policies/delegator.cedar`.
 Same dual-fence design as the reflector: DSL says

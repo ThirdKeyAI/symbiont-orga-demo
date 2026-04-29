@@ -8,7 +8,7 @@ dispatch time.
 
 | File | Principal |
 |---|---|
-| `task-agent.dsl` | The "student" — solves a benchmark task by calling diagnostic tools and committing an `answer`. The DSL declares its permitted tools (no `store_knowledge`, no `system_shell`). |
+| `task-agent.symbi` | The "student" — solves a benchmark task by calling diagnostic tools and committing an `answer`. The DSL declares its permitted tools (no `store_knowledge`, no `system_shell`). |
 
 The reflector and delegator DSLs live alongside their respective
 runtime modules under `reflector/` and `delegator/`.

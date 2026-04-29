@@ -12,7 +12,7 @@ handler map.
 
 | File | Purpose |
 |---|---|
-| `reflector.dsl` | DSL declaration of the reflector's profile-of-one. Loaded by the runtime at startup. |
+| `reflector.symbi` | Symbiont DSL declaration of the reflector's profile-of-one. Loaded by the runtime at startup. |
 
 The Cedar policy that backs the reflector is at
 `policies/reflector.cedar`. The two are deliberately co-designed:

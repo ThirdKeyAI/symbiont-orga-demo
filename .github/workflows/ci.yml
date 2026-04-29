@@ -82,6 +82,17 @@ jobs:
           path: symbiont
           ref: cbddea16e787fbb9562a24a7cc69ed011769acb4
 
+      # v11+ — bridge crate path-deps on `../ToolClad/rust`. Without
+      # this checkout, the workspace fails to resolve at cargo test
+      # time. Pinned to a SHA so a main-branch change in ToolClad
+      # cannot break this CI without a deliberate bump here.
+      - name: Check out ToolClad side-by-side
+        uses: actions/checkout@v4
+        with:
+          repository: ThirdKeyAI/ToolClad
+          path: ToolClad
+          ref: 264a9d2
+
       - name: Install Rust toolchain (stable)
         uses: dtolnay/rust-toolchain@stable
 
@@ -138,6 +149,14 @@ jobs:
           repository: ThirdKeyAI/symbiont
           path: symbiont
           ref: cbddea16e787fbb9562a24a7cc69ed011769acb4
+
+      # v11+ — bridge crate path-deps on `../ToolClad/rust`. Same SHA
+      # pin as the rust-tests job above.
+      - uses: actions/checkout@v4
+        with:
+          repository: ThirdKeyAI/ToolClad
+          path: ToolClad
+          ref: 264a9d2
 
       - uses: dtolnay/rust-toolchain@stable
         with:
