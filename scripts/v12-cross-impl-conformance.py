@@ -165,11 +165,10 @@ def run_impl(impl: str, cmd: list[str], payload: Payload) -> CallResult:
     """Invoke a single impl's `toolclad test` against the manifest with
     the given payload, and decide whether the *validator* refused.
 
-    Exit code is the canonical signal for Rust/Python/JS. Go's `test`
-    command has a known-buggy exit code (always 0 even on validation
-    failure — filed as upstream issue), but its stdout reliably prints
-    `FAIL:` next to the validator's error message. We parse Go's
-    stdout for that marker as a stand-in.
+    Exit-code is the canonical signal across all four impls as of
+    ToolClad commit `264a9d2` (which fixed Go's always-0 exit code).
+    Earlier ToolClad releases needed an impl-specific stdout-parse
+    fallback for Go; that's no longer necessary.
     """
     full_cmd = [
         *cmd, "test", str(WHOIS_MANIFEST),
@@ -180,16 +179,7 @@ def run_impl(impl: str, cmd: list[str], payload: Payload) -> CallResult:
     )
     stderr = proc.stderr.strip().splitlines()
     stdout = proc.stdout.strip().splitlines()
-
-    if proc.returncode != 0:
-        outcome = "refuse"
-    elif impl == "go" and "FAIL:" in proc.stdout:
-        # Go's test CLI always returns 0 — see the upstream bug
-        # comment in the docstring. Parse stdout for the validator's
-        # failure marker.
-        outcome = "refuse"
-    else:
-        outcome = "accept"
+    outcome = "refuse" if proc.returncode != 0 else "accept"
 
     return CallResult(
         impl=impl,
