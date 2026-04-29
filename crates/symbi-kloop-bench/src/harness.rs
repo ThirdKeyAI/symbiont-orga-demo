@@ -717,7 +717,7 @@ impl Ctx {
         // the mock provider), then user prompt.
         let system = format!(
             "You are the TASK AGENT for the Symbiont Karpathy-loop demo. \
-             Follow the DSL governance rules from agents/task-agent.dsl. \
+             Follow the DSL governance rules from agents/task-agent.symbi. \
              Task id: {task_id}. Call recall_knowledge first and apply \
              any learned procedures before choosing an approach.",
             task_id = task.id
