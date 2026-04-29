@@ -123,6 +123,23 @@ struct Cli {
     #[arg(long, default_value_t = false, global = true)]
     tool_result_injection: bool,
 
+    /// v12.1 — bypass the Cedar policy gate entirely (replaces the
+    /// gate with a permissive stub that always returns Continue).
+    /// Used by the stack-stripping ablation sweep to measure what
+    /// the *other* fences catch when the action layer is removed.
+    /// Default `on` — preserves byte-identical pre-v12 behaviour.
+    #[arg(long, value_enum, default_value_t = CedarMode::On, global = true)]
+    cedar_mode: CedarMode,
+
+    /// v12.1 — bypass the symbi-invis-strip sanitiser at every site
+    /// in the bench / runtime path (knowledge-store writes, journal
+    /// writers, tool-result post-processors). Default `on`. When
+    /// `off`, sanitize_field returns its input unchanged. Used by the
+    /// stack-stripping ablation sweep to measure what the typed-arg
+    /// + action fences catch when content fence is removed.
+    #[arg(long, value_enum, default_value_t = SanitiserMode::On, global = true)]
+    sanitiser_mode: SanitiserMode,
+
     /// v11 — gate ToolClad's typed-argument fence on tool calls.
     ///
     /// - `off` (default): no behavioural change; the harness is
@@ -164,6 +181,32 @@ pub enum ToolCladMode {
 impl ToolCladMode {
     pub fn is_active(self) -> bool {
         matches!(self, ToolCladMode::On | ToolCladMode::Only)
+    }
+}
+
+/// v12.1 — Cedar policy gate toggle.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
+pub enum CedarMode {
+    On,
+    Off,
+}
+
+impl CedarMode {
+    pub fn is_active(self) -> bool {
+        matches!(self, CedarMode::On)
+    }
+}
+
+/// v12.1 — sanitiser (symbi-invis-strip) toggle.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
+pub enum SanitiserMode {
+    On,
+    Off,
+}
+
+impl SanitiserMode {
+    pub fn is_active(self) -> bool {
+        matches!(self, SanitiserMode::On)
     }
 }
 
@@ -313,6 +356,8 @@ async fn main() -> anyhow::Result<()> {
         tool_result_injection: cli.tool_result_injection,
         toolclad_mode: cli.toolclad_mode,
         max_spend_usd: cli.max_spend_usd,
+        cedar_mode: cli.cedar_mode,
+        sanitiser_mode: cli.sanitiser_mode,
     })
     .await?;
 

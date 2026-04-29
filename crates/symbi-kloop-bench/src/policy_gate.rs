@@ -233,6 +233,61 @@ impl ReasoningPolicyGate for NamedPrincipalCedarGate {
     }
 }
 
+/// v12.1 — permissive gate that always returns `Continue`.
+///
+/// Used by the ablation sweep when `--cedar-mode off` is set. Lets the
+/// harness measure what the *other* fences catch when the action layer
+/// is removed. This is the L0 / L1 pivot point.
+///
+/// Carries the same denial / latency counters as `NamedPrincipalCedarGate`
+/// so report queries that pivot on those columns continue to work
+/// (they just always read zero, which is the correct answer for
+/// "no Cedar enforcement happened").
+pub struct PermissiveGate {
+    denied: Arc<AtomicU32>,
+    calls: Arc<AtomicU32>,
+    ns_total: Arc<AtomicU64>,
+    ns_max: Arc<AtomicU64>,
+}
+
+impl PermissiveGate {
+    pub fn new() -> Self {
+        Self {
+            denied: Arc::new(AtomicU32::new(0)),
+            calls: Arc::new(AtomicU32::new(0)),
+            ns_total: Arc::new(AtomicU64::new(0)),
+            ns_max: Arc::new(AtomicU64::new(0)),
+        }
+    }
+
+    pub fn denied_counter(&self) -> Arc<AtomicU32> {
+        self.denied.clone()
+    }
+
+    pub fn latency_counters(&self) -> (Arc<AtomicU32>, Arc<AtomicU64>, Arc<AtomicU64>) {
+        (self.calls.clone(), self.ns_total.clone(), self.ns_max.clone())
+    }
+}
+
+impl Default for PermissiveGate {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait]
+impl ReasoningPolicyGate for PermissiveGate {
+    async fn evaluate_action(
+        &self,
+        _agent_id: &AgentId,
+        _action: &ProposedAction,
+        _state: &LoopState,
+    ) -> LoopDecision {
+        self.calls.fetch_add(1, Ordering::Relaxed);
+        LoopDecision::Allow
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
