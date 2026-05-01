@@ -51,8 +51,9 @@ jobs:
 
       - name: DSL linter (homoglyph + invisible-char fence — v10)
         # v10 — symmetric to the Cedar linter. Catches a PR that
-        # adds `tool "answеr"` (Cyrillic `е`) to agents/*.dsl,
-        # reflector/*.dsl, or delegator/*.dsl.
+        # adds `tool "answеr"` (Cyrillic `е`) to agents/*.symbi,
+        # reflector/*.symbi, or delegator/*.symbi (`.dsl` accepted
+        # as a legacy fallback).
         run: scripts/lint-dsl-files.py
 
       - name: Knowledge-store audit (sanitiser-escape fence)
