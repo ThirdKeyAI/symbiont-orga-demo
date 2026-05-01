@@ -161,18 +161,30 @@ pub async fn run_reflector(
     }
     let executor = Arc::new(exec_builder);
 
-    let cedar = NamedPrincipalCedarGate::from_file(
-        "reflector",
-        &ctx.policies_dir.join("reflector.cedar"),
-    )
-    .with_context(|| "load reflector.cedar")?;
-    // Capture the denied counter before handing Cedar off into the trait
-    // object. The gate's Arc is consumed by the runner, so we rely on the
-    // counter's own `Arc<AtomicU32>` to read it back after the run.
-    let cedar_denied = cedar.denied_counter();
-    // v10 — same pattern for the latency histogram.
-    let (gate_calls, gate_ns_total, gate_ns_max) = cedar.latency_counters();
-    let gate: Arc<dyn ReasoningPolicyGate> = Arc::new(cedar);
+    // v12.1 — branch on cedar_mode (real Cedar gate vs permissive
+    // stub). Both expose the same denied/latency counter API.
+    let (cedar_denied, gate_calls, gate_ns_total, gate_ns_max, gate) = {
+        if ctx.cedar_mode.is_active() {
+            let cedar = NamedPrincipalCedarGate::from_file(
+                "reflector",
+                &ctx.policies_dir.join("reflector.cedar"),
+            )
+            .with_context(|| "load reflector.cedar")?;
+            let denied = cedar.denied_counter();
+            let (calls, ns_total, ns_max) = cedar.latency_counters();
+            let g: Arc<dyn ReasoningPolicyGate> = Arc::new(cedar);
+            (denied, calls, ns_total, ns_max, g)
+        } else {
+            tracing::warn!(
+                "v12.1 ablation: reflector --cedar-mode off — gate is permissive stub"
+            );
+            let p = crate::policy_gate::PermissiveGate::new();
+            let denied = p.denied_counter();
+            let (calls, ns_total, ns_max) = p.latency_counters();
+            let g: Arc<dyn ReasoningPolicyGate> = Arc::new(p);
+            (denied, calls, ns_total, ns_max, g)
+        }
+    };
 
     let journal = Arc::new(BufferedJournal::new(1_024));
     let or_handle = ctx.fresh_openrouter_reflect_provider();

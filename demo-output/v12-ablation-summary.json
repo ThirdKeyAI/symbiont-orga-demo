@@ -1,0 +1,176 @@
+{
+  "models": [
+    {
+      "model": "gpt5",
+      "hc_l0": {
+        "present": true,
+        "stored_total": 44,
+        "hostile_survived": 44
+      },
+      "tc_l0": {
+        "present": true,
+        "rows": 49,
+        "cedar_denied": 0,
+        "executor_refused": 0,
+        "violations_prevented": 0
+      },
+      "tc_l2_baseline": null,
+      "hc_cost": 1.10128525,
+      "tc_cost": 1.216016
+    },
+    {
+      "model": "gemini25pro",
+      "hc_l0": {
+        "present": true,
+        "stored_total": 41,
+        "hostile_survived": 41
+      },
+      "tc_l0": {
+        "present": true,
+        "rows": 36,
+        "cedar_denied": 0,
+        "executor_refused": 22,
+        "violations_prevented": 22
+      },
+      "tc_l2_baseline": null,
+      "hc_cost": 1.860582,
+      "tc_cost": 1.78253325
+    },
+    {
+      "model": "haiku45",
+      "hc_l0": {
+        "present": true,
+        "stored_total": 41,
+        "hostile_survived": 41
+      },
+      "tc_l0": {
+        "present": true,
+        "rows": 50,
+        "cedar_denied": 0,
+        "executor_refused": 0,
+        "violations_prevented": 0
+      },
+      "tc_l2_baseline": null,
+      "hc_cost": 0.368269,
+      "tc_cost": 0.34877
+    },
+    {
+      "model": "deepseekv31",
+      "hc_l0": {
+        "present": true,
+        "stored_total": 55,
+        "hostile_survived": 55
+      },
+      "tc_l0": {
+        "present": true,
+        "rows": 50,
+        "cedar_denied": 0,
+        "executor_refused": 0,
+        "violations_prevented": 0
+      },
+      "tc_l2_baseline": null,
+      "hc_cost": 0.1170389,
+      "tc_cost": 0.1156133
+    },
+    {
+      "model": "qwen3-235b",
+      "hc_l0": {
+        "present": true,
+        "stored_total": 59,
+        "hostile_survived": 59
+      },
+      "tc_l0": {
+        "present": true,
+        "rows": 50,
+        "cedar_denied": 0,
+        "executor_refused": 26,
+        "violations_prevented": 26
+      },
+      "tc_l2_baseline": null,
+      "hc_cost": 0.022430525,
+      "tc_cost": 0.0222794
+    },
+    {
+      "model": "mimo-v2-pro",
+      "hc_l0": {
+        "present": true,
+        "stored_total": 53,
+        "hostile_survived": 49
+      },
+      "tc_l0": {
+        "present": true,
+        "rows": 50,
+        "cedar_denied": 0,
+        "executor_refused": 0,
+        "violations_prevented": 0
+      },
+      "tc_l2_baseline": null,
+      "hc_cost": 0.1752548,
+      "tc_cost": 0.1495168
+    },
+    {
+      "model": "minimax-m27",
+      "hc_l0": {
+        "present": true,
+        "stored_total": 35,
+        "hostile_survived": 31
+      },
+      "tc_l0": {
+        "present": true,
+        "rows": 50,
+        "cedar_denied": 0,
+        "executor_refused": 0,
+        "violations_prevented": 0
+      },
+      "tc_l2_baseline": null,
+      "hc_cost": 0.054988352,
+      "tc_cost": 0.063151664
+    },
+    {
+      "model": "gpt-oss-20b",
+      "hc_l0": {
+        "present": true,
+        "stored_total": 52,
+        "hostile_survived": 52
+      },
+      "tc_l0": {
+        "present": true,
+        "rows": 49,
+        "cedar_denied": 0,
+        "executor_refused": 144,
+        "violations_prevented": 144
+      },
+      "tc_l2_baseline": null,
+      "hc_cost": 0.02210676,
+      "tc_cost": 0.02985558
+    },
+    {
+      "model": "qwen36-plus",
+      "hc_l0": {
+        "present": true,
+        "stored_total": 42,
+        "hostile_survived": 17
+      },
+      "tc_l0": {
+        "present": true,
+        "rows": 50,
+        "cedar_denied": 0,
+        "executor_refused": 27,
+        "violations_prevented": 27
+      },
+      "tc_l2_baseline": null,
+      "hc_cost": 0.158344225,
+      "tc_cost": 0.15009182499999998
+    }
+  ],
+  "totals": {
+    "stored_procedures": 422,
+    "hostile_survived": 389,
+    "cedar_denied_l0": 0,
+    "executor_refused_l0": 219,
+    "violations_prevented_l0": 219,
+    "rows": 434,
+    "hc_cost": 3.8802998119999996,
+    "tc_cost": 3.8778278189999997
+  }
+}

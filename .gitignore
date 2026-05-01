@@ -1,6 +1,12 @@
 /target
 /data
 .claude/
+docs/superpowers/
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+COPILOT.md
+CURSOR.md
 *.db
 *.db-wal
 *.db-shm
@@ -22,3 +28,9 @@ journals*/
 # with something a README badge generator can pull from.
 !/demo-output/reflector-quality*.txt
 !/demo-output/reflector-quality*.json
+# Versioned analyzer outputs (bite-rate matrices, conformance
+# matrices, ablation matrices, …) ship alongside the curated reports
+# so the published numbers are reproducible from the repo state.
+!/demo-output/v*-bite-rate-matrix.md
+!/demo-output/v*-cross-impl-matrix.md
+!/demo-output/v*-ablation-matrix.md
