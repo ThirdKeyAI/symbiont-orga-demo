@@ -51,8 +51,9 @@ jobs:
 
       - name: DSL linter (homoglyph + invisible-char fence — v10)
         # v10 — symmetric to the Cedar linter. Catches a PR that
-        # adds `tool "answеr"` (Cyrillic `е`) to agents/*.dsl,
-        # reflector/*.dsl, or delegator/*.dsl.
+        # adds `tool "answеr"` (Cyrillic `е`) to agents/*.symbi,
+        # reflector/*.symbi, or delegator/*.symbi (`.dsl` accepted
+        # as a legacy fallback).
         run: scripts/lint-dsl-files.py
 
       - name: Knowledge-store audit (sanitiser-escape fence)
@@ -81,6 +82,17 @@ jobs:
           repository: ThirdKeyAI/symbiont
           path: symbiont
           ref: cbddea16e787fbb9562a24a7cc69ed011769acb4
+
+      # v11+ — bridge crate path-deps on `../ToolClad/rust`. Without
+      # this checkout, the workspace fails to resolve at cargo test
+      # time. Pinned to a SHA so a main-branch change in ToolClad
+      # cannot break this CI without a deliberate bump here.
+      - name: Check out ToolClad side-by-side
+        uses: actions/checkout@v4
+        with:
+          repository: ThirdKeyAI/ToolClad
+          path: ToolClad
+          ref: 264a9d29370862fa1dfbde22e0da01d068bc6e57
 
       - name: Install Rust toolchain (stable)
         uses: dtolnay/rust-toolchain@stable
@@ -138,6 +150,14 @@ jobs:
           repository: ThirdKeyAI/symbiont
           path: symbiont
           ref: cbddea16e787fbb9562a24a7cc69ed011769acb4
+
+      # v11+ — bridge crate path-deps on `../ToolClad/rust`. Same SHA
+      # pin as the rust-tests job above.
+      - uses: actions/checkout@v4
+        with:
+          repository: ThirdKeyAI/ToolClad
+          path: ToolClad
+          ref: 264a9d29370862fa1dfbde22e0da01d068bc6e57
 
       - uses: dtolnay/rust-toolchain@stable
         with:

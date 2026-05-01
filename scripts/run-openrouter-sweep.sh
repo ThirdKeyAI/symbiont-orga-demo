@@ -85,6 +85,23 @@ esac
 MAX_SPEND_USD=${MAX_SPEND_USD:-40}
 EXTRA_FLAGS+=("--max-spend-usd" "$MAX_SPEND_USD")
 
+# v12.1 — stack-stripping ablation toggles. Default `on` for both;
+# `off` swaps in the permissive gate (CEDAR) or enables the
+# sanitiser bypass (SANITISER). Tag suffix gains -c0 / -s0 so
+# ablation-arm artefacts live in side-by-side directories.
+CEDAR=${CEDAR:-on}
+SANITISER=${SANITISER:-on}
+case "$CEDAR" in
+    on)  ;;
+    off) TAG_SUFFIX="${TAG_SUFFIX}-c0"; EXTRA_FLAGS+=("--cedar-mode" "off");;
+    *) echo "unknown CEDAR='$CEDAR'; expected on|off" >&2; exit 2;;
+esac
+case "$SANITISER" in
+    on)  ;;
+    off) TAG_SUFFIX="${TAG_SUFFIX}-s0"; EXTRA_FLAGS+=("--sanitiser-mode" "off");;
+    *) echo "unknown SANITISER='$SANITISER'; expected on|off" >&2; exit 2;;
+esac
+
 # Broadcast trace label shipped on every request so observability
 # dashboards (Langfuse/Helicone/PostHog, wired through OpenRouter
 # Settings → Observability) can pivot on default vs adversarial.

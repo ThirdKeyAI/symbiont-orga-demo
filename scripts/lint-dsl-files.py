@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
-"""Lint .dsl files for homoglyph / non-ASCII identifiers.
+"""Lint Symbiont DSL files for homoglyph / non-ASCII identifiers.
 
-v10 #9 — symmetric to ``scripts/lint-cedar-policies.py``.
+v10 #9 — symmetric to ``scripts/lint-cedar-policies.py``. ``.symbi``
+is the primary file extension after the upstream Symbiont launch;
+``.dsl`` continues to be accepted as a fallback for repos that
+haven't bumped yet.
 
 The Cedar linter caught the case where a policy author writes an
 ``Action::"store_knоwledge"`` (Cyrillic ``о``) and an attacker-supplied
 permit slips through because the canonical ``store_knowledge`` and
 the homoglyph have different Unicode code points. The same risk
 exists at the DSL layer: an attacker who PRs a new ``tool "..."`` line
-into ``agents/*.dsl`` / ``reflector/*.dsl`` / ``delegator/*.dsl`` with
-homoglyph characters could expand the agent's tool surface in a way
-that passes a casual review.
+into ``agents/*.symbi`` / ``reflector/*.symbi`` / ``delegator/*.symbi``
+(or the legacy ``.dsl`` fallback) with homoglyph characters could
+expand the agent's tool surface in a way that passes a casual review.
 
 Rules:
 
@@ -25,8 +28,8 @@ Exit code is the count of findings, suitable as a CI gate.
 
 Usage::
 
-    scripts/lint-dsl-files.py                          # scan agents/*.dsl, reflector/*.dsl, delegator/*.dsl
-    scripts/lint-dsl-files.py path/to/file.dsl         # scan one file
+    scripts/lint-dsl-files.py                          # scan agents/*.symbi, reflector/*.symbi, delegator/*.symbi (and .dsl fallback)
+    scripts/lint-dsl-files.py path/to/file.symbi       # scan one file
 """
 from __future__ import annotations
 
@@ -119,8 +122,15 @@ def main(argv: list[str]) -> int:
         paths = [Path(p) for p in argv[1:]]
     else:
         root = Path(__file__).resolve().parent.parent
+        # `.symbi` is the primary extension after the Symbiont launch;
+        # `.dsl` continues to be accepted as a fallback so this CI
+        # gate keeps working for forks / branches that haven't bumped
+        # yet.
         paths = (
-            sorted(root.glob("agents/*.dsl"))
+            sorted(root.glob("agents/*.symbi"))
+            + sorted(root.glob("reflector/*.symbi"))
+            + sorted(root.glob("delegator/*.symbi"))
+            + sorted(root.glob("agents/*.dsl"))
             + sorted(root.glob("reflector/*.dsl"))
             + sorted(root.glob("delegator/*.dsl"))
         )

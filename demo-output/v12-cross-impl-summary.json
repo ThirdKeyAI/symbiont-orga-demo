@@ -1,0 +1,1201 @@
+{
+  "corpus_size": 33,
+  "impls": [
+    "rust",
+    "python",
+    "js",
+    "go"
+  ],
+  "divergences": [],
+  "expected_mismatches": [],
+  "results": [
+    {
+      "impl": "rust",
+      "payload": "v11/metachar",
+      "value": "example.com; touch /tmp/canary-X",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "error: validation error: argument 'target' contains disallowed shell metacharacter ';'"
+    },
+    {
+      "impl": "python",
+      "payload": "v11/metachar",
+      "value": "example.com; touch /tmp/canary-X",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "v11/metachar",
+      "value": "example.com; touch /tmp/canary-X",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Error: Injection detected: value contains shell metacharacters: example.com; touch /tmp/canary-X"
+    },
+    {
+      "impl": "go",
+      "payload": "v11/metachar",
+      "value": "example.com; touch /tmp/canary-X",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Flags:\n      --arg stringArray   Tool argument in key=value format (repeatable)\n  -h, --help              help for test"
+    },
+    {
+      "impl": "rust",
+      "payload": "v11/cmd-subst",
+      "value": "$(touch /tmp/canary-X).example.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "error: validation error: argument 'target' contains disallowed shell metacharacter '$'"
+    },
+    {
+      "impl": "python",
+      "payload": "v11/cmd-subst",
+      "value": "$(touch /tmp/canary-X).example.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "v11/cmd-subst",
+      "value": "$(touch /tmp/canary-X).example.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Error: Injection detected: value contains shell metacharacters: $(touch /tmp/canary-X).example.com"
+    },
+    {
+      "impl": "go",
+      "payload": "v11/cmd-subst",
+      "value": "$(touch /tmp/canary-X).example.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Flags:\n      --arg stringArray   Tool argument in key=value format (repeatable)\n  -h, --help              help for test"
+    },
+    {
+      "impl": "rust",
+      "payload": "v11/backtick",
+      "value": "`touch /tmp/canary-X`.example.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "error: validation error: argument 'target' contains disallowed shell metacharacter '`'"
+    },
+    {
+      "impl": "python",
+      "payload": "v11/backtick",
+      "value": "`touch /tmp/canary-X`.example.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "v11/backtick",
+      "value": "`touch /tmp/canary-X`.example.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Error: Injection detected: value contains shell metacharacters: `touch /tmp/canary-X`.example.com"
+    },
+    {
+      "impl": "go",
+      "payload": "v11/backtick",
+      "value": "`touch /tmp/canary-X`.example.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Flags:\n      --arg stringArray   Tool argument in key=value format (repeatable)\n  -h, --help              help for test"
+    },
+    {
+      "impl": "rust",
+      "payload": "v11/wildcard",
+      "value": "*.example.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "error: validation error: argument 'target' scope_target must not contain wildcards"
+    },
+    {
+      "impl": "python",
+      "payload": "v11/wildcard",
+      "value": "*.example.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "v11/wildcard",
+      "value": "*.example.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Error: Wildcard not allowed in scope_target: *.example.com"
+    },
+    {
+      "impl": "go",
+      "payload": "v11/wildcard",
+      "value": "*.example.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Flags:\n      --arg stringArray   Tool argument in key=value format (repeatable)\n  -h, --help              help for test"
+    },
+    {
+      "impl": "rust",
+      "payload": "v11/newline",
+      "value": "example.com\nINJECTED",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "error: validation error: argument 'target' contains disallowed shell metacharacter '\n'"
+    },
+    {
+      "impl": "python",
+      "payload": "v11/newline",
+      "value": "example.com\nINJECTED",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "v11/newline",
+      "value": "example.com\nINJECTED",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Error: Injection detected: value contains shell metacharacters: example.com\nINJECTED"
+    },
+    {
+      "impl": "go",
+      "payload": "v11/newline",
+      "value": "example.com\nINJECTED",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Flags:\n      --arg stringArray   Tool argument in key=value format (repeatable)\n  -h, --help              help for test"
+    },
+    {
+      "impl": "rust",
+      "payload": "v11/traversal",
+      "value": "../../tmp/canary-X",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "error: validation error: argument 'target' scope_target must not contain path traversal sequences"
+    },
+    {
+      "impl": "python",
+      "payload": "v11/traversal",
+      "value": "../../tmp/canary-X",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "v11/traversal",
+      "value": "../../tmp/canary-X",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Error: scope_target must not contain path traversal sequences: ../../tmp/canary-X"
+    },
+    {
+      "impl": "go",
+      "payload": "v11/traversal",
+      "value": "../../tmp/canary-X",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Flags:\n      --arg stringArray   Tool argument in key=value format (repeatable)\n  -h, --help              help for test"
+    },
+    {
+      "impl": "rust",
+      "payload": "v11/homoglyph-idn",
+      "value": "ex\u0430mple.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "error: validation error: argument 'target' scope_target must be ASCII (non-ASCII hostnames including IDN homoglyphs are rejected; gate IDN registration upstream if needed)"
+    },
+    {
+      "impl": "python",
+      "payload": "v11/homoglyph-idn",
+      "value": "ex\u0430mple.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "v11/homoglyph-idn",
+      "value": "ex\u0430mple.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Error: scope_target must be ASCII (non-ASCII hostnames including IDN homoglyphs are rejected; gate IDN registration upstream if needed): ex\u0430mple.com"
+    },
+    {
+      "impl": "go",
+      "payload": "v11/homoglyph-idn",
+      "value": "ex\u0430mple.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Flags:\n      --arg stringArray   Tool argument in key=value format (repeatable)\n  -h, --help              help for test"
+    },
+    {
+      "impl": "rust",
+      "payload": "v11/punycode-idn",
+      "value": "xn--example-9c.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "error: validation error: argument 'target' scope_target must not contain punycode (xn--) labels \u2014 IDN/IDNA hostnames are rejected to prevent homoglyph bypass; gate IDN registration upstream if needed"
+    },
+    {
+      "impl": "python",
+      "payload": "v11/punycode-idn",
+      "value": "xn--example-9c.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "v11/punycode-idn",
+      "value": "xn--example-9c.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Error: scope_target must not contain punycode (xn--) labels \u2014 IDN/IDNA hostnames are rejected to prevent homoglyph bypass; gate IDN registration upstream if needed: xn--example-9c.com"
+    },
+    {
+      "impl": "go",
+      "payload": "v11/punycode-idn",
+      "value": "xn--example-9c.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Flags:\n      --arg stringArray   Tool argument in key=value format (repeatable)\n  -h, --help              help for test"
+    },
+    {
+      "impl": "rust",
+      "payload": "ext/pipe",
+      "value": "example.com|whoami",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "error: validation error: argument 'target' contains disallowed shell metacharacter '|'"
+    },
+    {
+      "impl": "python",
+      "payload": "ext/pipe",
+      "value": "example.com|whoami",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "ext/pipe",
+      "value": "example.com|whoami",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Error: Injection detected: value contains shell metacharacters: example.com|whoami"
+    },
+    {
+      "impl": "go",
+      "payload": "ext/pipe",
+      "value": "example.com|whoami",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Flags:\n      --arg stringArray   Tool argument in key=value format (repeatable)\n  -h, --help              help for test"
+    },
+    {
+      "impl": "rust",
+      "payload": "ext/ampersand",
+      "value": "example.com&id",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "error: validation error: argument 'target' contains disallowed shell metacharacter '&'"
+    },
+    {
+      "impl": "python",
+      "payload": "ext/ampersand",
+      "value": "example.com&id",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "ext/ampersand",
+      "value": "example.com&id",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Error: Injection detected: value contains shell metacharacters: example.com&id"
+    },
+    {
+      "impl": "go",
+      "payload": "ext/ampersand",
+      "value": "example.com&id",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Flags:\n      --arg stringArray   Tool argument in key=value format (repeatable)\n  -h, --help              help for test"
+    },
+    {
+      "impl": "rust",
+      "payload": "ext/dollar-paren",
+      "value": "${IFS}example.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "error: validation error: argument 'target' contains disallowed shell metacharacter '$'"
+    },
+    {
+      "impl": "python",
+      "payload": "ext/dollar-paren",
+      "value": "${IFS}example.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "ext/dollar-paren",
+      "value": "${IFS}example.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Error: Injection detected: value contains shell metacharacters: ${IFS}example.com"
+    },
+    {
+      "impl": "go",
+      "payload": "ext/dollar-paren",
+      "value": "${IFS}example.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Flags:\n      --arg stringArray   Tool argument in key=value format (repeatable)\n  -h, --help              help for test"
+    },
+    {
+      "impl": "rust",
+      "payload": "ext/cr-injection",
+      "value": "example.com\rINJECTED",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "error: validation error: argument 'target' contains disallowed shell metacharacter '\n'"
+    },
+    {
+      "impl": "python",
+      "payload": "ext/cr-injection",
+      "value": "example.com\rINJECTED",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "ext/cr-injection",
+      "value": "example.com\rINJECTED",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Error: Injection detected: value contains shell metacharacters: example.com\nINJECTED"
+    },
+    {
+      "impl": "go",
+      "payload": "ext/cr-injection",
+      "value": "example.com\rINJECTED",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Flags:\n      --arg stringArray   Tool argument in key=value format (repeatable)\n  -h, --help              help for test"
+    },
+    {
+      "impl": "rust",
+      "payload": "ext/leading-dot",
+      "value": ".example.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "error: validation error: argument 'target' is not a valid scope target (IP, CIDR, or hostname)"
+    },
+    {
+      "impl": "python",
+      "payload": "ext/leading-dot",
+      "value": ".example.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "ext/leading-dot",
+      "value": ".example.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Error: Invalid scope_target: .example.com (must be IP, CIDR, or hostname)"
+    },
+    {
+      "impl": "go",
+      "payload": "ext/leading-dot",
+      "value": ".example.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Flags:\n      --arg stringArray   Tool argument in key=value format (repeatable)\n  -h, --help              help for test"
+    },
+    {
+      "impl": "rust",
+      "payload": "ext/space-suffix",
+      "value": "example.com ",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "error: validation error: argument 'target' must not contain leading or trailing whitespace"
+    },
+    {
+      "impl": "python",
+      "payload": "ext/space-suffix",
+      "value": "example.com ",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "ext/space-suffix",
+      "value": "example.com ",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Error: scope_target must not contain leading or trailing whitespace: example.com"
+    },
+    {
+      "impl": "go",
+      "payload": "ext/space-suffix",
+      "value": "example.com ",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Flags:\n      --arg stringArray   Tool argument in key=value format (repeatable)\n  -h, --help              help for test"
+    },
+    {
+      "impl": "rust",
+      "payload": "ext/at-sign",
+      "value": "user@example.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "error: validation error: argument 'target' is not a valid scope target (IP, CIDR, or hostname)"
+    },
+    {
+      "impl": "python",
+      "payload": "ext/at-sign",
+      "value": "user@example.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "ext/at-sign",
+      "value": "user@example.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Error: Invalid scope_target: user@example.com (must be IP, CIDR, or hostname)"
+    },
+    {
+      "impl": "go",
+      "payload": "ext/at-sign",
+      "value": "user@example.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Flags:\n      --arg stringArray   Tool argument in key=value format (repeatable)\n  -h, --help              help for test"
+    },
+    {
+      "impl": "rust",
+      "payload": "ext/percent-encode",
+      "value": "example.com%2Fbad",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "error: validation error: argument 'target' is not a valid scope target (IP, CIDR, or hostname)"
+    },
+    {
+      "impl": "python",
+      "payload": "ext/percent-encode",
+      "value": "example.com%2Fbad",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "ext/percent-encode",
+      "value": "example.com%2Fbad",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Error: Invalid scope_target: example.com%2Fbad (must be IP, CIDR, or hostname)"
+    },
+    {
+      "impl": "go",
+      "payload": "ext/percent-encode",
+      "value": "example.com%2Fbad",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Flags:\n      --arg stringArray   Tool argument in key=value format (repeatable)\n  -h, --help              help for test"
+    },
+    {
+      "impl": "rust",
+      "payload": "ext/double-traversal",
+      "value": "..//..//etc/passwd",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "error: validation error: argument 'target' scope_target must not contain path traversal sequences"
+    },
+    {
+      "impl": "python",
+      "payload": "ext/double-traversal",
+      "value": "..//..//etc/passwd",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "ext/double-traversal",
+      "value": "..//..//etc/passwd",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Error: scope_target must not contain path traversal sequences: ..//..//etc/passwd"
+    },
+    {
+      "impl": "go",
+      "payload": "ext/double-traversal",
+      "value": "..//..//etc/passwd",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Flags:\n      --arg stringArray   Tool argument in key=value format (repeatable)\n  -h, --help              help for test"
+    },
+    {
+      "impl": "rust",
+      "payload": "ext/encoded-traversal",
+      "value": "%2e%2e%2fetc%2fpasswd",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "error: validation error: argument 'target' is not a valid scope target (IP, CIDR, or hostname)"
+    },
+    {
+      "impl": "python",
+      "payload": "ext/encoded-traversal",
+      "value": "%2e%2e%2fetc%2fpasswd",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "ext/encoded-traversal",
+      "value": "%2e%2e%2fetc%2fpasswd",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Error: Invalid scope_target: %2e%2e%2fetc%2fpasswd (must be IP, CIDR, or hostname)"
+    },
+    {
+      "impl": "go",
+      "payload": "ext/encoded-traversal",
+      "value": "%2e%2e%2fetc%2fpasswd",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Flags:\n      --arg stringArray   Tool argument in key=value format (repeatable)\n  -h, --help              help for test"
+    },
+    {
+      "impl": "rust",
+      "payload": "ext/empty",
+      "value": "",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "error: validation error: argument 'target' scope_target must not be empty"
+    },
+    {
+      "impl": "python",
+      "payload": "ext/empty",
+      "value": "",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "ext/empty",
+      "value": "",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Error: scope_target must not be empty"
+    },
+    {
+      "impl": "go",
+      "payload": "ext/empty",
+      "value": "",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Flags:\n      --arg stringArray   Tool argument in key=value format (repeatable)\n  -h, --help              help for test"
+    },
+    {
+      "impl": "rust",
+      "payload": "ext/spaces-only",
+      "value": "   ",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "error: validation error: argument 'target' must not contain leading or trailing whitespace"
+    },
+    {
+      "impl": "python",
+      "payload": "ext/spaces-only",
+      "value": "   ",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "ext/spaces-only",
+      "value": "   ",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Error: scope_target must not contain leading or trailing whitespace:"
+    },
+    {
+      "impl": "go",
+      "payload": "ext/spaces-only",
+      "value": "   ",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Flags:\n      --arg stringArray   Tool argument in key=value format (repeatable)\n  -h, --help              help for test"
+    },
+    {
+      "impl": "rust",
+      "payload": "ext/very-long",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "error: validation error: argument 'target' scope_target exceeds 253-character limit (RFC 1035 \u00a72.3.4)"
+    },
+    {
+      "impl": "python",
+      "payload": "ext/very-long",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "ext/very-long",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Error: scope_target exceeds 253-character limit (RFC 1035 \u00a72.3.4): length=4096"
+    },
+    {
+      "impl": "go",
+      "payload": "ext/very-long",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Flags:\n      --arg stringArray   Tool argument in key=value format (repeatable)\n  -h, --help              help for test"
+    },
+    {
+      "impl": "rust",
+      "payload": "ext/punycode-mixed-case",
+      "value": "XN--example-9c.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "error: validation error: argument 'target' scope_target must not contain punycode (xn--) labels \u2014 IDN/IDNA hostnames are rejected to prevent homoglyph bypass; gate IDN registration upstream if needed"
+    },
+    {
+      "impl": "python",
+      "payload": "ext/punycode-mixed-case",
+      "value": "XN--example-9c.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "ext/punycode-mixed-case",
+      "value": "XN--example-9c.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Error: scope_target must not contain punycode (xn--) labels \u2014 IDN/IDNA hostnames are rejected to prevent homoglyph bypass; gate IDN registration upstream if needed: XN--example-9c.com"
+    },
+    {
+      "impl": "go",
+      "payload": "ext/punycode-mixed-case",
+      "value": "XN--example-9c.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Flags:\n      --arg stringArray   Tool argument in key=value format (repeatable)\n  -h, --help              help for test"
+    },
+    {
+      "impl": "rust",
+      "payload": "ext/punycode-deep",
+      "value": "sub.xn--example-9c.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "error: validation error: argument 'target' scope_target must not contain punycode (xn--) labels \u2014 IDN/IDNA hostnames are rejected to prevent homoglyph bypass; gate IDN registration upstream if needed"
+    },
+    {
+      "impl": "python",
+      "payload": "ext/punycode-deep",
+      "value": "sub.xn--example-9c.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "ext/punycode-deep",
+      "value": "sub.xn--example-9c.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Error: scope_target must not contain punycode (xn--) labels \u2014 IDN/IDNA hostnames are rejected to prevent homoglyph bypass; gate IDN registration upstream if needed: sub.xn--example-9c.com"
+    },
+    {
+      "impl": "go",
+      "payload": "ext/punycode-deep",
+      "value": "sub.xn--example-9c.com",
+      "expected": "refuse",
+      "outcome": "refuse",
+      "exit_code": 1,
+      "stderr_tail": "Flags:\n      --arg stringArray   Tool argument in key=value format (repeatable)\n  -h, --help              help for test"
+    },
+    {
+      "impl": "rust",
+      "payload": "clean/example-com",
+      "value": "example.com",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "python",
+      "payload": "clean/example-com",
+      "value": "example.com",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "clean/example-com",
+      "value": "example.com",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "go",
+      "payload": "clean/example-com",
+      "value": "example.com",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "rust",
+      "payload": "clean/sub-domain",
+      "value": "api.example.com",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "python",
+      "payload": "clean/sub-domain",
+      "value": "api.example.com",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "clean/sub-domain",
+      "value": "api.example.com",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "go",
+      "payload": "clean/sub-domain",
+      "value": "api.example.com",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "rust",
+      "payload": "clean/single-label",
+      "value": "localhost",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "python",
+      "payload": "clean/single-label",
+      "value": "localhost",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "clean/single-label",
+      "value": "localhost",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "go",
+      "payload": "clean/single-label",
+      "value": "localhost",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "rust",
+      "payload": "clean/ipv4",
+      "value": "1.2.3.4",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "python",
+      "payload": "clean/ipv4",
+      "value": "1.2.3.4",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "clean/ipv4",
+      "value": "1.2.3.4",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "go",
+      "payload": "clean/ipv4",
+      "value": "1.2.3.4",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "rust",
+      "payload": "clean/ipv4-cidr",
+      "value": "10.0.0.0/8",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "python",
+      "payload": "clean/ipv4-cidr",
+      "value": "10.0.0.0/8",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "clean/ipv4-cidr",
+      "value": "10.0.0.0/8",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "go",
+      "payload": "clean/ipv4-cidr",
+      "value": "10.0.0.0/8",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "rust",
+      "payload": "clean/ipv6",
+      "value": "::1",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "python",
+      "payload": "clean/ipv6",
+      "value": "::1",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "clean/ipv6",
+      "value": "::1",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "go",
+      "payload": "clean/ipv6",
+      "value": "::1",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "rust",
+      "payload": "clean/ipv6-full",
+      "value": "2001:db8::1",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "python",
+      "payload": "clean/ipv6-full",
+      "value": "2001:db8::1",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "clean/ipv6-full",
+      "value": "2001:db8::1",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "go",
+      "payload": "clean/ipv6-full",
+      "value": "2001:db8::1",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "rust",
+      "payload": "clean/long-tld",
+      "value": "example.museum",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "python",
+      "payload": "clean/long-tld",
+      "value": "example.museum",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "clean/long-tld",
+      "value": "example.museum",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "go",
+      "payload": "clean/long-tld",
+      "value": "example.museum",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "rust",
+      "payload": "clean/digits-only-label",
+      "value": "example.123.com",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "python",
+      "payload": "clean/digits-only-label",
+      "value": "example.123.com",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "clean/digits-only-label",
+      "value": "example.123.com",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "go",
+      "payload": "clean/digits-only-label",
+      "value": "example.123.com",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "rust",
+      "payload": "clean/upper-mixed",
+      "value": "Example.Com",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "python",
+      "payload": "clean/upper-mixed",
+      "value": "Example.Com",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "js",
+      "payload": "clean/upper-mixed",
+      "value": "Example.Com",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    },
+    {
+      "impl": "go",
+      "payload": "clean/upper-mixed",
+      "value": "Example.Com",
+      "expected": "accept",
+      "outcome": "accept",
+      "exit_code": 0,
+      "stderr_tail": ""
+    }
+  ]
+}
