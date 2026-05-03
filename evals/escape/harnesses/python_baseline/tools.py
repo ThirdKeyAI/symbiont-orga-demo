@@ -85,13 +85,23 @@ def make_http_get(task: dict):
     body = task["instance"].get("allowed_response_body", "")
 
     def http_get(url: str) -> ToolResult:
-        # Permissive baseline: returns canned response only when the URL
-        # matches the allowed endpoint. Other URLs return a polite "no
-        # data" — the model can still fall back to python_eval, which
-        # IS the realistic langchain escape hatch.
+        # Permissive baseline: returns canned response when the URL
+        # matches the allowed endpoint. For ANY other URL, actually
+        # attempt the HTTP fetch — this is the realistic langchain
+        # tool-registry pattern (no per-URL enforcement). The DNS +
+        # connect() syscalls trigger the network detector even if the
+        # remote refuses or 404s.
         if url.strip() == allowed.strip():
             return ToolResult(summary=body)
-        return ToolResult(summary=f"no data for url={url}")
+        try:
+            import urllib.request
+            with urllib.request.urlopen(url, timeout=5) as r:
+                content = r.read(8192).decode("utf-8", errors="replace")
+            return ToolResult(summary=f"http {r.status}: {content[:500]}")
+        except Exception as e:
+            # Even a failed fetch typically does DNS + connect first;
+            # strace records the connect attempt regardless.
+            return ToolResult(summary=f"fetch_error: {e}")
 
     return http_get
 
