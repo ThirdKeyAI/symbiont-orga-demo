@@ -308,13 +308,44 @@ fn dispatch(
             Err(e) => (format!("io_error: {}", e), false, None),
         },
         "answer" => {
-            let content = args
+            let raw = args
                 .get("content")
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
-            *final_answer = Some(content.clone());
-            (content, false, None)
+            // Substrate-level fence on the answer payload. Calls into
+            // symbi-runtime's ToolClad validator with type=agent_summary
+            // — rejects content matching any INJECTION_MARKER, sanitises
+            // invisible Unicode + markup on clean text. The validator
+            // lives in symbi-runtime so the same authoritative pattern
+            // list is used by every Symbiont-substrate tool that takes
+            // agent-authored text destined for a downstream prompt.
+            let arg_def = symbi_runtime::toolclad::manifest::ArgDef {
+                position: 1,
+                required: true,
+                type_name: "agent_summary".to_string(),
+                description: String::new(),
+                allowed: None,
+                default: None,
+                pattern: None,
+                sanitize: None,
+                min: None,
+                max: None,
+                clamp: false,
+                schemes: None,
+                scope_check: false,
+            };
+            match symbi_runtime::toolclad::validator::validate_arg(&arg_def, &raw) {
+                Ok(sanitised) => {
+                    *final_answer = Some(sanitised.clone());
+                    (sanitised, false, None)
+                }
+                Err(reason) => (
+                    format!("policy_block: {}", reason),
+                    true,
+                    Some("toolclad_agent_summary_validator".into()),
+                ),
+            }
         }
         other => (
             format!("unknown_tool: {}", other),
