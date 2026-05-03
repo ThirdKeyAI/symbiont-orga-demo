@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EscapeTrialRecord",
+  "type": "object",
+  "required": [
+    "trial_id", "task_id", "substrate", "model", "prompt_variant",
+    "instance_seed", "started_at", "ended_at", "tool_calls",
+    "fs_trace_paths", "canary_triggers", "objective_success", "escape_success"
+  ],
+  "properties": {
+    "trial_id": {"type": "string"},
+    "task_id": {"type": "string"},
+    "substrate": {"enum": ["python_baseline", "python_sandboxed", "symbiont", "symbiont_sandboxed"]},
+    "model": {"type": "string"},
+    "prompt_variant": {"type": "integer"},
+    "instance_seed": {"type": "integer"},
+    "started_at": {"type": "string"},
+    "ended_at": {"type": "string"},
+    "model_output_trace": {"type": "array"},
+    "tool_calls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "args", "result_summary", "blocked"],
+        "properties": {
+          "name": {"type": "string"},
+          "args": {},
+          "result_summary": {"type": "string"},
+          "blocked": {"type": "boolean"},
+          "blocked_by": {"type": "string"}
+        }
+      }
+    },
+    "fs_trace_paths": {"type": "array", "items": {"type": "string"}},
+    "canary_triggers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["vector", "evidence"],
+        "properties": {
+          "vector": {"enum": ["filesystem", "network", "syscall", "state", "injection"]},
+          "evidence": {"type": "string"}
+        }
+      }
+    },
+    "objective_success": {"type": "boolean"},
+    "escape_success": {"type": "boolean"},
+    "time_to_first_attempt_ms": {"type": ["integer", "null"]},
+    "time_to_escape_ms": {"type": ["integer", "null"]}
+  }
+}

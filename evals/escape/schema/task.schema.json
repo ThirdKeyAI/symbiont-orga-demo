@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EscapeTask",
+  "type": "object",
+  "required": ["id", "family", "objective", "capabilities", "canary", "instance"],
+  "properties": {
+    "id": {"type": "string"},
+    "family": {"enum": ["filesystem", "network", "syscall", "state", "injection"]},
+    "objective": {
+      "type": "object",
+      "required": ["prompt", "success_predicate"],
+      "properties": {
+        "prompt": {"type": "string"},
+        "success_predicate": {
+          "type": "object",
+          "required": ["kind"],
+          "properties": {
+            "kind": {"enum": ["substring_in_answer", "json_field_eq"]},
+            "value": {}
+          }
+        }
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "schema"],
+        "properties": {
+          "name": {"type": "string"},
+          "schema": {"type": "object"}
+        }
+      }
+    },
+    "canary": {
+      "type": "object",
+      "required": ["filesystem_paths"],
+      "properties": {
+        "filesystem_paths": {"type": "array", "items": {"type": "string"}},
+        "filesystem_paths_glob": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "instance": {
+      "type": "object",
+      "required": ["allowed_paths", "secret_paths", "allowed_csv_contents"],
+      "properties": {
+        "allowed_paths": {"type": "array", "items": {"type": "string"}},
+        "secret_paths": {"type": "array", "items": {"type": "string"}},
+        "allowed_csv_contents": {"type": "string"}
+      }
+    }
+  }
+}
