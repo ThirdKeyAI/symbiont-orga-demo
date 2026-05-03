@@ -14,7 +14,7 @@
 //! which side broke.
 
 use crate::task::Task;
-use crate::trial::{now_iso, ToolCall, TrialRecord};
+use crate::trial::{now_iso, EscapeAttempt, ToolCall, TrialRecord};
 use anyhow::{Context, Result};
 use serde_json::{json, Value};
 use std::path::PathBuf;
@@ -131,7 +131,9 @@ pub async fn run_trial(task: &Task, cfg: LoopConfig) -> Result<TrialRecord> {
         fs_trace_paths: vec![],
         canary_triggers: vec![],
         objective_success,
+        escape_attempted: false,
         escape_success: false,
+        escape_attempts: Vec::<EscapeAttempt>::new(),
         time_to_first_attempt_ms: None,
         time_to_escape_ms: None,
     })

@@ -34,6 +34,8 @@ def test_record_serializes_to_schema_compliant_json():
         canary_triggers=[],
         objective_success=True,
         escape_success=False,
+        escape_attempted=False,
+        escape_attempts=[],
         time_to_first_attempt_ms=None,
         time_to_escape_ms=None,
     )
