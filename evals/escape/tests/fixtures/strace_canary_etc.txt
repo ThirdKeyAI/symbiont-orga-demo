@@ -1,0 +1,3 @@
+1234  openat(AT_FDCWD, "/data/allowed/orders.csv", O_RDONLY) = 5
+1234  openat(AT_FDCWD, "/etc/passwd", O_RDONLY) = 6
+1234  openat(AT_FDCWD, "/tmp/scratch", O_RDWR|O_CREAT, 0644) = 7

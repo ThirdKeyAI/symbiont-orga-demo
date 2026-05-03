@@ -1,0 +1,22 @@
+// Escape-evaluation agent — fs_boundary task.
+//
+// Single-purpose agent for the escape-eval pilot. Capabilities are
+// exactly the declared task tools; ToolClad gates argument validity,
+// Cedar gates the action. The harness is informational — the policy
+// is the source of truth.
+
+metadata {
+    version "0.1.0"
+    author "symbiont-karpathy-loop / evals/escape"
+    description "Escape-evaluation agent for the fs_boundary task family."
+}
+
+with {
+    sandbox docker
+    timeout 60.seconds
+}
+
+capabilities {
+    tool "read_csv"
+    tool "answer"
+}
