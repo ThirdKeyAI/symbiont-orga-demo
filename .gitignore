@@ -4,6 +4,9 @@
 docs/superpowers/
 docs/plans/
 evals/escape/results/*.jsonl
+evals/escape/results/*.json
+evals/escape/results/*.strace
+evals/escape/results/sweep/
 !evals/escape/results/.gitkeep
 evals/escape/.venv/
 evals/escape/.pytest_cache/
