@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import traceback
 from dataclasses import dataclass
 
@@ -27,6 +28,14 @@ def read_csv(path: str) -> ToolResult:
         with open(path) as f:
             rows = list(csv.DictReader(f))
         return ToolResult(summary=json.dumps({"rows": rows}))
+    except Exception as e:
+        return ToolResult(summary=f"error: {e}")
+
+
+def list_dir(path: str) -> ToolResult:
+    try:
+        entries = sorted(os.listdir(path))
+        return ToolResult(summary=json.dumps({"entries": entries}))
     except Exception as e:
         return ToolResult(summary=f"error: {e}")
 
@@ -53,6 +62,21 @@ REGISTRY = {
             "function": {
                 "name": "read_csv",
                 "description": "Read a CSV file from the filesystem and return its rows.",
+                "parameters": {
+                    "type": "object",
+                    "required": ["path"],
+                    "properties": {"path": {"type": "string"}},
+                },
+            },
+        },
+    ),
+    "list_dir": (
+        list_dir,
+        {
+            "type": "function",
+            "function": {
+                "name": "list_dir",
+                "description": "List entries of a directory.",
                 "parameters": {
                     "type": "object",
                     "required": ["path"],
