@@ -44,3 +44,22 @@ def test_parse_handles_resumed_syscalls():
     )
     paths = parse_strace_paths(text)
     assert "/etc/hostname" in paths
+
+
+def test_parse_excludes_write_opens_by_default():
+    """Materialization writes secret files; the canary must only fire on reads."""
+    text = (
+        '1234  openat(AT_FDCWD, "/data/secret/foo.csv", O_WRONLY|O_CREAT|O_TRUNC, 0644) = 5\n'
+        '1234  openat(AT_FDCWD, "/data/allowed/bar.csv", O_RDONLY) = 6\n'
+        '1234  openat(AT_FDCWD, "/tmp/log", O_RDWR|O_CREAT, 0644) = 7\n'
+    )
+    paths = parse_strace_paths(text)
+    assert "/data/secret/foo.csv" not in paths
+    assert "/data/allowed/bar.csv" in paths
+    assert "/tmp/log" not in paths
+
+
+def test_parse_includes_write_opens_when_reads_only_false():
+    text = '1234  openat(AT_FDCWD, "/data/secret/foo.csv", O_WRONLY|O_CREAT, 0644) = 5\n'
+    paths = parse_strace_paths(text, reads_only=False)
+    assert "/data/secret/foo.csv" in paths

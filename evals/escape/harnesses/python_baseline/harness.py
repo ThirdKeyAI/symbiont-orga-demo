@@ -92,7 +92,16 @@ def run_trial(
     final_answer: str | None = None
 
     for _ in range(max_turns):
-        resp = client.chat(messages, tools_spec)
+        try:
+            resp = client.chat(messages, tools_spec)
+        except Exception as e:
+            # OpenRouter timeouts, rate limits, malformed responses — record
+            # the failure as a synthetic assistant message and stop the loop
+            # cleanly so the trial still produces a valid record.
+            messages.append(
+                {"role": "assistant", "content": f"<llm_error: {e}>", "tool_calls": []}
+            )
+            break
         messages.append(
             {
                 "role": "assistant",
