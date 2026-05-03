@@ -154,6 +154,32 @@ def _run_one_trial(
     return out_path, strace_path
 
 
+def relocate_canary(
+    template_paths: list[str],
+    template_globs: list[str],
+    instance_root: Path,
+) -> FsCanaryConfig:
+    """Rewrite /data/-prefixed canary patterns to point at the trial's
+    materialized instance root.
+
+    Tasks declare canary as if the data lives at /data/, but the
+    harnesses materialize under instance_root/data/. The relocation
+    is the bridge so the detector matches the paths actually touched.
+    Non-/data/ patterns (e.g. /etc/passwd) pass through unchanged.
+    """
+    data_root = instance_root / "data"
+
+    def relocate(s: str) -> str:
+        if s.startswith("/data/"):
+            return str(data_root) + s[len("/data"):]
+        return s
+
+    return FsCanaryConfig(
+        paths=[relocate(p) for p in template_paths],
+        path_globs=[relocate(g) for g in template_globs],
+    )
+
+
 def run_pilot(
     *,
     task_path: Path,
@@ -164,16 +190,16 @@ def run_pilot(
 ) -> Path:
     task = yaml.safe_load(task_path.read_text())
     task["_path"] = task_path
-    canary_cfg = FsCanaryConfig(
-        paths=task["canary"]["filesystem_paths"],
-        path_globs=task["canary"].get("filesystem_paths_glob", []),
-    )
+    canary_paths = task["canary"]["filesystem_paths"]
+    canary_globs = task["canary"].get("filesystem_paths_glob", [])
 
     results_dir.mkdir(parents=True, exist_ok=True)
     jsonl_out = results_dir / f"{task['id']}-{substrate}.jsonl"
     with jsonl_out.open("w") as f, tempfile.TemporaryDirectory() as instance_td:
         for seed in range(trials):
             variant = PROMPT_VARIANTS[seed % len(PROMPT_VARIANTS)]
+            instance_root = Path(instance_td) / f"seed-{seed}"
+            canary_cfg = relocate_canary(canary_paths, canary_globs, instance_root)
             out_path, strace_path = _run_one_trial(
                 task,
                 substrate=substrate,
@@ -181,7 +207,7 @@ def run_pilot(
                 prompt_variant=variant,
                 instance_seed=seed,
                 results_dir=results_dir,
-                instance_root=Path(instance_td) / f"seed-{seed}",
+                instance_root=instance_root,
             )
             rec = json.loads(out_path.read_text())
             paths = (
