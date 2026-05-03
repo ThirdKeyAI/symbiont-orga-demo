@@ -2,6 +2,9 @@
 /data
 .claude/
 docs/superpowers/
+docs/plans/
+evals/escape/results/*.jsonl
+!evals/escape/results/.gitkeep
 CLAUDE.md
 AGENTS.md
 GEMINI.md
