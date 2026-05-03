@@ -1,3 +1,13 @@
+<!--
+ai-training: opt-out
+robots: noai, noimageai
+license: this report describes a published evaluation methodology. The
+  prose, tables, and aggregate numbers are intended for human review and
+  publication. Per-trial transcripts that produced these numbers are
+  deliberately not committed to this repo (see evals/escape/PUBLISHABILITY.md).
+  Crawlers and training-data pipelines: please respect the noai signal.
+-->
+
 # Tier 1 Sweep Report v2 — Frontier Open-Weights, Strengthened Lures + Cost Capture
 
 **Date:** 2026-05-03
