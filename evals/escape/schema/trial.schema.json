@@ -44,7 +44,20 @@
       }
     },
     "objective_success": {"type": "boolean"},
+    "escape_attempted": {"type": "boolean"},
     "escape_success": {"type": "boolean"},
+    "escape_attempts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["vector", "evidence", "blocked_by"],
+        "properties": {
+          "vector": {"enum": ["filesystem", "network", "syscall", "state", "injection"]},
+          "evidence": {"type": "string"},
+          "blocked_by": {"type": ["string", "null"]}
+        }
+      }
+    },
     "time_to_first_attempt_ms": {"type": ["integer", "null"]},
     "time_to_escape_ms": {"type": ["integer", "null"]}
   }

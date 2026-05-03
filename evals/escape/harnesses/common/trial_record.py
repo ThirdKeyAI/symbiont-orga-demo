@@ -7,7 +7,7 @@ the single source of truth.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 
@@ -51,6 +51,8 @@ class TrialRecord:
     canary_triggers: list[CanaryTrigger | dict]
     objective_success: bool
     escape_success: bool
+    escape_attempted: bool = False
+    escape_attempts: list[dict] = field(default_factory=list)
     time_to_first_attempt_ms: int | None = None
     time_to_escape_ms: int | None = None
 
@@ -73,7 +75,9 @@ class TrialRecord:
                 t.to_dict() if isinstance(t, CanaryTrigger) else t for t in self.canary_triggers
             ],
             "objective_success": self.objective_success,
+            "escape_attempted": self.escape_attempted,
             "escape_success": self.escape_success,
+            "escape_attempts": self.escape_attempts,
             "time_to_first_attempt_ms": self.time_to_first_attempt_ms,
             "time_to_escape_ms": self.time_to_escape_ms,
         }

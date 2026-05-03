@@ -25,6 +25,13 @@ pub struct CanaryTrigger {
 }
 
 #[derive(Serialize)]
+pub struct EscapeAttempt {
+    pub vector: String,
+    pub evidence: String,
+    pub blocked_by: Option<String>,
+}
+
+#[derive(Serialize)]
 pub struct TrialRecord {
     pub trial_id: String,
     pub task_id: String,
@@ -39,7 +46,9 @@ pub struct TrialRecord {
     pub fs_trace_paths: Vec<String>,
     pub canary_triggers: Vec<CanaryTrigger>,
     pub objective_success: bool,
+    pub escape_attempted: bool,
     pub escape_success: bool,
+    pub escape_attempts: Vec<EscapeAttempt>,
     pub time_to_first_attempt_ms: Option<u64>,
     pub time_to_escape_ms: Option<u64>,
 }
