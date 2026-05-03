@@ -30,8 +30,17 @@ def wilson_ci(successes: int, n: int, confidence: float = 0.95) -> tuple[float, 
     return max(0.0, centre - spread), min(1.0, centre + spread)
 
 
-def aggregate_jsonl(paths: list[Path]) -> dict[tuple[str, str], dict]:
-    cells: dict[tuple[str, str], dict] = defaultdict(
+def aggregate_jsonl(
+    paths: list[Path],
+    *,
+    by_model: bool = False,
+) -> dict[tuple, dict]:
+    """Aggregate per (task, substrate) — or (task, substrate, model) when by_model.
+
+    The model dimension is read from each trial record's 'model' field.
+    With by_model=False, models within a cell are pooled together.
+    """
+    cells: dict[tuple, dict] = defaultdict(
         lambda: {
             "n": 0,
             "objective_successes": 0,
@@ -47,7 +56,10 @@ def aggregate_jsonl(paths: list[Path]) -> dict[tuple[str, str], dict]:
             if not line.strip():
                 continue
             rec = json.loads(line)
-            key = (rec["task_id"], rec["substrate"])
+            if by_model:
+                key = (rec["task_id"], rec["substrate"], rec.get("model", ""))
+            else:
+                key = (rec["task_id"], rec["substrate"])
             cells[key]["n"] += 1
             cells[key]["objective_successes"] += int(rec.get("objective_success", False))
             attempted = bool(rec.get("escape_attempted"))
@@ -71,12 +83,15 @@ def aggregate_jsonl(paths: list[Path]) -> dict[tuple[str, str], dict]:
     }
 
 
-def render(cells: dict[tuple[str, str], dict]) -> str:
-    out = [
-        "| task | substrate | n | objective | attempt | attempt 95% CI | success | success 95% CI | blocked-only | blockers |",
-        "|------|-----------|---|-----------|---------|----------------|---------|----------------|--------------|----------|",
-    ]
-    for (task, sub), v in sorted(cells.items()):
+def render(cells: dict[tuple, dict], *, by_model: bool = False) -> str:
+    if by_model:
+        header = "| task | substrate | model | n | objective | attempt | attempt 95% CI | success | success 95% CI | blocked-only | blockers |"
+        sep = "|------|-----------|-------|---|-----------|---------|----------------|---------|----------------|--------------|----------|"
+    else:
+        header = "| task | substrate | n | objective | attempt | attempt 95% CI | success | success 95% CI | blocked-only | blockers |"
+        sep = "|------|-----------|---|-----------|---------|----------------|---------|----------------|--------------|----------|"
+    out = [header, sep]
+    for key, v in sorted(cells.items()):
         n = v["n"]
         obj = v["objective_successes"] / n if n else 0
         att = v["attempted"] / n if n else 0
@@ -86,22 +101,38 @@ def render(cells: dict[tuple[str, str], dict]) -> str:
         blockers = (
             ", ".join(f"{k}:{c}" for k, c in v["blocker_breakdown"].items()) or "—"
         )
-        out.append(
-            f"| {task} | {sub} | {n} | {obj:.0%} | "
-            f"{att:.0%} | [{a_lo:.0%}, {a_hi:.0%}] | "
-            f"{esc:.0%} | [{s_lo:.0%}, {s_hi:.0%}] | "
-            f"{v['blocked_only']} | {blockers} |"
-        )
+        if by_model:
+            task, sub, model = key
+            row = (
+                f"| {task} | {sub} | {model} | {n} | {obj:.0%} | "
+                f"{att:.0%} | [{a_lo:.0%}, {a_hi:.0%}] | "
+                f"{esc:.0%} | [{s_lo:.0%}, {s_hi:.0%}] | "
+                f"{v['blocked_only']} | {blockers} |"
+            )
+        else:
+            task, sub = key
+            row = (
+                f"| {task} | {sub} | {n} | {obj:.0%} | "
+                f"{att:.0%} | [{a_lo:.0%}, {a_hi:.0%}] | "
+                f"{esc:.0%} | [{s_lo:.0%}, {s_hi:.0%}] | "
+                f"{v['blocked_only']} | {blockers} |"
+            )
+        out.append(row)
     return "\n".join(out)
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("results_dir", type=Path)
+    ap.add_argument("--by-model", action="store_true",
+                    help="Break out one row per (task, substrate, model)")
+    ap.add_argument("--recursive", action="store_true",
+                    help="Recurse into subdirectories (for sweep results)")
     args = ap.parse_args()
-    files = sorted(args.results_dir.glob("*.jsonl"))
-    cells = aggregate_jsonl(files)
-    print(render(cells))
+    glob_pat = "**/*.jsonl" if args.recursive else "*.jsonl"
+    files = sorted(args.results_dir.glob(glob_pat))
+    cells = aggregate_jsonl(files, by_model=args.by_model)
+    print(render(cells, by_model=args.by_model))
 
 
 if __name__ == "__main__":

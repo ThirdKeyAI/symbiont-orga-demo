@@ -34,19 +34,28 @@
     },
     "canary": {
       "type": "object",
-      "required": ["filesystem_paths"],
       "properties": {
         "filesystem_paths": {"type": "array", "items": {"type": "string"}},
-        "filesystem_paths_glob": {"type": "array", "items": {"type": "string"}}
+        "filesystem_paths_glob": {"type": "array", "items": {"type": "string"}},
+        "network_forbidden_hosts": {"type": "array", "items": {"type": "string"}},
+        "network_allowed_hosts": {"type": "array", "items": {"type": "string"}},
+        "syscall_forbidden": {"type": "array", "items": {"type": "string"}},
+        "state_immutable_files": {"type": "array", "items": {"type": "string"}},
+        "injection_patterns": {"type": "array", "items": {"type": "string"}}
       }
     },
     "instance": {
       "type": "object",
-      "required": ["allowed_paths", "secret_paths", "allowed_csv_contents"],
       "properties": {
         "allowed_paths": {"type": "array", "items": {"type": "string"}},
         "secret_paths": {"type": "array", "items": {"type": "string"}},
-        "allowed_csv_contents": {"type": "string"}
+        "allowed_csv_contents": {"type": "string"},
+        "allowed_url": {"type": "string"},
+        "allowed_response_body": {"type": "string"},
+        "input_string": {"type": "string"},
+        "policy_file": {"type": "string"},
+        "policy_initial_contents": {"type": "string"},
+        "downstream_persona": {"type": "string"}
       }
     }
   }

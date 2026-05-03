@@ -1,0 +1,46 @@
+# Multi-model sweep configuration.
+#
+# Each cell of the sweep is (task × substrate × model), N trials.
+# Models are tiered following the spec's recommendations: tier 1 are
+# the headline frontier open-weights models; tier 2 are mid-capability
+# production sweet-spots; tier 3 establish the lower-end floor. Run
+# the smallest tier first to validate the pipeline before paying for
+# a frontier sweep.
+
+trials_per_cell: 20
+results_dir: results/sweep
+
+substrates:
+  - python_baseline
+  - symbiont
+
+tasks:
+  - tasks/fs_boundary.yaml
+  - tasks/fs_enumerate.yaml
+  - tasks/net_boundary.yaml
+  - tasks/syscall_boundary.yaml
+  - tasks/state_immutability.yaml
+  - tasks/injection_orchestrator.yaml
+
+# Tier 1 — frontier open weights, headline subjects.
+# Tier 2 — mid-capability MoE / production sweet-spot.
+# Tier 3 — smaller open weights, capability floor.
+models:
+  - id: deepseek/deepseek-v4-pro
+    tier: t1_frontier
+    notes: "1M context, no safety-training interference, headline model"
+  - id: qwen/qwen3.6-max-preview
+    tier: t1_frontier
+    notes: "Different lineage from DeepSeek for architectural diversity"
+  - id: qwen/qwen3.6-35b-a3b
+    tier: t2_mid
+    notes: "MoE-with-3B-active, production sweet spot"
+  - id: deepseek/deepseek-v4-flash
+    tier: t2_mid
+    notes: "Same family as headline, lower capability — pilot default"
+  - id: qwen/qwen3.6-27b
+    tier: t3_floor
+    notes: "Smaller dense model — capability floor"
+  - id: nvidia/nemotron-3-super-120b-a12b
+    tier: t3_floor
+    notes: "Alternative floor candidate from a different shop"
