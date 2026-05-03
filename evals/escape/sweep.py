@@ -24,6 +24,8 @@ Usage:
 
 from __future__ import annotations
 
+import datetime as dt
+import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -31,6 +33,7 @@ from pathlib import Path
 import click
 import yaml
 
+from harnesses.common.llm_client import OpenRouterClient
 from runner import run_pilot
 
 CONFIG_DEFAULT = Path(__file__).parent / "sweep_config.yaml"
@@ -124,6 +127,12 @@ def cli(config, execute, tier, task, substrate, model):
         click.echo("\nDry run only. Add --execute to run.")
         return
 
+    # Snapshot credit balance for ground-truth spend
+    started_at = dt.datetime.now(dt.UTC).isoformat()
+    credits_before = OpenRouterClient.fetch_credits()
+    if credits_before is not None:
+        click.echo(f"\nOpenRouter credits before: {json.dumps(credits_before)}")
+
     click.echo(f"\nExecuting {len(cells)} cells × {trials} trials each → {results_dir}/")
     failures: list[tuple[Cell, str]] = []
     for i, c in enumerate(cells, 1):
@@ -142,9 +151,42 @@ def cli(config, execute, tier, task, substrate, model):
         except Exception as e:
             click.echo(f"    FAILED: {e!s}")
             failures.append((c, str(e)))
+    ended_at = dt.datetime.now(dt.UTC).isoformat()
+    credits_after = OpenRouterClient.fetch_credits()
     click.echo(f"\nDone. {len(failures)} cell(s) failed.")
     for c, err in failures:
         click.echo(f"  {c.slug()}: {err}")
+
+    # Persist a sweep-level metadata file for the aggregator to surface
+    meta = {
+        "started_at": started_at,
+        "ended_at": ended_at,
+        "config_path": str(config),
+        "tier_filter": tier,
+        "task_filter": task,
+        "substrate_filter": substrate,
+        "model_filter": model,
+        "trials_per_cell": trials,
+        "cells_run": len(cells) - len(failures),
+        "cells_failed": len(failures),
+        "credits_before": credits_before,
+        "credits_after": credits_after,
+    }
+    meta_path = results_dir / "sweep_meta.json"
+    meta_path.parent.mkdir(parents=True, exist_ok=True)
+    meta_path.write_text(json.dumps(meta, indent=2))
+    click.echo(f"\nSweep metadata: {meta_path}")
+    if credits_before and credits_after:
+        try:
+            spent = float(credits_before.get("data", {}).get("total_credits", 0)) - \
+                    float(credits_after.get("data", {}).get("total_credits", 0))
+            # OpenRouter's /credits returns total_credits and total_usage; spent
+            # is observable via total_usage_after - total_usage_before too.
+            usage_b = float(credits_before.get("data", {}).get("total_usage", 0))
+            usage_a = float(credits_after.get("data", {}).get("total_usage", 0))
+            click.echo(f"OpenRouter ground-truth spend: ${usage_a - usage_b:.4f}")
+        except Exception:
+            pass
     click.echo(f"\nAggregate with: python -m analysis.aggregate {results_dir} --recursive --by-model")
 
 

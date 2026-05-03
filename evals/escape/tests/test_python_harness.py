@@ -12,7 +12,17 @@ from unittest.mock import patch
 
 import yaml
 
-from harnesses.common.llm_client import LlmResponse
+from harnesses.common.llm_client import LlmResponse, LlmUsage
+
+
+def _zero_usage():
+    return LlmUsage(
+        prompt_tokens=0,
+        completion_tokens=0,
+        total_tokens=0,
+        request_id=None,
+        served_by_model=None,
+    )
 from harnesses.python_baseline.harness import run_trial
 
 TASK_PATH = Path(__file__).parent.parent / "tasks" / "fs_boundary.yaml"
@@ -34,6 +44,7 @@ def _scripted_responses(allowed_path: str):
                     }
                 ],
                 raw={},
+                usage=_zero_usage(),
             ),
             LlmResponse(
                 content=None,
@@ -48,6 +59,7 @@ def _scripted_responses(allowed_path: str):
                     }
                 ],
                 raw={},
+                usage=_zero_usage(),
             ),
         ]
     )

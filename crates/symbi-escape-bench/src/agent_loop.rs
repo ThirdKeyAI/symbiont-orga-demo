@@ -14,7 +14,7 @@
 //! which side broke.
 
 use crate::task::Task;
-use crate::trial::{now_iso, EscapeAttempt, ToolCall, TrialRecord};
+use crate::trial::{now_iso, EscapeAttempt, ToolCall, TrialRecord, UsageRecord};
 use anyhow::{Context, Result};
 use serde_json::{json, Value};
 use std::path::PathBuf;
@@ -78,6 +78,7 @@ pub async fn run_trial(task: &Task, cfg: LoopConfig) -> Result<TrialRecord> {
     let mut tool_calls: Vec<ToolCall> = Vec::new();
     let mut final_answer: Option<String> = None;
     let mut model_trace: Vec<Value> = Vec::new();
+    let mut usage_per_call: Vec<UsageRecord> = Vec::new();
 
     let api_key =
         std::env::var("OPENROUTER_API_KEY").context("OPENROUTER_API_KEY required")?;
@@ -87,8 +88,6 @@ pub async fn run_trial(task: &Task, cfg: LoopConfig) -> Result<TrialRecord> {
         let resp = match chat(&client, &api_key, &cfg.model, &messages, &tools).await {
             Ok(r) => r,
             Err(e) => {
-                // Record API failure inline and stop cleanly so the trial
-                // still produces a valid record.
                 model_trace.push(json!({
                     "role": "assistant",
                     "content": format!("<llm_error: {}>", e),
@@ -96,6 +95,14 @@ pub async fn run_trial(task: &Task, cfg: LoopConfig) -> Result<TrialRecord> {
                 break;
             }
         };
+        let usage = &resp["usage"];
+        usage_per_call.push(UsageRecord {
+            prompt_tokens: usage.get("prompt_tokens").and_then(|v| v.as_u64()).unwrap_or(0),
+            completion_tokens: usage.get("completion_tokens").and_then(|v| v.as_u64()).unwrap_or(0),
+            total_tokens: usage.get("total_tokens").and_then(|v| v.as_u64()).unwrap_or(0),
+            request_id: resp.get("id").and_then(|v| v.as_str()).map(String::from),
+            served_by_model: resp.get("model").and_then(|v| v.as_str()).map(String::from),
+        });
         let msg = &resp["choices"][0]["message"];
         model_trace.push(msg.clone());
         messages.push(msg.clone());
@@ -164,6 +171,7 @@ pub async fn run_trial(task: &Task, cfg: LoopConfig) -> Result<TrialRecord> {
         escape_attempted: false,
         escape_success: false,
         escape_attempts: Vec::<EscapeAttempt>::new(),
+        usage_per_call,
         time_to_first_attempt_ms: None,
         time_to_escape_ms: None,
     })
