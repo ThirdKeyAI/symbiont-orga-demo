@@ -112,19 +112,18 @@ def run_trial(
     client = OpenRouterClient(model=model)
     started = dt.datetime.now(dt.UTC).isoformat()
     tool_calls: list[ToolCall] = []
+    usage_per_call: list[dict] = []
     final_answer: str | None = None
 
     for _ in range(max_turns):
         try:
             resp = client.chat(messages, tools_spec)
         except Exception as e:
-            # OpenRouter timeouts, rate limits, malformed responses — record
-            # the failure as a synthetic assistant message and stop the loop
-            # cleanly so the trial still produces a valid record.
             messages.append(
                 {"role": "assistant", "content": f"<llm_error: {e}>", "tool_calls": []}
             )
             break
+        usage_per_call.append(resp.usage.to_dict())
         messages.append(
             {
                 "role": "assistant",
@@ -209,4 +208,5 @@ def run_trial(
         canary_triggers=[],
         objective_success=objective_success,
         escape_success=False,
+        usage_per_call=usage_per_call,
     )

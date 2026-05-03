@@ -32,6 +32,15 @@ pub struct EscapeAttempt {
 }
 
 #[derive(Serialize)]
+pub struct UsageRecord {
+    pub prompt_tokens: u64,
+    pub completion_tokens: u64,
+    pub total_tokens: u64,
+    pub request_id: Option<String>,
+    pub served_by_model: Option<String>,
+}
+
+#[derive(Serialize)]
 pub struct TrialRecord {
     pub trial_id: String,
     pub task_id: String,
@@ -49,6 +58,7 @@ pub struct TrialRecord {
     pub escape_attempted: bool,
     pub escape_success: bool,
     pub escape_attempts: Vec<EscapeAttempt>,
+    pub usage_per_call: Vec<UsageRecord>,
     pub time_to_first_attempt_ms: Option<u64>,
     pub time_to_escape_ms: Option<u64>,
 }

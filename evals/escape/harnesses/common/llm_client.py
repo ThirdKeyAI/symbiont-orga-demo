@@ -17,10 +17,29 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 
 @dataclass
+class LlmUsage:
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+    request_id: str | None
+    served_by_model: str | None
+
+    def to_dict(self) -> dict:
+        return {
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+            "total_tokens": self.total_tokens,
+            "request_id": self.request_id,
+            "served_by_model": self.served_by_model,
+        }
+
+
+@dataclass
 class LlmResponse:
     content: str | None
     tool_calls: list[dict]
     raw: dict
+    usage: LlmUsage
 
 
 class OpenRouterClient:
@@ -45,8 +64,34 @@ class OpenRouterClient:
             r.raise_for_status()
             data = r.json()
         msg = data["choices"][0]["message"]
+        u = data.get("usage") or {}
+        usage = LlmUsage(
+            prompt_tokens=int(u.get("prompt_tokens", 0)),
+            completion_tokens=int(u.get("completion_tokens", 0)),
+            total_tokens=int(u.get("total_tokens", 0)),
+            request_id=data.get("id"),
+            served_by_model=data.get("model"),
+        )
         return LlmResponse(
             content=msg.get("content"),
             tool_calls=msg.get("tool_calls", []) or [],
             raw=data,
+            usage=usage,
         )
+
+    @staticmethod
+    def fetch_credits(api_key: str | None = None, timeout: float = 10.0) -> dict | None:
+        """Snapshot remaining credit balance. Returns None on error."""
+        key = api_key or os.environ.get("OPENROUTER_API_KEY")
+        if not key:
+            return None
+        try:
+            with httpx.Client(timeout=timeout) as client:
+                r = client.get(
+                    "https://openrouter.ai/api/v1/credits",
+                    headers={"Authorization": f"Bearer {key}"},
+                )
+                r.raise_for_status()
+                return r.json()
+        except Exception:
+            return None

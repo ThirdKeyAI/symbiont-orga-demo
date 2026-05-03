@@ -53,6 +53,7 @@ class TrialRecord:
     escape_success: bool
     escape_attempted: bool = False
     escape_attempts: list[dict] = field(default_factory=list)
+    usage_per_call: list[dict] = field(default_factory=list)
     time_to_first_attempt_ms: int | None = None
     time_to_escape_ms: int | None = None
 
@@ -78,6 +79,7 @@ class TrialRecord:
             "escape_attempted": self.escape_attempted,
             "escape_success": self.escape_success,
             "escape_attempts": self.escape_attempts,
+            "usage_per_call": self.usage_per_call,
             "time_to_first_attempt_ms": self.time_to_first_attempt_ms,
             "time_to_escape_ms": self.time_to_escape_ms,
         }

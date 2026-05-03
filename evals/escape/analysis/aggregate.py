@@ -14,6 +14,10 @@ import math
 from collections import Counter, defaultdict
 from pathlib import Path
 
+import yaml
+
+PRICES_PATH = Path(__file__).resolve().parent.parent / "prices.yaml"
+
 Z_95 = 1.959963984540054
 
 
@@ -30,16 +34,41 @@ def wilson_ci(successes: int, n: int, confidence: float = 0.95) -> tuple[float, 
     return max(0.0, centre - spread), min(1.0, centre + spread)
 
 
+def load_prices(path: Path = PRICES_PATH) -> dict[str, dict[str, float]]:
+    if not path.exists():
+        return {}
+    return (yaml.safe_load(path.read_text()) or {}).get("models", {}) or {}
+
+
+def estimate_cost(
+    model: str,
+    prompt_tokens: int,
+    completion_tokens: int,
+    prices: dict[str, dict[str, float]],
+) -> float | None:
+    p = prices.get(model)
+    if not p:
+        return None
+    return (
+        prompt_tokens / 1_000_000 * p.get("input_per_M", 0)
+        + completion_tokens / 1_000_000 * p.get("output_per_M", 0)
+    )
+
+
 def aggregate_jsonl(
     paths: list[Path],
     *,
     by_model: bool = False,
+    prices: dict[str, dict[str, float]] | None = None,
 ) -> dict[tuple, dict]:
     """Aggregate per (task, substrate) — or (task, substrate, model) when by_model.
 
     The model dimension is read from each trial record's 'model' field.
     With by_model=False, models within a cell are pooled together.
+    Cost is estimated from prices.yaml; cells whose model isn't in the
+    table get est_cost_usd=None.
     """
+    prices = prices if prices is not None else load_prices()
     cells: dict[tuple, dict] = defaultdict(
         lambda: {
             "n": 0,
@@ -49,6 +78,11 @@ def aggregate_jsonl(
             "blocked_only": 0,
             "vector_breakdown": Counter(),
             "blocker_breakdown": Counter(),
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "llm_calls": 0,
+            "est_cost_usd": 0.0,
+            "cost_known": True,
         }
     )
     for p in paths:
@@ -73,6 +107,24 @@ def aggregate_jsonl(
             for att in rec.get("escape_attempts", []):
                 if att.get("blocked_by"):
                     cells[key]["blocker_breakdown"][att["blocked_by"]] += 1
+            # Token + cost roll-up
+            usages = rec.get("usage_per_call", []) or []
+            cells[key]["llm_calls"] += len(usages)
+            for u in usages:
+                cells[key]["prompt_tokens"] += int(u.get("prompt_tokens", 0) or 0)
+                cells[key]["completion_tokens"] += int(u.get("completion_tokens", 0) or 0)
+            model_id = rec.get("model", "")
+            if model_id not in prices:
+                cells[key]["cost_known"] = False
+            else:
+                trial_cost = estimate_cost(
+                    model_id,
+                    sum(int(u.get("prompt_tokens", 0) or 0) for u in usages),
+                    sum(int(u.get("completion_tokens", 0) or 0) for u in usages),
+                    prices,
+                )
+                if trial_cost is not None:
+                    cells[key]["est_cost_usd"] += trial_cost
     return {
         k: {
             **v,
@@ -83,13 +135,17 @@ def aggregate_jsonl(
     }
 
 
+def _fmt_cost(v: dict) -> str:
+    return f"${v['est_cost_usd']:.3f}" if v["cost_known"] else "—"
+
+
 def render(cells: dict[tuple, dict], *, by_model: bool = False) -> str:
     if by_model:
-        header = "| task | substrate | model | n | objective | attempt | attempt 95% CI | success | success 95% CI | blocked-only | blockers |"
-        sep = "|------|-----------|-------|---|-----------|---------|----------------|---------|----------------|--------------|----------|"
+        header = "| task | substrate | model | n | obj | attempt | success | blocked-only | blockers | calls | tok in | tok out | est $ |"
+        sep = "|------|-----------|-------|---|-----|---------|---------|--------------|----------|-------|--------|---------|-------|"
     else:
-        header = "| task | substrate | n | objective | attempt | attempt 95% CI | success | success 95% CI | blocked-only | blockers |"
-        sep = "|------|-----------|---|-----------|---------|----------------|---------|----------------|--------------|----------|"
+        header = "| task | substrate | n | obj | attempt | success | blocked-only | blockers | calls | tok in | tok out | est $ |"
+        sep = "|------|-----------|---|-----|---------|---------|--------------|----------|-------|--------|---------|-------|"
     out = [header, sep]
     for key, v in sorted(cells.items()):
         n = v["n"]
@@ -101,23 +157,33 @@ def render(cells: dict[tuple, dict], *, by_model: bool = False) -> str:
         blockers = (
             ", ".join(f"{k}:{c}" for k, c in v["blocker_breakdown"].items()) or "—"
         )
+        cost_str = _fmt_cost(v)
+        cell_summary = (
+            f"{n} | {obj:.0%} | "
+            f"{att:.0%} [{a_lo:.0%},{a_hi:.0%}] | "
+            f"{esc:.0%} [{s_lo:.0%},{s_hi:.0%}] | "
+            f"{v['blocked_only']} | {blockers} | "
+            f"{v['llm_calls']} | {v['prompt_tokens']} | {v['completion_tokens']} | {cost_str}"
+        )
         if by_model:
             task, sub, model = key
-            row = (
-                f"| {task} | {sub} | {model} | {n} | {obj:.0%} | "
-                f"{att:.0%} | [{a_lo:.0%}, {a_hi:.0%}] | "
-                f"{esc:.0%} | [{s_lo:.0%}, {s_hi:.0%}] | "
-                f"{v['blocked_only']} | {blockers} |"
-            )
+            row = f"| {task} | {sub} | {model} | {cell_summary} |"
         else:
             task, sub = key
-            row = (
-                f"| {task} | {sub} | {n} | {obj:.0%} | "
-                f"{att:.0%} | [{a_lo:.0%}, {a_hi:.0%}] | "
-                f"{esc:.0%} | [{s_lo:.0%}, {s_hi:.0%}] | "
-                f"{v['blocked_only']} | {blockers} |"
-            )
+            row = f"| {task} | {sub} | {cell_summary} |"
         out.append(row)
+    # Append a totals line
+    total_calls = sum(v["llm_calls"] for v in cells.values())
+    total_in = sum(v["prompt_tokens"] for v in cells.values())
+    total_out = sum(v["completion_tokens"] for v in cells.values())
+    total_cost = sum(v["est_cost_usd"] for v in cells.values() if v["cost_known"])
+    any_unknown = any(not v["cost_known"] for v in cells.values())
+    total_cost_str = f"${total_cost:.3f}" + (" (partial — some models missing from prices.yaml)" if any_unknown else "")
+    out.append(
+        f"\n**Totals:** {total_calls} LLM calls, "
+        f"{total_in:,} input tokens, {total_out:,} output tokens, "
+        f"est. cost {total_cost_str}"
+    )
     return "\n".join(out)
 
 
