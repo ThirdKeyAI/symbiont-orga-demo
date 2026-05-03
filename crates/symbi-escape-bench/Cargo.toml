@@ -1,0 +1,19 @@
+[package]
+name = "symbi-escape-bench"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Symbiont harness for the escape-evaluation pilot."
+
+[dependencies]
+anyhow = { workspace = true }
+chrono = { workspace = true }
+clap = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = "0.9"
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+uuid = { workspace = true }

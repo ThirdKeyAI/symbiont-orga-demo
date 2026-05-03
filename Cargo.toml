@@ -5,6 +5,7 @@ members = [
     "crates/symbi-invis-strip",
     "crates/symbi-kloop-bench",
     "crates/symbi-toolclad-bridge",
+    "crates/symbi-escape-bench",
 ]
 
 [workspace.package]
