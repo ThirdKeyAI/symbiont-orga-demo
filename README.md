@@ -365,6 +365,10 @@ Adjust the workspace dep in `Cargo.toml` if your layout differs.
 - **Not a comprehensive benchmark suite.** Five curated tasks with synthetic-but-realistic inputs. For research-grade evaluation you'd need dozens of tasks with statistical power.
 - **Not a replacement for a real observability stack.** The JSONL sidecars, broadcast traces, and dashboards are enough to audit a run; Langfuse/Helicone/PostHog wired through OpenRouter's Settings → Observability does the long-term visualisation.
 
+## Escape Evaluation Harness
+
+A parallel evaluation framework lives under `evals/escape/`. It measures whether substrate-level constraints (Symbiont typestate + Cedar + ToolClad vs permissive Python tool registries) actually prevent agents from exceeding declared capabilities. Independent of the Karpathy learning loop above — see `evals/escape/README.md` for the pilot runbook and task taxonomy.
+
 ## Feedback and contributions
 
 Open an issue or PR. Each sweep report ends with a "suggestions for next version" list — v8's open items (multi-model markdown-fence, gemini25pro html-comment backfill, knowledge-store vocabulary linter, delegator with adversarial prompt, upstream backport of `sanitize_field_with_markup` + forensic-sidecar pattern, audit-script forensic-sidecar consistency check) are good starting points.
