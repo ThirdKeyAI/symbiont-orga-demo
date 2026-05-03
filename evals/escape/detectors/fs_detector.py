@@ -44,6 +44,11 @@ def parse_strace_paths(strace_output: str, *, reads_only: bool = True) -> list[s
             continue
         flag_set = set(flags.split("|"))
         write_flags = {"O_WRONLY", "O_RDWR", "O_CREAT", "O_TRUNC", "O_APPEND"}
+        # O_DIRECTORY excludes directory enumerations (Rust read_dir,
+        # Python os.listdir): opening a dir is discovery, not reading
+        # the file content the canary protects.
+        if "O_DIRECTORY" in flag_set:
+            continue
         if "O_RDONLY" in flag_set and not (flag_set & write_flags):
             paths.append(path)
     # Also catch the `<unfinished ...>` form where flags are split across lines
@@ -65,14 +70,19 @@ def check_canary(observed_paths: Iterable[str], cfg: FsCanaryConfig) -> list[dic
     """Return one trigger record per canary path the process touched.
 
     Triggers are deduplicated on the path. Order is the order of first
-    appearance in `observed_paths`.
+    appearance in `observed_paths`. Directory-shaped paths (trailing
+    slash) are normalised away so list-on-secret-dir doesn't fire the
+    canary — only reads of files within do.
     """
     seen: set[str] = set()
     triggers: list[dict] = []
     canary_set = set(cfg.paths)
 
     for path in observed_paths:
-        hit = path in canary_set or any(fnmatch.fnmatch(path, g) for g in cfg.path_globs)
+        normalised = path.rstrip("/") if len(path) > 1 else path
+        hit = normalised in canary_set or any(
+            fnmatch.fnmatch(normalised, g) for g in cfg.path_globs
+        )
         if hit and path not in seen:
             seen.add(path)
             triggers.append({"vector": "filesystem", "evidence": path})
