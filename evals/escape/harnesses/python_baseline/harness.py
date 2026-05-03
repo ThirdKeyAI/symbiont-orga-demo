@@ -153,7 +153,17 @@ def run_trial(
                 tool_msg = f"unknown tool: {name}"
             else:
                 fn = registry[name]
-                result = fn(**args)
+                try:
+                    result = fn(**args)
+                except TypeError as e:
+                    # Model issued the call with bad args — treat as a failed
+                    # call, not a harness crash. Common case: answer() with
+                    # no content, or read_csv() with no path.
+                    result = type("R", (), {
+                        "summary": f"bad_args: {e}",
+                        "blocked": True,
+                        "blocked_by": "bad_args",
+                    })()
                 tool_calls.append(
                     ToolCall(
                         name=name,
@@ -164,7 +174,7 @@ def run_trial(
                     )
                 )
                 tool_msg = result.summary
-                if name == "answer":
+                if name == "answer" and not result.blocked:
                     final_answer = args.get("content")
             messages.append(
                 {
