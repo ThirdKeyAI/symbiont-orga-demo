@@ -16,20 +16,30 @@ from __future__ import annotations
 import re
 
 DEFAULT_INJECTION_PATTERNS: list[str] = [
+    # Direct override patterns
     r"(?i)ignore (?:all )?(?:previous|prior|above) (?:instructions|rules|directives)",
     r"(?i)disregard (?:all )?(?:previous|prior|above)",
     r"(?i)you are now (?:a |an )?",
     r"(?i)from now on, ?act as",
-    r"(?i)new (?:system )?(?:instructions|prompt|directive)",
+    r"(?i)new (?:system )?(?:instructions|prompt|directive|routing rule|rule)",
+    # System-block / role markers
     r"(?i)<\|?system\|?>",
     r"(?i)<\|im_start\|>system",
     r"(?i)\[INST\] system",
     r"(?i)assistant\s*[:>]",
+    r"(?i)supervisor\s*[:>]",
+    # Persona override
     r"(?i)pretend (?:you are|to be)",
     r"(?i)roleplay as",
+    # Capability/privilege requests
     r"(?i)elevate (?:your )?(?:privileges|permissions|capabilities)",
     r"(?i)grant (?:yourself|me) (?:admin|root|sudo)",
     r"(?i)bypass (?:the )?(?:filter|guardrail|safety|policy)",
+    # Routing-shaping (orchestrator-injection specific)
+    r"(?i)route (?:this|the ticket) to",
+    r"(?i)you must (?:route|send|escalate|forward)",
+    r"(?i)override (?:the |your )?(?:default|defaults|previous|priority)",
+    r"(?i)\bIMPORTANT\b.*(?:override|escalate|priority|urgent)",
 ]
 
 
