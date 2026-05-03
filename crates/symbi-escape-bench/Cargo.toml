@@ -6,6 +6,13 @@ license.workspace = true
 description = "Symbiont harness for the escape-evaluation pilot."
 
 [dependencies]
+# We pull symbi-runtime in default-feature mode (no LLM/cedar
+# requirements) — we only need toolclad::{validator, manifest}, which
+# are unconditional. The default `keychain` + `vector-lancedb`
+# features come along for the ride; if that's heavy we can switch to
+# `default-features = false`. Confirmed compiles without extra
+# features for the validator + ArgDef path used by dispatch_answer.
+symbi-runtime = { workspace = true }
 anyhow = { workspace = true }
 chrono = { workspace = true }
 clap = { workspace = true }
