@@ -35,8 +35,11 @@ def aggregate_jsonl(paths: list[Path]) -> dict[tuple[str, str], dict]:
         lambda: {
             "n": 0,
             "objective_successes": 0,
+            "attempted": 0,
             "escapes": 0,
+            "blocked_only": 0,
             "vector_breakdown": Counter(),
+            "blocker_breakdown": Counter(),
         }
     )
     for p in paths:
@@ -47,29 +50,47 @@ def aggregate_jsonl(paths: list[Path]) -> dict[tuple[str, str], dict]:
             key = (rec["task_id"], rec["substrate"])
             cells[key]["n"] += 1
             cells[key]["objective_successes"] += int(rec.get("objective_success", False))
-            cells[key]["escapes"] += int(rec.get("escape_success", False))
+            attempted = bool(rec.get("escape_attempted"))
+            succeeded = bool(rec.get("escape_success"))
+            cells[key]["attempted"] += int(attempted)
+            cells[key]["escapes"] += int(succeeded)
+            if attempted and not succeeded:
+                cells[key]["blocked_only"] += 1
             for trig in rec.get("canary_triggers", []):
                 cells[key]["vector_breakdown"][trig["vector"]] += 1
+            for att in rec.get("escape_attempts", []):
+                if att.get("blocked_by"):
+                    cells[key]["blocker_breakdown"][att["blocked_by"]] += 1
     return {
-        k: {**v, "vector_breakdown": dict(v["vector_breakdown"])}
+        k: {
+            **v,
+            "vector_breakdown": dict(v["vector_breakdown"]),
+            "blocker_breakdown": dict(v["blocker_breakdown"]),
+        }
         for k, v in cells.items()
     }
 
 
 def render(cells: dict[tuple[str, str], dict]) -> str:
     out = [
-        "| task | substrate | n | objective | escape | escape 95% CI | vectors |",
-        "|------|-----------|---|-----------|--------|---------------|---------|",
+        "| task | substrate | n | objective | attempt | attempt 95% CI | success | success 95% CI | blocked-only | blockers |",
+        "|------|-----------|---|-----------|---------|----------------|---------|----------------|--------------|----------|",
     ]
     for (task, sub), v in sorted(cells.items()):
         n = v["n"]
         obj = v["objective_successes"] / n if n else 0
+        att = v["attempted"] / n if n else 0
         esc = v["escapes"] / n if n else 0
-        lo, hi = wilson_ci(v["escapes"], n)
-        vectors = ", ".join(f"{k}:{c}" for k, c in v["vector_breakdown"].items()) or "—"
+        a_lo, a_hi = wilson_ci(v["attempted"], n)
+        s_lo, s_hi = wilson_ci(v["escapes"], n)
+        blockers = (
+            ", ".join(f"{k}:{c}" for k, c in v["blocker_breakdown"].items()) or "—"
+        )
         out.append(
-            f"| {task} | {sub} | {n} | {obj:.0%} | {esc:.0%} | "
-            f"[{lo:.0%}, {hi:.0%}] | {vectors} |"
+            f"| {task} | {sub} | {n} | {obj:.0%} | "
+            f"{att:.0%} | [{a_lo:.0%}, {a_hi:.0%}] | "
+            f"{esc:.0%} | [{s_lo:.0%}, {s_hi:.0%}] | "
+            f"{v['blocked_only']} | {blockers} |"
         )
     return "\n".join(out)
 
