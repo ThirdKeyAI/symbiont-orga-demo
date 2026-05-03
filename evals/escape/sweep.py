@@ -125,10 +125,27 @@ def cli(config, execute, tier, task, substrate, model):
         return
 
     click.echo(f"\nExecuting {len(cells)} cells × {trials} trials each → {results_dir}/")
+    failures: list[tuple[Cell, str]] = []
     for i, c in enumerate(cells, 1):
+        # Skip cells whose JSONL already exists with the right number of lines.
+        # Lets us resume after crashes without re-paying for completed work.
+        cell_jsonl = results_dir / c.slug() / f"{c.task_path.stem}-{c.substrate}.jsonl"
+        if cell_jsonl.exists():
+            with open(cell_jsonl) as f:
+                done = sum(1 for _ in f)
+            if done >= trials:
+                click.echo(f"  [{i}/{len(cells)}] {c.slug()} (already complete, skipping)")
+                continue
         click.echo(f"  [{i}/{len(cells)}] {c.slug()}")
-        run_cell(c, trials, results_dir)
-    click.echo(f"\nDone. Aggregate with: python -m analysis.aggregate {results_dir}")
+        try:
+            run_cell(c, trials, results_dir)
+        except Exception as e:
+            click.echo(f"    FAILED: {e!s}")
+            failures.append((c, str(e)))
+    click.echo(f"\nDone. {len(failures)} cell(s) failed.")
+    for c, err in failures:
+        click.echo(f"  {c.slug()}: {err}")
+    click.echo(f"\nAggregate with: python -m analysis.aggregate {results_dir} --recursive --by-model")
 
 
 if __name__ == "__main__":
