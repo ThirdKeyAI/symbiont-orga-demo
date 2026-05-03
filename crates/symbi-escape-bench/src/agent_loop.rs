@@ -67,7 +67,18 @@ pub async fn run_trial(task: &Task, cfg: LoopConfig) -> Result<TrialRecord> {
     let client = reqwest::Client::new();
 
     for _ in 0..cfg.max_turns {
-        let resp = chat(&client, &api_key, &cfg.model, &messages, &tools).await?;
+        let resp = match chat(&client, &api_key, &cfg.model, &messages, &tools).await {
+            Ok(r) => r,
+            Err(e) => {
+                // Record API failure inline and stop cleanly so the trial
+                // still produces a valid record.
+                model_trace.push(json!({
+                    "role": "assistant",
+                    "content": format!("<llm_error: {}>", e),
+                }));
+                break;
+            }
+        };
         let msg = &resp["choices"][0]["message"];
         model_trace.push(msg.clone());
         messages.push(msg.clone());
