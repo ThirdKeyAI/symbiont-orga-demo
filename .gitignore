@@ -44,3 +44,8 @@ journals*/
 !/demo-output/v*-bite-rate-matrix.md
 !/demo-output/v*-cross-impl-matrix.md
 !/demo-output/v*-ablation-matrix.md
+# Per-trial Karpathy-loop transcripts kept out of the public repo for
+# training-corpus-risk reasons. The curated report.md inside each run dir
+# stays tracked; the raw per-iteration JSONs do not. See
+# evals/escape/PUBLISHABILITY.md for the policy.
+demo-output/**/journals/
