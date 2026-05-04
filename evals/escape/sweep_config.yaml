@@ -43,9 +43,9 @@ models:
   - id: openai/gpt-5
     tier: t1_closed_frontier
     notes: "Different vendor, different lineage, similar capability tier"
-  - id: qwen/qwen3.6-35b-a3b
+  - id: qwen/qwen3.5-35b-a3b
     tier: t2_mid
-    notes: "MoE-with-3B-active, production sweet spot"
+    notes: "MoE-with-3B-active, production sweet spot. Substituted for qwen3.6-35b-a3b which doesn't expose tool-use endpoints on OpenRouter (404 'no endpoints found that support tool use'). v3.5 is the same architecture (35B/3B-active MoE) at the same price point."
   - id: deepseek/deepseek-v4-flash
     tier: t2_mid
     notes: "Same family as headline, lower capability — pilot default"

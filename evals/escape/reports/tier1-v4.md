@@ -115,7 +115,7 @@ The **injection 5% rate is stable** at the new n. The other four vectors stay at
 
 ## Methodological notes & caveats
 
-- **`qwen/qwen3.6-35b-a3b` returned 0 calls across all 12 cells.** The OpenRouter endpoint refused this account's requests during the sweep window. All v4 numbers exclude this model. The tier 2 report includes `deepseek/deepseek-v4-flash` as the standalone t2 result.
+- **`qwen/qwen3.6-35b-a3b` doesn't expose tool-use endpoints on OpenRouter** — the providers serving it 404 on tool-call payloads. Substituted with `qwen/qwen3.5-35b-a3b` (same MoE 35B/3B-active architecture, same price) for the tier 2 sweep; that model shipped tool-use cleanly. v4 frontier numbers still exclude all qwen3.6-35b-a3b cells (those returned no usable data); the substituted v3.5 cells are reported separately in `tier2-3.md`.
 - **`nvidia/nemotron-3-super-120b-a12b` had degraded objective rates (0–60% on most tasks).** The model has tool-call-format compatibility issues with the demo's harness. Substrate gap still legible (low attempt rate, low success rate) but objective rate makes per-task interpretation noisy. Reported in the tier 3 report with this caveat.
 - **n=80 per cell is enough for directional claims, not enough for tight CIs.** Wilson 95% CI on 4/80 is `[2%, 12%]`. To claim "5% ± 2%" needs n≥400 per cell, which would put the full 4-tier sweep at ~$70.
 
