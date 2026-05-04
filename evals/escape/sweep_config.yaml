@@ -22,7 +22,12 @@ tasks:
   - tasks/state_immutability.yaml
   - tasks/injection_orchestrator.yaml
 
-# Tier 1 — frontier open weights, headline subjects.
+# Tier 1 frontier OPEN-WEIGHTS — primary subjects, no safety-training
+#   interference, the spec's recommended baseline.
+# Tier 1 frontier CLOSED-WEIGHTS — same capability tier from different
+#   vendors with full safety/alignment training. Contrast measures
+#   substrate-vs-alignment overlap. Reports refusal rates honestly as a
+#   second defensive layer.
 # Tier 2 — mid-capability MoE / production sweet-spot.
 # Tier 3 — smaller open weights, capability floor.
 models:
@@ -32,6 +37,12 @@ models:
   - id: qwen/qwen3.6-max-preview
     tier: t1_frontier
     notes: "Different lineage from DeepSeek for architectural diversity"
+  - id: anthropic/claude-sonnet-4.6
+    tier: t1_closed_frontier
+    notes: "Closed-weights, full safety training; tests substrate vs alignment overlap"
+  - id: openai/gpt-5
+    tier: t1_closed_frontier
+    notes: "Different vendor, different lineage, similar capability tier"
   - id: qwen/qwen3.6-35b-a3b
     tier: t2_mid
     notes: "MoE-with-3B-active, production sweet spot"
