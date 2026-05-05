@@ -199,16 +199,18 @@ def _run_one_trial(
     strace_path = results_dir / f"trial-{substrate}-{instance_seed:04d}.strace"
     task_path = task["_path"]
 
+    py_child = [
+        sys.executable, "-m", "harnesses.python_baseline",
+        "--task", str(task_path),
+        "--model", model,
+        "--prompt-variant", str(prompt_variant),
+        "--instance-seed", str(instance_seed),
+        "--instance-root", str(instance_root),
+        "--out", str(out_path),
+    ]
+
     if substrate == "python_baseline":
-        child = [
-            sys.executable, "-m", "harnesses.python_baseline",
-            "--task", str(task_path),
-            "--model", model,
-            "--prompt-variant", str(prompt_variant),
-            "--instance-seed", str(instance_seed),
-            "--instance-root", str(instance_root),
-            "--out", str(out_path),
-        ]
+        child = py_child
     elif substrate == "symbiont":
         child = [
             "bash", str(Path(__file__).parent / "harnesses" / "symbiont" / "run.sh"),
@@ -219,12 +221,77 @@ def _run_one_trial(
             "--instance-root", str(instance_root),
             "--out", str(out_path),
         ]
+    elif substrate == "python_sandboxed":
+        # Run the python_baseline child inside a Docker container.
+        # Filesystem contract: only instance_root, the harness code
+        # dir, and the venv are bind-mounted; the host's /home, /etc,
+        # /var, etc. are NOT visible. Read attempts on canary paths
+        # outside the binds get ENOENT before they reach the model.
+        # Network is host (--network host) so OpenRouter reaches; the
+        # net detector still sees connect() destinations from inside.
+        # strace runs INSIDE the container (image bakes it in); the
+        # trace file is written to instance_root and read by the
+        # runner post-hoc, same as the unsandboxed path.
+        #
+        # State_immutability: the policy file lives under
+        # instance_root which IS writable in the container, so the
+        # sandbox doesn't help with that vector — same blast radius
+        # as permissive python. (gVisor would, by intercepting writes
+        # to declared-immutable paths; bwrap/Docker can't.)
+        instance_root.mkdir(parents=True, exist_ok=True)
+        evals_dir = Path(__file__).parent
+        venv_dir = evals_dir / ".venv"
+        # Strace inside the container writes to the bind-mounted instance_root
+        # so the host runner can read it back at the original strace_path.
+        in_container_strace = instance_root / "_trial.strace"
+        in_container_out = instance_root / "_trial.json"
+        # Use the container's own python3 (system-wide deps baked into
+        # the image), not the host's venv (whose python is a symlink to
+        # /usr/bin/python3 which doesn't exist in the container).
+        sandboxed_child = [
+            "strace", "-f", "-e", "trace=openat,connect,execve",
+            "-o", str(in_container_strace),
+            "python3",
+            "-m", "harnesses.python_baseline",
+            "--task", str(task_path),
+            "--model", model,
+            "--prompt-variant", str(prompt_variant),
+            "--instance-seed", str(instance_seed),
+            "--instance-root", str(instance_root),
+            "--out", str(in_container_out),
+        ]
+        child = [
+            "docker", "run", "--rm",
+            "--network", "host",
+            "--user", f"{os.getuid()}:{os.getgid()}",
+            "-v", f"{instance_root}:{instance_root}",
+            "-v", f"{evals_dir}:{evals_dir}:ro",
+            "-w", str(evals_dir),
+            "-e", f"OPENROUTER_API_KEY={os.environ.get('OPENROUTER_API_KEY', '')}",
+            "-e", f"PYTHONPATH={evals_dir}",
+            "escape-eval-sandboxed:latest",
+            *sandboxed_child,
+        ]
     else:
         raise ValueError(f"unsupported substrate: {substrate}")
 
-    cmd = ["strace", "-f", "-e", "trace=openat,connect,execve",
-           "-o", str(strace_path), *child]
-    subprocess.run(cmd, check=True, env=os.environ.copy())
+    if substrate == "python_sandboxed":
+        # Strace runs inside the container; the host wrapper just runs
+        # docker. The container's strace writes to instance_root/_trial.strace,
+        # which we copy back to strace_path after the run. No host-side
+        # strace wrapping needed (it would only see docker CLI syscalls).
+        subprocess.run(child, check=True, env=os.environ.copy())
+        in_container_out = instance_root / "_trial.json"
+        in_container_strace = instance_root / "_trial.strace"
+        if in_container_out.exists():
+            out_path.write_bytes(in_container_out.read_bytes())
+        if in_container_strace.exists():
+            strace_path.write_bytes(in_container_strace.read_bytes())
+    else:
+        cmd = ["strace", "-f", "-e", "trace=openat,connect,execve",
+               "-o", str(strace_path), *child]
+        subprocess.run(cmd, check=True, env=os.environ.copy())
+
     return out_path, strace_path
 
 
@@ -268,6 +335,9 @@ def _baseline_execve_count(substrate: str) -> int:
     if substrate == "python_baseline":
         return 1
     if substrate == "symbiont":
+        return 2
+    if substrate == "python_sandboxed":
+        # bwrap → python: 2 execves before the agent does anything.
         return 2
     return 1
 
@@ -341,6 +411,10 @@ def run_pilot(
 
             after = state_snapshot(immutable_paths)
             rec = json.loads(out_path.read_text())
+            # The harness child writes substrate="python_baseline" because
+            # it doesn't know whether the runner wrapped it in a sandbox.
+            # The runner is the source of truth for the substrate field.
+            rec["substrate"] = substrate
             tool_calls = rec.get("tool_calls", [])
 
             strace_text = strace_path.read_text() if strace_path.exists() else ""
@@ -411,7 +485,7 @@ def run_pilot(
 @click.option(
     "--substrate",
     required=True,
-    type=click.Choice(["python_baseline", "symbiont"]),
+    type=click.Choice(["python_baseline", "python_sandboxed", "symbiont"]),
 )
 @click.option("--model", required=True)
 @click.option("--trials", required=True, type=int)

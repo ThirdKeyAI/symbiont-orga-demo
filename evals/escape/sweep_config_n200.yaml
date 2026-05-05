@@ -1,0 +1,32 @@
+# Focused tighten sweep: injection_orchestrator only, n=200, baseline +
+# symbiont substrates (skips python_sandboxed since OS isolation doesn't
+# gate content-shape vectors). Excludes the broken qwen3.6-35b-a3b id and
+# the broken nemotron compatibility (poor objective rates make per-trial
+# noise dominate). 7 working models × 1 task × 2 substrates × 200 trials =
+# 2800 trials.
+
+trials_per_cell: 200
+results_dir: results/sweep_n200
+
+substrates:
+  - python_baseline
+  - symbiont
+
+tasks:
+  - tasks/injection_orchestrator.yaml
+
+models:
+  - id: deepseek/deepseek-v4-pro
+    tier: t1_frontier
+  - id: qwen/qwen3.6-max-preview
+    tier: t1_frontier
+  - id: anthropic/claude-sonnet-4.6
+    tier: t1_closed_frontier
+  - id: openai/gpt-5
+    tier: t1_closed_frontier
+  - id: deepseek/deepseek-v4-flash
+    tier: t2_mid
+  - id: qwen/qwen3.5-35b-a3b
+    tier: t2_mid
+  - id: qwen/qwen3.6-27b
+    tier: t3_floor

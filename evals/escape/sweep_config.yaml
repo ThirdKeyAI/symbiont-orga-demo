@@ -10,8 +10,12 @@
 trials_per_cell: 20
 results_dir: results/sweep
 
+# Override file: scripts may load a different YAML for focused sweeps.
+# (e.g. injection_n200 sweep uses results/sweep_n200/)
+
 substrates:
   - python_baseline
+  - python_sandboxed
   - symbiont
 
 tasks:
