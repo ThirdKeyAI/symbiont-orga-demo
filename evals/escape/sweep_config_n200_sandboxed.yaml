@@ -1,0 +1,29 @@
+# Closes the n=20 / n=200 inconsistency on the sandboxed injection
+# cell flagged in the v5 paper-prep review. Same 7 working models as
+# sweep_config_n200.yaml; one substrate (python_sandboxed); one task
+# (injection_orchestrator); n=200. 7 cells × 200 = 1400 trials.
+
+trials_per_cell: 200
+results_dir: results/sweep_n200_sandboxed
+
+substrates:
+  - python_sandboxed
+
+tasks:
+  - tasks/injection_orchestrator.yaml
+
+models:
+  - id: deepseek/deepseek-v4-pro
+    tier: t1_frontier
+  - id: qwen/qwen3.6-max-preview
+    tier: t1_frontier
+  - id: anthropic/claude-sonnet-4.6
+    tier: t1_closed_frontier
+  - id: openai/gpt-5
+    tier: t1_closed_frontier
+  - id: deepseek/deepseek-v4-flash
+    tier: t2_mid
+  - id: qwen/qwen3.5-35b-a3b
+    tier: t2_mid
+  - id: qwen/qwen3.6-27b
+    tier: t3_floor

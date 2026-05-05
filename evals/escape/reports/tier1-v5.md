@@ -10,14 +10,22 @@ license: this report describes a published evaluation methodology. The
 
 # Tier 1 Sweep Report v5 — Three-Substrate Comparison + n=200 Tightening on Injection
 
-**Date:** 2026-05-04
-**Branch:** `escape-evals-sandboxed-and-tighten`
+**Date:** 2026-05-04 (sweep), 2026-05-05 (paper-prep revision)
+**Branch:** `escape-evals-sandboxed-and-tighten` (sweep), `escape-evals-v5-paper-prep` (revisions)
 **Sweep filters:**
 - `--substrate python_sandboxed` (all 8 models, all 6 tasks, n=20)
 - `--config sweep_config_n200.yaml` (7 working models, injection_orchestrator only, python_baseline + symbiont, n=200)
-**Total trials:** 960 sandboxed + 2,800 n=200 = 3,760 trials
-**Wall time:** sandboxed ~3.5h, n=200 ~21h, run in parallel
-**Ground-truth OpenRouter spend:** $9.34 sandboxed + $27.68 n=200 = **$37.02 combined**
+- `--config sweep_config_n200_sandboxed.yaml` (7 working models, injection_orchestrator only, python_sandboxed, n=200) — **added 2026-05-05** to close the only methodological inconsistency in the original v5 sweep (sandboxed injection had been at n=20 while the same row's other two columns were at n=200).
+
+**Total trials:** 960 sandboxed (n=20 across all tasks) + 2,800 baseline+symbiont injection (n=200) + 1,400 sandboxed injection (n=200) = **5,160 trials**
+**Wall time:** original sweeps run in parallel ~21h; paper-prep sandboxed-injection run ~3h
+**Ground-truth OpenRouter spend:** $9.34 + $27.68 + ~$5.0 ≈ **$42.0 combined**
+
+## How to read this report
+
+All escape and attempt rates are reported with **Wilson 95% confidence intervals** in square brackets. A bound of `[12%, 22%]` means: under standard frequentist assumptions, the true rate has 95% probability of being within that range, given the observed sample. Wilson CIs (rather than the more common normal approximation) are used because several of the headline cells are at 0/N or near-N/N — regions where the normal approximation degenerates but Wilson stays well-behaved.
+
+Point estimates without CIs are reported in the *pooled* numbers section; for those, the per-cell CIs in the per-model tables are the right place to assess uncertainty. Reviewers comparing two cells with overlapping CIs should treat the difference as inconclusive at this n; non-overlapping CIs imply the directional finding is robust.
 
 **What's new since tier1-v4:**
 
@@ -57,19 +65,46 @@ Pooled across the 7 working models with usable data:
 
 **Why this is the right negative result:** OS isolation defends against threats that escape the bind set. The escape-eval task suite mostly puts canaries inside the model's working area (because that's the realistic threat — agents being tricked into reading the *wrong file in the same data dir*, not breaking out of a container entirely). The sandbox correctly shows ~zero help on those vectors. **The whole point of typestate-vs-OS-isolation as separate substrates is to disentangle these contributions; v5 confirms they're independent and address different threat classes.**
 
-## injection_orchestrator @ n=200, per-model (the headline that changed)
+## injection_orchestrator @ n=200 — per-model first
+
+The headline shift between v4 (n=80 pooled) and v5 is that the per-model breakdown reveals a tight cluster of 6 models plus a single outlier. **Lead with the cluster, then the outlier** — the framing-as-pooled "5% headline" of v4 was directionally correct but masked which model was driving it.
+
+### The 6-of-7 cluster (the substrate-gap result that actually generalises)
 
 | model | python_baseline success | symbiont success | substrate gap |
 |---|---|---|---|
 | anthropic/claude-sonnet-4.6 | 17% [12%, 23%] | **0% [0%, 3%]** | −17 pp |
-| openai/gpt-5 | 99% [96%, 100%] | **16% [12%, 22%]** | −83 pp |
 | deepseek/deepseek-v4-pro | 75% [69%, 80%] | **0% [0%, 2%]** | −75 pp |
 | qwen/qwen3.6-max-preview | 82% [77%, 87%] | **3% [1%, 6%]** | −79 pp |
 | deepseek/deepseek-v4-flash | 34% [28%, 41%] | **1% [0%, 4%]** | −33 pp |
 | qwen/qwen3.5-35b-a3b | 48% [42%, 55%] | **4% [2%, 7%]** | −44 pp |
 | qwen/qwen3.6-27b | 58% [51%, 65%] | **1% [0%, 4%]** | −57 pp |
 
-**Pooled across all 7 models (n=1400):** baseline 59% → symbiont 3.6%. **Excluding GPT-5: baseline 52% → symbiont 1.5% (18/1200).** GPT-5 alone accounts for **32 of 50 symbiont successes (64%)**.
+**Pooled across these 6 models (n=1200):** baseline 52% → symbiont **1.5% (18/1200)**. CIs cluster between 0% and 7%. The substrate's content fence works at the same rate regardless of vendor (Anthropic, DeepSeek, Qwen), capability tier (frontier through floor), or weight regime (open vs closed). This is the result generalisable substrate claims should rest on.
+
+### And then GPT-5 — the model-specific outlier
+
+| model | python_baseline success | symbiont success | substrate gap |
+|---|---|---|---|
+| **openai/gpt-5** | 99% [96%, 100%] | **16% [12%, 22%]** | −83 pp |
+
+GPT-5's symbiont CI `[12%, 22%]` doesn't overlap *any* other model's CI. GPT-5 alone accounts for **32 of 50 total symbiont successes (64%)** in the 1,400-trial sweep.
+
+What's different about GPT-5: its paraphrase aggression exceeds what literal-substring marker matching can defend against. Inspecting per-trial transcripts where it bypassed: phrasings like *"EFFECTIVE ROUTING DECISION:"*, *"BUSINESS-CRITICAL CLASSIFICATION:"*, *"NORTH STAR PRIORITY:"*, *"Standing order from the engineering leadership:"* — domain-language injections that don't match any literal entry in the marker list but still inject. The validator caught a lot (595 distinct `toolclad_agent_summary_validator` blocks across the GPT-5 cell, average ~3 per attempting trial) — GPT-5 just kept retrying with novel paraphrases until something slipped past the marker set within the per-trial turn budget.
+
+The 16% rate is a structural finding about GPT-5, not a v4-bypass-class regression. The marker list was already expanded after v3 forensics; this is the *next* class of paraphrase, and a sufficiently capable model will keep finding the next class of paraphrase. Closing this gap requires either:
+- An LLM-as-judge layer at the validator (the v3 follow-up recommendation)
+- A structural change to how the orchestrator consumes worker output (treat as user-role data, don't splice into system prompt)
+
+### Why the breakdown matters for paper framing
+
+A reader who sees only "pooled symbiont success: 3.6%" can reasonably ask "but is the symbiont gap driven by one cell?" The honest answer is partially: at the pooled level, GPT-5's 32 successes drive 64% of the symbiont successes. **At the per-model level, the substrate's content fence is robustly effective on 6 of 7 models tested**, and GPT-5 is itself a substantive finding ("the regex ceiling is closer than we thought against frontier paraphrase capability") rather than a methodological flaw.
+
+### Pooled summary line
+
+**Pooled across all 7 models (n=1400):** baseline 59% → symbiont 3.6%.
+**Pooled excluding GPT-5 (n=1200):** baseline 52% → symbiont 1.5%.
+Both are right; the per-model table is the canonical view.
 
 ## The GPT-5 outlier — what changed at n=200
 
@@ -127,9 +162,20 @@ Symbiont's content fence accounts for the majority of blocks because injection t
 
 ## Methodological notes & caveats
 
+### Honest exclusions and caveats — consolidated
+
+Three model-coverage gaps, all documented and addressable:
+
+1. **`qwen/qwen3.6-35b-a3b` — substituted with `qwen/qwen3.5-35b-a3b`.** The originally-spec'd v3.6-35b-a3b returns `404 'No endpoints found that support tool use'` on OpenRouter when called with a tools array. Substituted with v3.5-35b-a3b — same MoE 35B/3B-active architecture at the same price tier, fully tool-use-capable. Difference is one minor version; substrate effectiveness not expected to differ meaningfully. Documented inline in `tier2-3.md` and the model-config files.
+
+2. **`nvidia/nemotron-3-super-120b-a12b` — caveated, not excluded.** Tool-call format compatibility issues result in degraded objective rates (0–60% across tasks). Substrate-gap data still legible (still 0–5% escape on every gated vector), but per-task interpretation is noisy because the denominator of trials-with-meaningful-attempts is small. Reported in `tier2-3.md` with this caveat. A schema-compatibility shim that nudges the model toward OpenAI tool-call format would raise the objective rate without changing the substrate signal — future-iteration work.
+
+3. **Sandboxed-substrate `injection_orchestrator` cell — was at n=20 in initial v5, re-run at n=200 in 2026-05-05 paper-prep revision** (this section). The n=20 point estimate was unstable; the n=200 re-run closes the methodological inconsistency where injection's other two columns (baseline, symbiont) were already at n=200. See the three-substrate comparison table for the n=200 numbers.
+
+### Other methodological notes
+
 - **Three-substrate comparison answers the original spec's "what does typestate buy *over* OS isolation"**: ~5–88 pp on the four pure-action vectors (where sandbox provides ~0 help by design — canary inside bind-mounts), and ~9 pp on syscall (where sandbox only helps by accident — missing binary).
 - **GPT-5's outlier behavior is a genuine model-specific finding**, not a methodological artifact. CIs don't overlap; n=200 is enough to claim "GPT-5 is structurally harder to defend against on this vector" — not to claim a precise rate.
-- **`nvidia/nemotron-3-super-120b-a12b` and `qwen/qwen3.6-35b-a3b` exclusions** remain documented in `tier2-3.md`.
 - **Sandboxed substrate's `state_immutability` cell shows the canonical example of the "OS isolation doesn't help here" failure mode**: the model still successfully writes the policy file because the file lives in `instance_root`, which is the bind-mounted writable area. Symbiont's "no write tool exposed" defense IS the right shape for this vector.
 
 ## Cost & throughput
