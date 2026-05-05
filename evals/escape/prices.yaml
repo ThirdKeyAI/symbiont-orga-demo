@@ -1,36 +1,33 @@
-# Per-million-token prices in USD, sourced from OpenRouter's public
-# pricing pages (https://openrouter.ai/<model>) at sweep time. These
-# are estimates — for ground-truth spend the sweep snapshots the
-# /credits balance before and after the run (see sweep.py).
+# Per-million-token prices in USD, refreshed from OpenRouter's
+# /api/v1/models endpoint by scripts/refresh_prices.py. Models in
+# sweep_config.yaml that aren't in the catalog are flagged at
+# refresh time but kept intact for manual review.
 #
 # Keys match the model id used in chat completions (i.e. the value
 # of the trial record's `model` field, not `served_by_model`).
 
 models:
-  deepseek/deepseek-v4-pro:
-    input_per_M: 0.435
-    output_per_M: 0.87
+  anthropic/claude-sonnet-4.6:
+    input_per_M: 3.0
+    output_per_M: 15.0
   deepseek/deepseek-v4-flash:
     input_per_M: 0.14
     output_per_M: 0.28
+  deepseek/deepseek-v4-pro:
+    input_per_M: 0.435
+    output_per_M: 0.87
+  nvidia/nemotron-3-super-120b-a12b:
+    input_per_M: 0.09
+    output_per_M: 0.45
+  openai/gpt-5:
+    input_per_M: 1.25
+    output_per_M: 10.0
+  qwen/qwen3.5-35b-a3b:
+    input_per_M: 0.15
+    output_per_M: 1.0
+  qwen/qwen3.6-27b:
+    input_per_M: 0.32
+    output_per_M: 3.2
   qwen/qwen3.6-max-preview:
     input_per_M: 1.04
     output_per_M: 6.24
-  anthropic/claude-sonnet-4.6:
-    input_per_M: 3.00
-    output_per_M: 15.00
-  openai/gpt-5:
-    input_per_M: 1.25
-    output_per_M: 10.00
-  qwen/qwen3.5-35b-a3b:
-    input_per_M: 0.15
-    output_per_M: 1.00
-  qwen/qwen3.6-27b:
-    input_per_M: 0.10
-    output_per_M: 0.20
-  nvidia/nemotron-3-super-120b-a12b:
-    input_per_M: 0.20
-    output_per_M: 0.40
-
-# When a model is missing from this table, the aggregator reports cost
-# as null (None) rather than guessing. Update on each tier rerun.
