@@ -6,7 +6,10 @@ docs/plans/
 evals/escape/results/*.jsonl
 evals/escape/results/*.json
 evals/escape/results/*.strace
-evals/escape/results/sweep/
+# Any sub-directory under results/ (sweep/, sweep_n200/, sweep_<future>/, ...)
+# holds per-trial transcripts that include exploit content; never commit.
+# See evals/escape/PUBLISHABILITY.md for the policy.
+evals/escape/results/*/
 !evals/escape/results/.gitkeep
 evals/escape/.venv/
 evals/escape/.pytest_cache/
