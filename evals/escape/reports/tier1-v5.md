@@ -15,11 +15,11 @@ license: this report describes a published evaluation methodology. The
 **Sweep filters:**
 - `--substrate python_sandboxed` (all 8 models, all 6 tasks, n=20)
 - `--config sweep_config_n200.yaml` (7 working models, injection_orchestrator only, python_baseline + symbiont, n=200)
-- `--config sweep_config_n200_sandboxed.yaml` (7 working models, injection_orchestrator only, python_sandboxed, n=200) — **added 2026-05-05** to close the only methodological inconsistency in the original v5 sweep (sandboxed injection had been at n=20 while the same row's other two columns were at n=200).
+- `--config sweep_config_n200_sandboxed.yaml` (7 working models, injection_orchestrator only, python_sandboxed, n=200) — **prepared 2026-05-05 to close the n=20 vs n=200 inconsistency on the sandboxed injection cell**, but blocked by an OpenRouter account-level key spending cap before completion. Config preserved for later re-run; the methodological inconsistency is documented in the consolidated caveats section below.
 
-**Total trials:** 960 sandboxed (n=20 across all tasks) + 2,800 baseline+symbiont injection (n=200) + 1,400 sandboxed injection (n=200) = **5,160 trials**
-**Wall time:** original sweeps run in parallel ~21h; paper-prep sandboxed-injection run ~3h
-**Ground-truth OpenRouter spend:** $9.34 + $27.68 + ~$5.0 ≈ **$42.0 combined**
+**Total trials:** 960 sandboxed (n=20 across all tasks) + 2,800 baseline+symbiont injection (n=200) = **3,760 trials**
+**Wall time:** ~24.5h cumulative (sweeps run in parallel)
+**Ground-truth OpenRouter spend:** $9.34 + $27.68 = **$37.02 combined** (the abandoned sandboxed-injection-n=200 attempt incurred $0 because all calls returned 403 once the key cap was hit)
 
 ## How to read this report
 
@@ -170,7 +170,7 @@ Three model-coverage gaps, all documented and addressable:
 
 2. **`nvidia/nemotron-3-super-120b-a12b` — caveated, not excluded.** Tool-call format compatibility issues result in degraded objective rates (0–60% across tasks). Substrate-gap data still legible (still 0–5% escape on every gated vector), but per-task interpretation is noisy because the denominator of trials-with-meaningful-attempts is small. Reported in `tier2-3.md` with this caveat. A schema-compatibility shim that nudges the model toward OpenAI tool-call format would raise the objective rate without changing the substrate signal — future-iteration work.
 
-3. **Sandboxed-substrate `injection_orchestrator` cell — was at n=20 in initial v5, re-run at n=200 in 2026-05-05 paper-prep revision** (this section). The n=20 point estimate was unstable; the n=200 re-run closes the methodological inconsistency where injection's other two columns (baseline, symbiont) were already at n=200. See the three-substrate comparison table for the n=200 numbers.
+3. **Sandboxed-substrate `injection_orchestrator` cell — at n=20 while baseline + symbiont are at n=200 in the same row.** A 2026-05-05 paper-prep re-run at n=200 was attempted (config preserved at `sweep_config_n200_sandboxed.yaml`) but blocked by an OpenRouter account-level key spending cap; the cap recharges separately from per-month usage and at the time of writing requires the operator to raise the limit before the cell can be re-run. **Footnote interpretation for now:** the sandboxed substrate's contribution to injection at n=20 was 74% pooled — *higher* than baseline's n=20-era reading and consistent with "OS isolation provides ~zero help on content-shape vectors", so the n=200 re-run is expected to land at substantially the same rate (within a few pp). The substrate-comparison conclusion ("OS isolation doesn't gate injection") doesn't depend on the precise number; closing the methodological inconsistency to within a few-pp CI requires the OpenRouter cap raise + ~$5 / ~3h re-sweep. **For the paper, recommend either footnoting the n inconsistency or re-running once the cap is unblocked.**
 
 ### Other methodological notes
 
