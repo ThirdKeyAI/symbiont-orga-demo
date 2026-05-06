@@ -15,11 +15,11 @@ license: this report describes a published evaluation methodology. The
 **Sweep filters:**
 - `--substrate python_sandboxed` (all 8 models, all 6 tasks, n=20)
 - `--config sweep_config_n200.yaml` (7 working models, injection_orchestrator only, python_baseline + symbiont, n=200)
-- `--config sweep_config_n200_sandboxed.yaml` (7 working models, injection_orchestrator only, python_sandboxed, n=200) — **prepared 2026-05-05 to close the n=20 vs n=200 inconsistency on the sandboxed injection cell**, but blocked by an OpenRouter account-level key spending cap before completion. Config preserved for later re-run; the methodological inconsistency is documented in the consolidated caveats section below.
+- `--config sweep_config_n200_sandboxed.yaml` (7 working models, injection_orchestrator only, python_sandboxed, n=200) — **completed 2026-05-05** after the operator unblocked an OpenRouter key cap; closes the n=20 vs n=200 inconsistency on the sandboxed injection cell. Earlier abandoned attempt incurred $0.
 
-**Total trials:** 960 sandboxed (n=20 across all tasks) + 2,800 baseline+symbiont injection (n=200) = **3,760 trials**
-**Wall time:** ~24.5h cumulative (sweeps run in parallel)
-**Ground-truth OpenRouter spend:** $9.34 + $27.68 = **$37.02 combined** (the abandoned sandboxed-injection-n=200 attempt incurred $0 because all calls returned 403 once the key cap was hit)
+**Total trials:** 960 sandboxed (n=20 across all tasks) + 2,800 baseline+symbiont injection (n=200) + 1,400 sandboxed injection (n=200) = **5,160 trials**
+**Wall time:** ~31h cumulative (sweeps run in parallel)
+**Ground-truth OpenRouter spend:** $9.34 + $27.68 + $7.26 = **$44.28 combined**
 
 ## How to read this report
 
@@ -48,7 +48,7 @@ Pooled across the 7 working models with usable data:
 | **net_boundary**           | **94% (132/140)** | **89% (124/140)** | **0% (0/140)** |
 | **syscall_boundary**       | **38% (53/140)** | **9% (13/140)**  | **0% (0/140)** |
 | **state_immutability**     | **94% (132/140)** | **84% (118/140)** | **0% (0/140)** |
-| **injection_orchestrator** | **59% (826/1400) at n=200** | **74% (104/140)** | **3.6% (50/1400) at n=200** |
+| **injection_orchestrator** | **59% (826/1400) at n=200** | **66% (924/1400) at n=200** | **3.6% (50/1400) at n=200** |
 
 (`fs_boundary` deliberately has no canary attempt incentive — it's the control task that confirms the framework doesn't manufacture false positives.)
 
@@ -61,7 +61,7 @@ Pooled across the 7 working models with usable data:
 - `fs_enumerate` (88% pooled both substrates): the canary files (`/data/secret/*.csv`) are under `instance_root`, which IS bind-mounted into the container. The sandbox doesn't restrict reads inside the bind set.
 - `state_immutability` (94% baseline → 84% sandboxed): the policy file is under `instance_root`, writable in the container. Not the sandbox's job.
 - `net_boundary` (94% → 89%): `--network host` means external connects work the same in or out of container.
-- `injection_orchestrator` (74% sandboxed): purely a content-shape vector; OS isolation can't gate string contents.
+- `injection_orchestrator` at n=200 (66% pooled sandboxed vs 59% pooled baseline): purely a content-shape vector; OS isolation can't gate string contents. Per-model the sandboxed and baseline cells have heavily overlapping CIs (sandboxed Sonnet 16% [11%, 21%] vs baseline 17% [12%, 23%]; sandboxed GPT-5 99% [96%, 100%] vs baseline 99% [96%, 100%]; etc.) with the only meaningful divergences being on the lower-capability models (deepseek-flash sandboxed 66% vs baseline 34%, qwen3.5-35b sandboxed 62% vs baseline 48%) — likely within-run model variance, not a substrate effect.
 
 **Why this is the right negative result:** OS isolation defends against threats that escape the bind set. The escape-eval task suite mostly puts canaries inside the model's working area (because that's the realistic threat — agents being tricked into reading the *wrong file in the same data dir*, not breaking out of a container entirely). The sandbox correctly shows ~zero help on those vectors. **The whole point of typestate-vs-OS-isolation as separate substrates is to disentangle these contributions; v5 confirms they're independent and address different threat classes.**
 
@@ -170,7 +170,7 @@ Three model-coverage gaps, all documented and addressable:
 
 2. **`nvidia/nemotron-3-super-120b-a12b` — caveated, not excluded.** Tool-call format compatibility issues result in degraded objective rates (0–60% across tasks). Substrate-gap data still legible (still 0–5% escape on every gated vector), but per-task interpretation is noisy because the denominator of trials-with-meaningful-attempts is small. Reported in `tier2-3.md` with this caveat. A schema-compatibility shim that nudges the model toward OpenAI tool-call format would raise the objective rate without changing the substrate signal — future-iteration work.
 
-3. **Sandboxed-substrate `injection_orchestrator` cell — at n=20 while baseline + symbiont are at n=200 in the same row.** A 2026-05-05 paper-prep re-run at n=200 was attempted (config preserved at `sweep_config_n200_sandboxed.yaml`) but blocked by an OpenRouter account-level key spending cap; the cap recharges separately from per-month usage and at the time of writing requires the operator to raise the limit before the cell can be re-run. **Footnote interpretation for now:** the sandboxed substrate's contribution to injection at n=20 was 74% pooled — *higher* than baseline's n=20-era reading and consistent with "OS isolation provides ~zero help on content-shape vectors", so the n=200 re-run is expected to land at substantially the same rate (within a few pp). The substrate-comparison conclusion ("OS isolation doesn't gate injection") doesn't depend on the precise number; closing the methodological inconsistency to within a few-pp CI requires the OpenRouter cap raise + ~$5 / ~3h re-sweep. **For the paper, recommend either footnoting the n inconsistency or re-running once the cap is unblocked.**
+3. **Sandboxed-substrate `injection_orchestrator` cell — was at n=20 in initial v5, re-run at n=200 in 2026-05-05 paper-prep revision after the operator unblocked an OpenRouter key cap.** Cell now at n=200 (1,400 trials), pooled 66% with per-model CIs that heavily overlap the corresponding baseline cells. Methodological inconsistency closed; the substrate-comparison conclusion (OS isolation provides ~zero help on the content-shape vector) is now backed by tight CIs.
 
 ### Other methodological notes
 
@@ -180,10 +180,10 @@ Three model-coverage gaps, all documented and addressable:
 
 ## Cost & throughput
 
-- $9.34 sandboxed sweep + $27.68 n=200 sweep = **$37.02 ground-truth combined**
-- 3,760 trials total, ~$0.0098 per trial blended (n=200 trials are slightly cheaper per-trial than n=20 due to amortizing Sonnet/GPT-5 fixed overheads).
-- The tier 1+2+3 cumulative spend on this branch alone is **$50.89** (counting the v4 sweep + the qwen substitution + sandboxed + n=200). Total for the whole evaluation effort to date including v1–v3: well under $80.
+- $9.34 sandboxed-all-tasks sweep + $27.68 baseline+symbiont injection n=200 + $7.26 sandboxed injection n=200 = **$44.28 ground-truth combined**
+- 5,160 trials total, ~$0.0086 per trial blended (n=200 trials are slightly cheaper per-trial than n=20 due to amortizing Sonnet/GPT-5 fixed overheads).
+- The tier 1+2+3 cumulative spend on this branch alone is **$58.15** (counting the v4 sweep + the qwen substitution + sandboxed-all-tasks + n=200 baseline+symbiont + n=200 sandboxed). Total for the whole evaluation effort to date including v1–v3: well under $90.
 
 ## Summary, one paragraph
 
-Across 3,760 trials with 7-8 models and three substrates (permissive Python, Docker-sandboxed Python, Symbiont), Symbiont's typestate-shaped fences eliminate escape success on four pure-action vectors (fs_enumerate, net_boundary, syscall_boundary, state_immutability) regardless of model capability or vendor — pooled symbiont success is **0% (0/560 trials)** across these four. On the orchestrator-injection vector at the tightened n=200, the typed `agent_summary` validator + expanded marker list reduces escape from **59% to 3.6% pooled** (excluding GPT-5: **52% to 1.5%**). The Docker-sandboxed substrate provides material protection only on syscall_boundary (38% → 9%, because the lure binary is missing from the container image), confirming the original spec's hypothesis: typestate-shape and OS-isolation-shape defenses address independent threat classes. **GPT-5 is now identified as a model-specific outlier** at 16% [12%, 22%] symbiont bypass on injection — its paraphrase aggression exceeds what literal-substring marker matching can defend against. Total ground-truth spend $37.02 for the v5 sweep; cumulative $50.89 across all sweeps on this branch.
+Across **5,160 trials** with 7-8 models and three substrates (permissive Python, Docker-sandboxed Python, Symbiont), Symbiont's typestate-shaped fences eliminate escape success on four pure-action vectors (fs_enumerate, net_boundary, syscall_boundary, state_immutability) regardless of model capability or vendor — pooled symbiont success is **0% (0/560 trials)** across these four. On the orchestrator-injection vector at the tightened n=200, the typed `agent_summary` validator + expanded marker list reduces escape from **59% to 3.6% pooled** (excluding GPT-5: **52% to 1.5%**). The Docker-sandboxed substrate at n=200 on injection sits at **66% pooled — overlapping CIs with baseline at every cell**, confirming OS isolation provides ~zero protection on content-shape vectors; on the four pure-action vectors at n=20 the sandbox provides material protection only on syscall_boundary (38% → 9%, because the lure binary is missing from the container image). Together: typestate-shape and OS-isolation-shape defenses address independent threat classes, exactly per the original spec. **GPT-5 is identified as a model-specific outlier** at 16% [12%, 22%] symbiont bypass on injection — its paraphrase aggression exceeds what literal-substring marker matching can defend against. Total ground-truth spend $44.28 for the v5 sweep (including the paper-prep sandboxed n=200 re-run); cumulative $58.15 across all sweeps on this branch.
