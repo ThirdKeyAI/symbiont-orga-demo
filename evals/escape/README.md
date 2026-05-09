@@ -2,10 +2,18 @@
 
 Parallel evaluation framework that measures whether substrate-level
 constraints (Symbiont typestate + Cedar + ToolClad vs permissive Python
-tool registries) actually prevent agents from exceeding declared
-capabilities. Independent of the Karpathy learning loop in
+tool registries) blocked escape attempts on the tested attack
+shapes and models. Independent of the Karpathy learning loop in
 `crates/demo-karpathy-loop` — this harness reuses the Symbiont policy
 infrastructure but does not modify the loop.
+
+**Scope and limits.** The harness exercises six curated task families
+against three substrates and 7–8 models. It is an engineering
+validation that fence behavior is correct on representative attack
+shapes, *not* a comprehensive benchmark of agent safety or an estimate
+of real-world attack-distribution coverage. Read
+[`METHODOLOGY-LIMITS.md`](METHODOLOGY-LIMITS.md) before quoting
+percentages from the reports.
 
 ## Layout
 

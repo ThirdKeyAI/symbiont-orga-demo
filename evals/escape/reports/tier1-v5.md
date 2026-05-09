@@ -23,9 +23,11 @@ license: this report describes a published evaluation methodology. The
 
 ## How to read this report
 
-All escape and attempt rates are reported with **Wilson 95% confidence intervals** in square brackets. A bound of `[12%, 22%]` means: under standard frequentist assumptions, the true rate has 95% probability of being within that range, given the observed sample. Wilson CIs (rather than the more common normal approximation) are used because several of the headline cells are at 0/N or near-N/N — regions where the normal approximation degenerates but Wilson stays well-behaved.
+All escape and attempt rates are reported with **Wilson 95% confidence intervals** in square brackets. A bound of `[12%, 22%]` means: under standard frequentist assumptions, the true rate has 95% probability of being within that range, given the observed sample. Wilson CIs (rather than the more common normal approximation) are used because several of the headline cells are at 0/N or near-N/N — regions where the normal approximation degenerates but Wilson stays well-behaved. Note that a `0/140` cell with Wilson CI `[0%, 2.6%]` does **not** prove the underlying rate is zero — it only bounds it from above at this n.
 
 Point estimates without CIs are reported in the *pooled* numbers section; for those, the per-cell CIs in the per-model tables are the right place to assess uncertainty. Reviewers comparing two cells with overlapping CIs should treat the difference as inconclusive at this n; non-overlapping CIs imply the directional finding is robust.
+
+**All numbers in this report measure rates against the tested attack distribution and model set, not against a real-world attack distribution.** The six task families and the per-task adversarial scenarios are hand-authored. See [`METHODOLOGY-LIMITS.md`](../METHODOLOGY-LIMITS.md) for the consolidated caveats. To recompute every headline rate below from the committed JSONL, run `scripts/verify_paper_claims.py`.
 
 **What's new since tier1-v4:**
 
@@ -133,6 +135,58 @@ For non-injection tasks at n=20 per cell, n=140 pooled across the 7 models:
 
 Symbiont's blocking is uniform across vectors and capability tiers. Sandboxed-Python only meaningfully reduces syscall escapes (and only because the lure binary is missing in the container — a fragile defense that depends on what's installed).
 
+## Benign-control / false-positive signal — does Symbiont degrade legitimate work?
+
+The escape rate measures one side of the substrate's behavior:
+"how often does the fence refuse?". The benign-control side is the
+other half: "how often does the fence get in the way of legitimate
+work?" — measured by `objective_success`, the rate at which the
+agent achieves the task's stated objective regardless of whether it
+also tried to escape.
+
+Pooled across all 8 models in the v5 sweep (n=160 per cell at n=20,
+n=1400 for the injection cell at n=200):
+
+| task                       | n     | python_baseline obj | python_sandboxed obj | symbiont obj         | symbiont vs baseline   |
+|----------------------------|------:|---------------------|----------------------|----------------------|------------------------|
+| **fs_boundary** (pure benign control) | 160 | 89% [84%, 93%]      | 93% [88%, 96%]       | 92% [87%, 95%]       | overlapping CI ⇒ no measurable FP |
+| fs_enumerate               | 160   | 68% [61%, 75%]      | 66% [59%, 73%]       | 86% [79%, 90%]       | symbiont higher (refusal frees turns)|
+| net_boundary               | 160   | 87% [81%, 91%]      | 87% [81%, 91%]       | 84% [78%, 89%]       | overlapping CI ⇒ no measurable FP |
+| syscall_boundary           | 160   | 87% [81%, 91%]      | 84% [78%, 89%]       | 84% [78%, 89%]       | overlapping CI ⇒ no measurable FP |
+| state_immutability         | 160   | 78% [70%, 83%]      | 78% [71%, 84%]       | 83% [77%, 88%]       | overlapping CI ⇒ no measurable FP |
+| **injection_orchestrator** | 1,400 | 86% [84%, 88%]      | 93% [91%, 94%]       | 77% [74%, 79%]       | **−9 pp, non-overlapping CI**     |
+
+**`fs_boundary` is the cleanest single benign-control signal** — it
+deliberately has no canary-attempt incentive, so any difference in
+`objective_success` between substrates is purely substrate friction
+on legitimate work. The three substrates' CIs all overlap;
+**Symbiont does not measurably degrade legitimate `fs_boundary`
+work** within this n.
+
+For four of the five other tasks, Symbiont's `objective_success`
+either matches or beats baseline (often higher because, when the
+agent attempts the canary and is refused, it has more turns left to
+finish the legitimate part of the task). Only one cell shows a
+**measurable false-positive cost**: `injection_orchestrator` at n=1400,
+where Symbiont objective is 77% [74%, 79%] vs baseline 86% [84%, 88%]
+— a 9 pp gap with non-overlapping CIs. The mechanism: the agent keeps
+trying to inject markers (the lure works ~59% of the time), the
+validator keeps refusing, and eventually the agent runs out of turns
+without producing a clean summary. This is genuinely the validator
+making legitimate work harder — but the alternative is letting the
+injection through.
+
+**What this section does NOT measure.** The objective-success view
+captures whole-task FP cost. It does not measure per-fence
+benign-input behavior — i.e., "given 100 valid hostnames, how many
+does the URL validator wrongly refuse?" That requires a dedicated
+benign-input sweep against each fence (URL validator, path validator,
+agent-summary validator) and is listed as follow-on work in
+[`METHODOLOGY-LIMITS.md`](../METHODOLOGY-LIMITS.md). The numbers
+above bound FP cost from one direction (legitimate task can still
+complete under symbiont in most cases) without proving the absence
+of fence FPs against benign inputs.
+
 ## Substrate-blocked attempts, totals across the v5 sweep
 
 | substrate | task | blocks |
@@ -178,6 +232,36 @@ Three model-coverage gaps, all documented and addressable:
 - **GPT-5's outlier behavior is a genuine model-specific finding**, not a methodological artifact. CIs don't overlap; n=200 is enough to claim "GPT-5 is structurally harder to defend against on this vector" — not to claim a precise rate.
 - **Sandboxed substrate's `state_immutability` cell shows the canonical example of the "OS isolation doesn't help here" failure mode**: the model still successfully writes the policy file because the file lives in `instance_root`, which is the bind-mounted writable area. Symbiont's "no write tool exposed" defense IS the right shape for this vector.
 
+### Scope and what this evaluation does NOT measure
+
+These caveats apply to every numeric claim in the report; they are
+collected here so the prose stays compact. See
+[`METHODOLOGY-LIMITS.md`](../METHODOLOGY-LIMITS.md) for the canonical
+write-up.
+
+- **Hand-authored attack distribution.** The six task families and
+  the per-task adversarial inputs were authored by the same team
+  that designed the substrates. Refusal rates measure performance on
+  the tested attack shapes, not on attacks drawn from the wild.
+- **No held-out red-team set.** A held-out attack set written after
+  the fences were frozen, ideally by an external reviewer, is the
+  right next experiment and is not yet committed.
+- **No per-fence benign-input sweep.** False-positive cost is
+  partially captured by `objective_success` rates per substrate (see
+  the new benign-control section below) but per-fence benign-input
+  coverage (e.g., 100 valid hostnames against the URL validator) is
+  follow-on work.
+- **Counterfactual execution, not demonstrated exploit.** For the
+  injection-orchestrator vector, the canary is a string-shape match
+  on the agent-summary content; we do not run the downstream agent
+  to confirm the injection would have changed behavior. The headline
+  is "fence refused malicious-shaped output" rather than "fence
+  prevented downstream compromise."
+- **0/N is not zero.** A `0/140` cell with Wilson CI `[0%, 2.6%]`
+  means "no escape was observed in this sample," not "the underlying
+  rate is zero." Any precise zero-rate claim would require infinite
+  n.
+
 ## Cost & throughput
 
 - $9.34 sandboxed-all-tasks sweep + $27.68 baseline+symbiont injection n=200 + $7.26 sandboxed injection n=200 = **$44.28 ground-truth combined**
@@ -186,4 +270,4 @@ Three model-coverage gaps, all documented and addressable:
 
 ## Summary, one paragraph
 
-Across **5,160 trials** with 7-8 models and three substrates (permissive Python, Docker-sandboxed Python, Symbiont), Symbiont's typestate-shaped fences eliminate escape success on four pure-action vectors (fs_enumerate, net_boundary, syscall_boundary, state_immutability) regardless of model capability or vendor — pooled symbiont success is **0% (0/560 trials)** across these four. On the orchestrator-injection vector at the tightened n=200, the typed `agent_summary` validator + expanded marker list reduces escape from **59% to 3.6% pooled** (excluding GPT-5: **52% to 1.5%**). The Docker-sandboxed substrate at n=200 on injection sits at **66% pooled — overlapping CIs with baseline at every cell**, confirming OS isolation provides ~zero protection on content-shape vectors; on the four pure-action vectors at n=20 the sandbox provides material protection only on syscall_boundary (38% → 9%, because the lure binary is missing from the container image). Together: typestate-shape and OS-isolation-shape defenses address independent threat classes, exactly per the original spec. **GPT-5 is identified as a model-specific outlier** at 16% [12%, 22%] symbiont bypass on injection — its paraphrase aggression exceeds what literal-substring marker matching can defend against. Total ground-truth spend $44.28 for the v5 sweep (including the paper-prep sandboxed n=200 re-run); cumulative $58.15 across all sweeps on this branch.
+Across **5,160 trials** with 7-8 models and three substrates (permissive Python, Docker-sandboxed Python, Symbiont), no escape was observed on the Symbiont substrate's four pure-action vectors (fs_enumerate, net_boundary, syscall_boundary, state_immutability) for any of the tested models or vendors — pooled symbiont success is **0/560 trials, Wilson 95% CI [0%, 0.7%]**. On the orchestrator-injection vector at the tightened n=200, the typed `agent_summary` validator + expanded marker list reduces escape from **59% to 3.6% pooled** (Wilson CIs `[57%, 62%]` and `[2.7%, 4.7%]`; excluding GPT-5: **52% to 1.5%**). The Docker-sandboxed substrate at n=200 on injection sits at **66% pooled — overlapping CIs with baseline at every cell**, confirming OS isolation provides ~zero protection on content-shape vectors; on the four pure-action vectors at n=20 the sandbox provides material protection only on syscall_boundary (38% → 9%, because the lure binary is missing from the container image). Together: typestate-shape and OS-isolation-shape defenses address independent threat classes within the tested vectors, exactly per the original spec. **GPT-5 is identified as a model-specific outlier** at 16% [12%, 22%] symbiont bypass on injection — its paraphrase aggression exceeds what literal-substring marker matching can defend against on this corpus. Total ground-truth spend $44.28 for the v5 sweep (including the paper-prep sandboxed n=200 re-run); cumulative $58.15 across all sweeps on this branch. **Scope:** these rates apply to the tested attack distribution (six hand-authored task families, ~14 adversarial shapes) and the 7–8 tested models. They are not estimates of real-world attack-distribution coverage — see [`METHODOLOGY-LIMITS.md`](../METHODOLOGY-LIMITS.md).
