@@ -167,6 +167,14 @@ pub struct Ctx {
     /// byte-identical pre-v11 behaviour. Built once at bootstrap so
     /// missing manifests fail fast.
     toolclad_fence: Option<Arc<dyn demo_karpathy_loop::PreValidator>>,
+    /// Phase A — sibling latency counters for the ToolClad fence
+    /// above. `None` when `--toolclad-mode off`. Held as the
+    /// `LatencyCounters` struct (3 `Arc<AtomicU64>`) rather than the
+    /// concrete `ToolCladFence` so the fence can stay behind a
+    /// `dyn PreValidator` boundary, mirroring how
+    /// `cedar.denied_counter()` exposes a counter without leaking
+    /// the gate type.
+    toolclad_latency: Option<symbi_toolclad_bridge::LatencyCounters>,
     /// v12.1 — Cedar gate toggle. Read at gate-construction sites.
     pub cedar_mode: CedarMode,
     /// v12.1 — sanitiser toggle. Read at every sanitize_field site.
@@ -291,6 +299,14 @@ impl Ctx {
                 _ => "unknown".into(),
             });
 
+        // Phase A — pull the ToolClad fence and its latency counters as
+        // a pair so we can keep the dyn-trait Arc on `Ctx` *and* a
+        // separate handle to the histogram. Mirrors the
+        // `(denied, calls, ns_total, ns_max, gate)` destructure used
+        // for the Cedar gate further down.
+        let (toolclad_fence_arc, toolclad_latency_counters) =
+            build_toolclad_fence(cfg.toolclad_mode)?;
+
         Ok(Self {
             db,
             knowledge,
@@ -304,7 +320,8 @@ impl Ctx {
             tool_result_injection: cfg.tool_result_injection,
             toolclad_mode: cfg.toolclad_mode,
             max_spend_usd: cfg.max_spend_usd,
-            toolclad_fence: build_toolclad_fence(cfg.toolclad_mode)?,
+            toolclad_fence: toolclad_fence_arc,
+            toolclad_latency: toolclad_latency_counters,
             cedar_mode: cfg.cedar_mode,
             sanitiser_mode: {
                 // v12.1 — flip the process-wide bypass at bootstrap.
@@ -335,6 +352,22 @@ impl Ctx {
         &self,
     ) -> Option<Arc<dyn demo_karpathy_loop::PreValidator>> {
         self.toolclad_fence.clone()
+    }
+
+    /// Phase A — drain the ToolClad fence's latency counters as a
+    /// per-runner snapshot `(calls, ns_total_ns, ns_max_ns)`, zeroing
+    /// the atomics so the next run starts fresh. Returns
+    /// `(0, 0, 0)` when the fence is off.
+    ///
+    /// Call this at the end of each runner's record_run prep, after
+    /// the runner has finished but before any other runner using the
+    /// same fence starts — the harness drives them sequentially so
+    /// the drain attributes time correctly.
+    pub fn drain_toolclad_latency(&self) -> (u64, u64, u64) {
+        self.toolclad_latency
+            .as_ref()
+            .map(|c| c.drain())
+            .unwrap_or((0, 0, 0))
     }
 
     /// Mint an inference provider for a single run.
@@ -857,6 +890,12 @@ impl Ctx {
         let est_cost = authoritative_cost
             .unwrap_or_else(|| crate::pricing::cost_usd(&task_pricing_key, pt, ct));
 
+        // Phase A — drain the ToolClad fence counters for this run's
+        // window. Must happen *before* the reflector starts (which
+        // shares the same fence Arc) so attribution stays clean.
+        let (validate_calls, validate_ns_total, validate_ns_max) =
+            self.drain_toolclad_latency();
+
         let run_id = self
             .db
             .record_run(
@@ -880,6 +919,9 @@ impl Ctx {
                 gate_calls.load(std::sync::atomic::Ordering::Relaxed),
                 gate_ns_total.load(std::sync::atomic::Ordering::Relaxed),
                 gate_ns_max.load(std::sync::atomic::Ordering::Relaxed),
+                validate_calls as u32,
+                validate_ns_total,
+                validate_ns_max,
             )
             .await?;
 
@@ -1383,11 +1425,21 @@ fn tool_arg_injection_block() -> &'static str {
 /// `manifests/` is resolved relative to the current working directory
 /// because every harness entry point cd's to the repo root before
 /// running. Tests use absolute paths via `CARGO_MANIFEST_DIR`.
+/// Pair returned by [`build_toolclad_fence`]: the shared
+/// `Arc<dyn PreValidator>` wired into executors, plus a sibling
+/// handle to the latency counters the harness retains so it can
+/// drain them per run. Both are `None` together when the fence is
+/// off.
+type ToolCladFenceBuild = (
+    Option<Arc<dyn demo_karpathy_loop::PreValidator>>,
+    Option<symbi_toolclad_bridge::LatencyCounters>,
+);
+
 fn build_toolclad_fence(
     mode: ToolCladMode,
-) -> Result<Option<Arc<dyn demo_karpathy_loop::PreValidator>>> {
+) -> Result<ToolCladFenceBuild> {
     if !mode.is_active() {
-        return Ok(None);
+        return Ok((None, None));
     }
     let manifests_dir = std::path::PathBuf::from("manifests");
     let mappings: &[(&str, &str)] = &[
@@ -1403,7 +1455,11 @@ fn build_toolclad_fence(
         "v11 ToolClad fence active: {} tool(s) under typed-argument validation",
         fence.tool_count()
     );
-    Ok(Some(fence.shared()))
+    // Clone the counter handle *before* dropping the concrete type
+    // into the `dyn PreValidator` Arc — the trait object hides the
+    // accessor, so the harness needs its own retained handle.
+    let latency = fence.latency_counters();
+    Ok((Some(fence.shared()), Some(latency)))
 }
 
 fn trim_to(s: &str, max_chars: usize) -> String {

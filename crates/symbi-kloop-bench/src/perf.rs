@@ -100,6 +100,20 @@ pub struct PerfRow {
     pub gate_calls_total: u64,
     pub gate_mean_ns: f64,
     pub gate_max_ns: u64,
+    /// Phase A — ToolClad typed-argument validator latency aggregates.
+    /// Same `(calls_total, mean_ns, max_ns)` shape as the gate so
+    /// downstream code can treat the two enforcement layers
+    /// symmetrically. Zero across groups that never engaged the fence.
+    pub validate_calls_total: u64,
+    pub validate_mean_ns: f64,
+    pub validate_max_ns: u64,
+    /// Phase A — total enforcement overhead per run, summed across
+    /// the group: `gate_ns_total + validate_ns_total`. The honest
+    /// answer to "how much wall time did the enforcement layers
+    /// add to this group of runs". A future phase will fold in
+    /// hash-chain / Ed25519 / envelope timings once those layers
+    /// are implemented and instrumented.
+    pub enforcement_ns_total: u64,
 }
 
 /// Read every row the aggregator needs. Keeps the SQL in one place so
@@ -123,6 +137,9 @@ struct RawRow {
     gate_calls: u32,
     gate_ns_total: u64,
     gate_ns_max: u64,
+    validate_calls: u32,
+    validate_ns_total: u64,
+    validate_ns_max: u64,
 }
 
 fn fetch_raw(db_path: &Path) -> Result<Vec<RawRow>> {
@@ -134,7 +151,8 @@ fn fetch_raw(db_path: &Path) -> Result<Vec<RawRow>> {
                   prompt_tokens, completion_tokens, est_cost,
                   started_at, completed_at,
                   cedar_denied, executor_refused, violations_prevented,
-                  gate_calls, gate_ns_total, gate_ns_max
+                  gate_calls, gate_ns_total, gate_ns_max,
+                  validate_calls, validate_ns_total, validate_ns_max
              FROM runs"#,
     )?;
     let mut out = Vec::new();
@@ -161,6 +179,9 @@ fn fetch_raw(db_path: &Path) -> Result<Vec<RawRow>> {
             gate_calls: r.get::<_, i64>(15).unwrap_or(0) as u32,
             gate_ns_total: r.get::<_, i64>(16).unwrap_or(0) as u64,
             gate_ns_max: r.get::<_, i64>(17).unwrap_or(0) as u64,
+            validate_calls: r.get::<_, i64>(18).unwrap_or(0) as u32,
+            validate_ns_total: r.get::<_, i64>(19).unwrap_or(0) as u64,
+            validate_ns_max: r.get::<_, i64>(20).unwrap_or(0) as u64,
         });
     }
     Ok(out)
@@ -244,6 +265,18 @@ fn aggregate(rows: Vec<RawRow>, axis: PerfAxis) -> Vec<PerfRow> {
             0.0
         };
         let gate_max_ns: u64 = rs.iter().map(|r| r.gate_ns_max).max().unwrap_or(0);
+        let validate_calls_total: u64 =
+            rs.iter().map(|r| r.validate_calls as u64).sum();
+        let validate_ns_total_sum: u64 =
+            rs.iter().map(|r| r.validate_ns_total).sum();
+        let validate_mean_ns = if validate_calls_total > 0 {
+            validate_ns_total_sum as f64 / validate_calls_total as f64
+        } else {
+            0.0
+        };
+        let validate_max_ns: u64 =
+            rs.iter().map(|r| r.validate_ns_max).max().unwrap_or(0);
+        let enforcement_ns_total = gate_ns_total_sum + validate_ns_total_sum;
         out.push(PerfRow {
             group,
             kind,
@@ -267,6 +300,10 @@ fn aggregate(rows: Vec<RawRow>, axis: PerfAxis) -> Vec<PerfRow> {
             gate_calls_total,
             gate_mean_ns,
             gate_max_ns,
+            validate_calls_total,
+            validate_mean_ns,
+            validate_max_ns,
+            enforcement_ns_total,
         });
     }
     out
@@ -299,11 +336,25 @@ fn axis_header(axis: PerfAxis) -> &'static str {
 }
 
 fn emit_markdown(rows: &[PerfRow], axis: PerfAxis) {
-    println!("| {} | kind | n | pass | mean_iters | mean_tok | $/run | lat p50 ms | p95 | p99 | tok/s | gate_calls | gate µs/call | gate max µs | cedar_denied | exec_refused |", axis_header(axis));
-    println!("|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|");
+    println!(
+        "| {} | kind | n | pass | mean_iters | mean_tok | $/run | lat p50 ms | p95 | p99 | tok/s | gate_calls | gate µs/call | gate max µs | val_calls | val µs/call | val max µs | enforce µs/run | cedar_denied | exec_refused |",
+        axis_header(axis)
+    );
+    println!(
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
+    );
     for r in rows {
+        // Per-run enforcement overhead: total enforcement ns / n
+        // (or 0 when the group is empty, which never happens here
+        // because empty groups never get pushed). Reported in µs
+        // for readability alongside the gate/validate columns.
+        let enforce_us_per_run = if r.n > 0 {
+            (r.enforcement_ns_total as f64) / (r.n as f64) / 1_000.0
+        } else {
+            0.0
+        };
         println!(
-            "| {} | {} | {} | {:.2} | {:.1} | {:.0} | {:.4} | {:.0} | {:.0} | {:.0} | {:.0} | {} | {:.1} | {:.1} | {} | {} |",
+            "| {} | {} | {} | {:.2} | {:.1} | {:.0} | {:.4} | {:.0} | {:.0} | {:.0} | {:.0} | {} | {:.1} | {:.1} | {} | {:.1} | {:.1} | {:.1} | {} | {} |",
             r.group,
             r.kind,
             r.n,
@@ -318,6 +369,10 @@ fn emit_markdown(rows: &[PerfRow], axis: PerfAxis) {
             r.gate_calls_total,
             r.gate_mean_ns / 1_000.0,
             r.gate_max_ns as f64 / 1_000.0,
+            r.validate_calls_total,
+            r.validate_mean_ns / 1_000.0,
+            r.validate_max_ns as f64 / 1_000.0,
+            enforce_us_per_run,
             r.cedar_denied,
             r.executor_refused,
         );
@@ -330,11 +385,13 @@ fn emit_csv(rows: &[PerfRow]) {
          mean_completion_tokens,mean_cost_usd,total_cost_usd,mean_latency_ms,\
          p50_latency_ms,p95_latency_ms,p99_latency_ms,tokens_per_sec,\
          cedar_denied,executor_refused,violations_prevented,\
-         gate_calls_total,gate_mean_ns,gate_max_ns"
+         gate_calls_total,gate_mean_ns,gate_max_ns,\
+         validate_calls_total,validate_mean_ns,validate_max_ns,\
+         enforcement_ns_total"
     );
     for r in rows {
         println!(
-            "{},{},{},{:.4},{:.4},{:.2},{:.1},{:.1},{:.1},{:.6},{:.6},{:.2},{:.2},{:.2},{:.2},{:.2},{},{},{},{},{:.1},{}",
+            "{},{},{},{:.4},{:.4},{:.2},{:.1},{:.1},{:.1},{:.6},{:.6},{:.2},{:.2},{:.2},{:.2},{:.2},{},{},{},{},{:.1},{},{},{:.1},{},{}",
             csv_escape(&r.group),
             r.kind,
             r.n,
@@ -357,6 +414,10 @@ fn emit_csv(rows: &[PerfRow]) {
             r.gate_calls_total,
             r.gate_mean_ns,
             r.gate_max_ns,
+            r.validate_calls_total,
+            r.validate_mean_ns,
+            r.validate_max_ns,
+            r.enforcement_ns_total,
         );
     }
 }
@@ -412,6 +473,9 @@ mod tests {
                 gate_calls: 5,
                 gate_ns_total: 5_000,
                 gate_ns_max: 1_500,
+                validate_calls: 2,
+                validate_ns_total: 4_000,
+                validate_ns_max: 2_500,
             })
             .collect();
         let out = aggregate(rows, PerfAxis::Model);
@@ -427,6 +491,53 @@ mod tests {
         assert_eq!(r.gate_calls_total, 500);
         assert!((r.gate_mean_ns - 1_000.0).abs() < 1.0, "gate_mean_ns was {}", r.gate_mean_ns);
         assert_eq!(r.gate_max_ns, 1_500);
+        // Phase A — validate aggregates: 100 runs × 2 calls × 2000 ns / call = 400 000 ns total.
+        assert_eq!(r.validate_calls_total, 200);
+        assert!(
+            (r.validate_mean_ns - 2_000.0).abs() < 1.0,
+            "validate_mean_ns was {}",
+            r.validate_mean_ns
+        );
+        assert_eq!(r.validate_max_ns, 2_500);
+        // enforcement_ns_total = gate_ns_total_sum (500_000) + validate_ns_total_sum (400_000) = 900_000.
+        assert_eq!(r.enforcement_ns_total, 900_000);
+    }
+
+    /// Phase A — when no run engaged the fence, validate_* aggregates
+    /// stay zero and `enforcement_ns_total` matches the gate's
+    /// contribution alone.
+    #[test]
+    fn aggregate_handles_validate_absent() {
+        let rows: Vec<RawRow> = (1..=10)
+            .map(|_| RawRow {
+                kind: "task".into(),
+                task_id: "T1".into(),
+                model_id: "m".into(),
+                termination: "completed".into(),
+                score: 1.0,
+                iters: 1,
+                tokens: 100,
+                prompt_tokens: 70,
+                completion_tokens: 30,
+                est_cost: 0.0,
+                latency_ms: 10.0,
+                cedar_denied: 0,
+                executor_refused: 0,
+                violations_prevented: 0,
+                gate_calls: 1,
+                gate_ns_total: 1_000,
+                gate_ns_max: 1_000,
+                validate_calls: 0,
+                validate_ns_total: 0,
+                validate_ns_max: 0,
+            })
+            .collect();
+        let out = aggregate(rows, PerfAxis::Model);
+        let r = &out[0];
+        assert_eq!(r.validate_calls_total, 0);
+        assert_eq!(r.validate_mean_ns, 0.0);
+        assert_eq!(r.validate_max_ns, 0);
+        assert_eq!(r.enforcement_ns_total, 10_000);
     }
 
     #[test]

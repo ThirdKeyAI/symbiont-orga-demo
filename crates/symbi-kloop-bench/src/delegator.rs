@@ -172,6 +172,14 @@ pub async fn run_delegator(
     let est_cost = authoritative_cost
         .unwrap_or_else(|| crate::pricing::cost_usd(&task_pricing_key, pt, ct));
 
+    // Phase A — drain ToolClad fence counters for the delegator's
+    // window. The delegator currently routes through a path that
+    // doesn't engage the typed-arg fence; drain is still called
+    // unconditionally so any stray counts on the shared fence are
+    // attributed to this iteration rather than leaking forward.
+    let (validate_calls, validate_ns_total, validate_ns_max) =
+        ctx.drain_toolclad_latency();
+
     let chosen_label = chosen.clone().unwrap_or_else(|| "(none)".into());
     ctx.db
         .record_run(
@@ -197,6 +205,9 @@ pub async fn run_delegator(
             gate_calls.load(std::sync::atomic::Ordering::Relaxed),
             gate_ns_total.load(std::sync::atomic::Ordering::Relaxed),
             gate_ns_max.load(std::sync::atomic::Ordering::Relaxed),
+            validate_calls as u32,
+            validate_ns_total,
+            validate_ns_max,
         )
         .await?;
 

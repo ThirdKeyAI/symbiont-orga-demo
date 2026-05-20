@@ -82,6 +82,15 @@ pub struct RunRow {
     pub gate_calls: u32,
     pub gate_ns_total: u64,
     pub gate_ns_max: u64,
+    /// Phase A — ToolClad typed-argument validator latency, same
+    /// `(calls, ns_total, ns_max)` triple as the gate. Zero on runs
+    /// that didn't engage the fence (mode=off or no fence-eligible
+    /// tools called). Backs the §14.2 "Tool contract validation"
+    /// row in the paper. `validate_ns_total + gate_ns_total` is the
+    /// honest "total enforcement overhead" per run.
+    pub validate_calls: u32,
+    pub validate_ns_total: u64,
+    pub validate_ns_max: u64,
 }
 
 #[derive(Clone)]
@@ -121,7 +130,10 @@ impl Db {
                 executor_refused    INTEGER NOT NULL DEFAULT 0,
                 gate_calls          INTEGER NOT NULL DEFAULT 0,
                 gate_ns_total       INTEGER NOT NULL DEFAULT 0,
-                gate_ns_max         INTEGER NOT NULL DEFAULT 0
+                gate_ns_max         INTEGER NOT NULL DEFAULT 0,
+                validate_calls      INTEGER NOT NULL DEFAULT 0,
+                validate_ns_total   INTEGER NOT NULL DEFAULT 0,
+                validate_ns_max     INTEGER NOT NULL DEFAULT 0
             );
             CREATE INDEX IF NOT EXISTS idx_runs_task ON runs(task_id, run_number, kind);
             "#,
@@ -140,6 +152,9 @@ impl Db {
             "ALTER TABLE runs ADD COLUMN gate_calls INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE runs ADD COLUMN gate_ns_total INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE runs ADD COLUMN gate_ns_max INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE runs ADD COLUMN validate_calls INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE runs ADD COLUMN validate_ns_total INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE runs ADD COLUMN validate_ns_max INTEGER NOT NULL DEFAULT 0",
         ] {
             let _ = conn.execute(sql, []);
         }
@@ -177,6 +192,9 @@ impl Db {
         gate_calls: u32,
         gate_ns_total: u64,
         gate_ns_max: u64,
+        validate_calls: u32,
+        validate_ns_total: u64,
+        validate_ns_max: u64,
     ) -> Result<i64> {
         let conn = self.conn.lock().await;
         conn.execute(
@@ -186,9 +204,11 @@ impl Db {
                 termination_reason, violations_prevented,
                 model_id, est_cost, prompt_tokens, completion_tokens,
                 cedar_denied, executor_refused,
-                gate_calls, gate_ns_total, gate_ns_max)
+                gate_calls, gate_ns_total, gate_ns_max,
+                validate_calls, validate_ns_total, validate_ns_max)
                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11,
-                       ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)"#,
+                       ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20,
+                       ?21, ?22, ?23)"#,
             rusqlite::params![
                 task_id,
                 run_number,
@@ -210,6 +230,9 @@ impl Db {
                 gate_calls,
                 gate_ns_total as i64,
                 gate_ns_max as i64,
+                validate_calls,
+                validate_ns_total as i64,
+                validate_ns_max as i64,
             ],
         )?;
         Ok(conn.last_insert_rowid())
@@ -223,7 +246,8 @@ impl Db {
                       score, iterations, total_tokens, journal_path, termination_reason,
                       violations_prevented, model_id, est_cost, prompt_tokens,
                       completion_tokens, cedar_denied, executor_refused,
-                      gate_calls, gate_ns_total, gate_ns_max
+                      gate_calls, gate_ns_total, gate_ns_max,
+                      validate_calls, validate_ns_total, validate_ns_max
                FROM runs
                ORDER BY run_id DESC"#
                 .to_string()
@@ -233,7 +257,8 @@ impl Db {
                           score, iterations, total_tokens, journal_path, termination_reason,
                           violations_prevented, model_id, est_cost, prompt_tokens,
                           completion_tokens, cedar_denied, executor_refused,
-                          gate_calls, gate_ns_total, gate_ns_max
+                          gate_calls, gate_ns_total, gate_ns_max,
+                          validate_calls, validate_ns_total, validate_ns_max
                    FROM runs
                    ORDER BY run_id DESC
                    LIMIT {limit}"#
@@ -256,7 +281,8 @@ impl Db {
                       score, iterations, total_tokens, journal_path, termination_reason,
                       violations_prevented, model_id, est_cost, prompt_tokens,
                       completion_tokens, cedar_denied, executor_refused,
-                      gate_calls, gate_ns_total, gate_ns_max
+                      gate_calls, gate_ns_total, gate_ns_max,
+                      validate_calls, validate_ns_total, validate_ns_max
                FROM runs
                WHERE task_id = ?1 AND kind = ?2
                ORDER BY run_number ASC, run_id ASC"#,
@@ -366,6 +392,15 @@ impl Db {
             gate_calls: row.get::<_, i64>("gate_calls").unwrap_or(0) as u32,
             gate_ns_total: row.get::<_, i64>("gate_ns_total").unwrap_or(0) as u64,
             gate_ns_max: row.get::<_, i64>("gate_ns_max").unwrap_or(0) as u64,
+            validate_calls: row
+                .get::<_, i64>("validate_calls")
+                .unwrap_or(0) as u32,
+            validate_ns_total: row
+                .get::<_, i64>("validate_ns_total")
+                .unwrap_or(0) as u64,
+            validate_ns_max: row
+                .get::<_, i64>("validate_ns_max")
+                .unwrap_or(0) as u64,
         })
     }
 }

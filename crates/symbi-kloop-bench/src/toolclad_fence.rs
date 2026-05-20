@@ -10,13 +10,19 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use demo_karpathy_loop::{PreValidationRefusal, PreValidator};
-use symbi_toolclad_bridge::{validate_args, FenceOutcome, LoadedManifest};
+use symbi_toolclad_bridge::{validate_args_timed, FenceOutcome, LatencyCounters, LoadedManifest};
 
 /// One pre-validator per (tool-name → manifest) mapping. The bench
 /// constructs it once at start-up and shares it with every executor
 /// that needs the typed-argument fence.
+///
+/// Phase A — also owns a `LatencyCounters` triple so every
+/// `validate_args` call gets timed. The counters mirror the gate's
+/// `(calls, ns_total, ns_max)` shape so `perf.rs` can aggregate
+/// the two enforcement layers symmetrically.
 pub struct ToolCladFence {
     by_tool: HashMap<String, LoadedManifest>,
+    counters: LatencyCounters,
 }
 
 impl ToolCladFence {
@@ -34,7 +40,10 @@ impl ToolCladFence {
                 .map_err(|e| format!("loading manifest for '{tool_name}': {e}"))?;
             by_tool.insert((*tool_name).to_string(), loaded);
         }
-        Ok(Self { by_tool })
+        Ok(Self {
+            by_tool,
+            counters: LatencyCounters::new(),
+        })
     }
 
     /// Wrap the fence in an `Arc<dyn PreValidator>` for executor
@@ -47,6 +56,15 @@ impl ToolCladFence {
     /// startup logging.
     pub fn tool_count(&self) -> usize {
         self.by_tool.len()
+    }
+
+    /// Phase A — shared handles to the validate-args latency
+    /// counters. Same drain-after-handoff pattern as
+    /// `NamedPrincipalCedarGate::latency_counters`: the harness
+    /// grabs a clone before wrapping the fence in
+    /// `Arc<dyn PreValidator>`, then snapshots at end-of-run.
+    pub fn latency_counters(&self) -> LatencyCounters {
+        self.counters.clone()
     }
 }
 
@@ -73,7 +91,7 @@ impl PreValidator for ToolCladFence {
                     });
                 }
             };
-        match validate_args(loaded, &parsed) {
+        match validate_args_timed(loaded, &parsed, Some(&self.counters)) {
             Ok(FenceOutcome::Validated(_)) => None,
             Ok(FenceOutcome::Refused { field, reason }) => {
                 Some(PreValidationRefusal {
