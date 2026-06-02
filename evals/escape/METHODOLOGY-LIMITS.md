@@ -162,13 +162,22 @@ at this n.
 
 ## Reproducing the headline numbers
 
-`scripts/verify_paper_claims.py` checks every headline rate in
-`tier1-v5.md` against the committed `results/aggregate-summary.json`
-(per-cell counts only — no exploit content). The aggregate is
-regenerated from local JSONL via
-`scripts/verify_paper_claims.py --regenerate-aggregate`; the
-per-trial JSONL is intentionally gitignored
-(`PUBLISHABILITY.md`).
+`scripts/verify_paper_claims.py` checks every headline number in
+`tier1-v5.md` **and** `tier2-3.md` against the committed
+`results/aggregate-summary.json` (per-cell counts only — no exploit
+content). Coverage: the three-substrate escape rates, the full 6-of-7
+injection cluster (every per-model cell, not a sample), the GPT-5
+outlier, the benign-control / false-positive **objective** table
+(`Claim.metric="objective_successes"`), and the tier 2/3 pooled escape
+rates. The aggregate is regenerated from local JSONL via
+`scripts/verify_paper_claims.py --regenerate-aggregate`; the per-trial
+JSONL is intentionally gitignored (`PUBLISHABILITY.md`).
+
+Reviewer mode is **stdlib-only** (no PyYAML, no JSONL on disk), so it
+runs as a CI gate: the `safety-gates` job in `.github/workflows/ci.yml`
+runs the verifier on every push and PR and fails the build if any
+published count drifts from the committed aggregate — the reports
+cannot silently desync from the data again.
 
 **Reviewer workflow (fresh clone, no JSONL):**
 
@@ -191,7 +200,7 @@ git diff results/aggregate-summary.json   # what shifted
 ```
 
 **Current verifier status (as of 2026-06-01):** the verifier reports
-**22 PASS / 0 FAIL** against both the committed
+**44 PASS / 0 FAIL** against both the committed
 `results/aggregate-summary.json` (reviewer mode) and the local JSONL
 (`--from-jsonl`, maintainer mode). The earlier 13 FAIL cells were
 reconciled on 2026-06-01 by updating the report's hand-cited counts

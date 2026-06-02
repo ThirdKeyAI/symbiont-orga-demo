@@ -62,6 +62,17 @@ jobs:
         # new tag with escapes — e.g. a regression in a fresh sweep — fails.
         run: scripts/audit-knowledge-stores.py --strict
 
+      - name: Paper-claims verifier (escape evals — tier1-v5 + tier2-3 + benign-control)
+        # Recomputes every headline number in the escape-eval reports
+        # against the committed redacted aggregate
+        # (evals/escape/results/aggregate-summary.json — counts only, no
+        # exploit content). Stdlib-only and runs in well under a second:
+        # no PyYAML, no per-trial JSONL (which stays gitignored). Fails
+        # the build if a published count drifts from the aggregate, so the
+        # reports can't silently desync from the data again. See
+        # evals/escape/METHODOLOGY-LIMITS.md "Reproducing the headline numbers".
+        run: python3 evals/escape/scripts/verify_paper_claims.py
+
   rust-tests:
     runs-on: ubuntu-latest
     steps:
