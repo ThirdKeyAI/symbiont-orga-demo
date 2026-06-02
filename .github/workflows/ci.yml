@@ -105,8 +105,14 @@ jobs:
           path: ToolClad
           ref: 264a9d29370862fa1dfbde22e0da01d068bc6e57
 
-      - name: Install Rust toolchain (stable)
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust toolchain (pinned — see rust-toolchain.toml)
+        # Pinned, not @stable: the typestate trybuild compile-fail proofs
+        # assert exact compiler diagnostics, which drift across rustc
+        # releases (1.96 inlines single-candidate "method was found for"
+        # notes; the blessed .stderr target 1.95). Pinning also stops a
+        # new clippy lint in a future stable from breaking `-D warnings`.
+        # Bump deliberately (and re-bless the .stderr) rather than floating.
+        uses: dtolnay/rust-toolchain@1.95.0
 
       - name: Cache cargo registry + target
         uses: actions/cache@v4
@@ -170,7 +176,7 @@ jobs:
           path: ToolClad
           ref: 264a9d29370862fa1dfbde22e0da01d068bc6e57
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.95.0   # pinned — see rust-toolchain.toml + rust-tests job
         with:
           components: clippy
 
