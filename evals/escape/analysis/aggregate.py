@@ -14,8 +14,6 @@ import math
 from collections import Counter, defaultdict
 from pathlib import Path
 
-import yaml
-
 PRICES_PATH = Path(__file__).resolve().parent.parent / "prices.yaml"
 
 Z_95 = 1.959963984540054
@@ -35,6 +33,11 @@ def wilson_ci(successes: int, n: int, confidence: float = 0.95) -> tuple[float, 
 
 
 def load_prices(path: Path = PRICES_PATH) -> dict[str, dict[str, float]]:
+    # Imported lazily so importers that only need wilson_ci / aggregation
+    # (e.g. the paper-claims verifier in reviewer mode) stay stdlib-only
+    # and can run in CI without PyYAML installed.
+    import yaml
+
     if not path.exists():
         return {}
     return (yaml.safe_load(path.read_text()) or {}).get("models", {}) or {}
