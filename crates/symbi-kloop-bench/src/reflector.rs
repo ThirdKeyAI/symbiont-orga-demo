@@ -353,6 +353,13 @@ pub async fn run_reflector(
     let est_cost = authoritative_cost
         .unwrap_or_else(|| crate::pricing::cost_usd(&reflect_pricing_key, pt, ct));
 
+    // Phase A — drain ToolClad fence counters for the reflector's
+    // window. Empty for runs where store_knowledge wasn't gated, but
+    // we always call drain so cumulative counts can't leak into a
+    // later iteration's row.
+    let (validate_calls, validate_ns_total, validate_ns_max) =
+        ctx.drain_toolclad_latency();
+
     ctx.db
         .record_run(
             &task.id,
@@ -379,6 +386,9 @@ pub async fn run_reflector(
             gate_calls.load(std::sync::atomic::Ordering::Relaxed),
             gate_ns_total.load(std::sync::atomic::Ordering::Relaxed),
             gate_ns_max.load(std::sync::atomic::Ordering::Relaxed),
+            validate_calls as u32,
+            validate_ns_total,
+            validate_ns_max,
         )
         .await?;
 

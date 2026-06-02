@@ -12,10 +12,77 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::time::Instant;
 
 use serde_json::Value;
 use thiserror::Error;
 use toolclad::types::{ArgDef, EvidenceEnvelope, Manifest};
+
+/// Optional per-call latency histogram for `validate_args`. Mirrors the
+/// `(calls, ns_total, ns_max)` triple used by the bench's Cedar gate
+/// (`symbi-kloop-bench::policy_gate::NamedPrincipalCedarGate`) so the
+/// `perf.rs` aggregator can treat the two enforcement layers
+/// symmetrically.
+///
+/// Callers that don't care about timing (the runtime, unit tests
+/// outside the bench) can pass `None` and pay only an `Option::is_some`
+/// branch. Bench callers construct one of these, retain the `Arc`s,
+/// and drain the counters at end-of-run.
+#[derive(Clone, Default)]
+pub struct LatencyCounters {
+    pub calls: Arc<AtomicU64>,
+    pub ns_total: Arc<AtomicU64>,
+    pub ns_max: Arc<AtomicU64>,
+}
+
+impl LatencyCounters {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    fn record(&self, elapsed_ns: u64) {
+        self.calls.fetch_add(1, Ordering::Relaxed);
+        self.ns_total.fetch_add(elapsed_ns, Ordering::Relaxed);
+        let mut prev = self.ns_max.load(Ordering::Relaxed);
+        while elapsed_ns > prev {
+            match self.ns_max.compare_exchange_weak(
+                prev,
+                elapsed_ns,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => break,
+                Err(actual) => prev = actual,
+            }
+        }
+    }
+
+    /// Atomically read the three counters and zero them. Returns
+    /// `(calls, ns_total, ns_max)` — the per-window snapshot the
+    /// caller wants — and leaves the counters ready to accumulate
+    /// the next window's samples.
+    ///
+    /// The bench uses this to record per-run rows in `runs.db`:
+    /// because the fence is shared across the task agent and the
+    /// reflector via `Arc<dyn PreValidator>`, capturing cumulative
+    /// counts would conflate runners. The harness drives runners
+    /// sequentially within a single iteration, so a drain at the
+    /// end of each runner's record_run captures only its own
+    /// contribution.
+    ///
+    /// Not thread-safe in the strict sense — concurrent callers
+    /// could race the three swaps — but our use site is
+    /// single-threaded per drain so this is fine. `Ordering::Relaxed`
+    /// matches `record()`.
+    pub fn drain(&self) -> (u64, u64, u64) {
+        let calls = self.calls.swap(0, Ordering::Relaxed);
+        let ns_total = self.ns_total.swap(0, Ordering::Relaxed);
+        let ns_max = self.ns_max.swap(0, Ordering::Relaxed);
+        (calls, ns_total, ns_max)
+    }
+}
 
 /// Outcome of a validation pass — Validated carries the per-field string
 /// values ToolClad accepted, Refused carries the field that failed first.
@@ -68,6 +135,32 @@ impl LoadedManifest {
 /// ToolClad validator API operates on string forms even for `integer` /
 /// `boolean` types.
 pub fn validate_args(loaded: &LoadedManifest, args: &Value) -> Result<FenceOutcome, BridgeError> {
+    validate_args_timed(loaded, args, None)
+}
+
+/// Same as `validate_args`, but increments a `LatencyCounters` triple
+/// with the wall-clock time spent inside the validator. The window
+/// covers presence checks + every per-field `toolclad::validator::validate_arg`
+/// call — i.e. *the bridge's own work*, mirroring how
+/// `NamedPrincipalCedarGate::evaluate` times only the Cedar authoriser
+/// and not the LLM. Executor dispatch is excluded.
+pub fn validate_args_timed(
+    loaded: &LoadedManifest,
+    args: &Value,
+    counters: Option<&LatencyCounters>,
+) -> Result<FenceOutcome, BridgeError> {
+    let started = counters.map(|_| Instant::now());
+    let result = validate_args_inner(loaded, args);
+    if let (Some(c), Some(t)) = (counters, started) {
+        c.record(t.elapsed().as_nanos() as u64);
+    }
+    result
+}
+
+fn validate_args_inner(
+    loaded: &LoadedManifest,
+    args: &Value,
+) -> Result<FenceOutcome, BridgeError> {
     let obj = args.as_object().ok_or(BridgeError::NonObjectInput)?;
 
     let mut accepted: HashMap<String, String> = HashMap::new();
@@ -274,5 +367,42 @@ type = "string"
         let loaded = loaded_whois();
         let err = validate_args(&loaded, &json!("just-a-string")).unwrap_err();
         assert!(matches!(err, BridgeError::NonObjectInput));
+    }
+
+    /// Phase A — timed variant increments the counters and is otherwise
+    /// behaviourally identical to the untimed call.
+    #[test]
+    fn timed_variant_increments_counters() {
+        let loaded = loaded_whois();
+        let counters = LatencyCounters::new();
+        for target in ["example.com", "rust-lang.org", "anthropic.com"] {
+            let outcome =
+                validate_args_timed(&loaded, &json!({ "target": target }), Some(&counters))
+                    .unwrap();
+            assert!(matches!(outcome, FenceOutcome::Validated(_)));
+        }
+        assert_eq!(counters.calls.load(Ordering::Relaxed), 3);
+        assert!(counters.ns_total.load(Ordering::Relaxed) > 0);
+        assert!(
+            counters.ns_max.load(Ordering::Relaxed)
+                <= counters.ns_total.load(Ordering::Relaxed)
+        );
+    }
+
+    /// Timing covers the refusal path too — a denied arg still records
+    /// a sample so the histogram isn't biased toward the happy path.
+    #[test]
+    fn timed_variant_records_refusal_latency() {
+        let loaded = loaded_whois();
+        let counters = LatencyCounters::new();
+        let outcome = validate_args_timed(
+            &loaded,
+            &json!({ "target": "example.com; rm -rf /" }),
+            Some(&counters),
+        )
+        .unwrap();
+        assert!(matches!(outcome, FenceOutcome::Refused { .. }));
+        assert_eq!(counters.calls.load(Ordering::Relaxed), 1);
+        assert!(counters.ns_total.load(Ordering::Relaxed) > 0);
     }
 }
