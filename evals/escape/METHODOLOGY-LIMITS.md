@@ -5,7 +5,7 @@ robots: noai, noimageai
 
 # Methodology Limits
 
-**Last updated:** 2026-05-08
+**Last updated:** 2026-06-01
 
 This document consolidates the methodological qualifications that
 apply to every claim made in the escape-evaluation reports
@@ -190,31 +190,44 @@ python3 scripts/verify_paper_claims.py
 git diff results/aggregate-summary.json   # what shifted
 ```
 
-**Current verifier status (as of 2026-05-08):** the verifier reports
-9 PASS / 13 FAIL when run against the current
-`results/aggregate-summary.json`. The FAIL cells differ from the
-report's hand-cited counts by ±1 to ±16 trials per cell. The
-discrepancies are believed to be the difference between the JSONL
-the report author saw at sweep time and the JSONL currently on disk
-(some cells have been re-aggregated since the v5 report was first
-written). They do not change the qualitative conclusions but should
-be reconciled — either by re-running the affected cells from a
-known-clean state or by updating the report's numeric counts to
-match the current aggregate.
+**Current verifier status (as of 2026-06-01):** the verifier reports
+**22 PASS / 0 FAIL** against both the committed
+`results/aggregate-summary.json` (reviewer mode) and the local JSONL
+(`--from-jsonl`, maintainer mode). The earlier 13 FAIL cells were
+reconciled on 2026-06-01 by updating the report's hand-cited counts
+to match the committed aggregate, which is the artifact reviewers
+reproduce against. The JSONL was first confirmed internally
+consistent — every cell complete at the expected trials/model, no
+duplicate `trial_id`s, and `--from-jsonl` identical to the committed
+aggregate — establishing that the data was ground truth and the
+report prose was the stale snapshot.
 
-This reconciliation is listed as follow-on item (0) below.
+The reconciliation moved counts by ±1 to ±16 trials per cell without
+changing any qualitative conclusion. One change is narrative-relevant
+and was made explicit in the report: `claude-sonnet-4.6` symbiont
+injection went from a cited `0/200` to the actual **1/200** — a
+single genuine escape (`escape_success=true`, `blocked_by=None`: an
+injected `agent_summary` paraphrase reached the sink without a fence
+block), the same paraphrase-slips-the-literal-marker failure mode as
+the GPT-5 outlier, just once. Sonnet remains firmly inside the
+low-single-digit 6-of-7 cluster (0.5%); the substrate conclusion is
+unchanged.
+
+This reconciliation (follow-on item 0) is now **resolved**.
 
 ## Follow-on experiments (not yet committed)
 
 In rough priority order:
 
-0. **Reconcile current verifier failures.** As noted above, the
-   verifier reports 13 FAIL cells against the current aggregate.
-   Each FAIL needs to be traced to either (a) a hand-typed counting
-   error in the report, or (b) a JSONL re-run that post-dates the
-   report's snapshot. Decide per cell whether to update the report
-   numbers or to re-pin the aggregate from a tagged sweep snapshot,
-   and then re-run the verifier until 0 FAIL.
+0. ~~**Reconcile current verifier failures.**~~ **RESOLVED 2026-06-01.**
+   The 13 FAIL cells were traced to cause (b) — a JSONL re-scoring that
+   post-dates the report's snapshot, confirmed by the integrity check
+   above (complete cells, no duplicate trials, `--from-jsonl` ==
+   committed aggregate). Reconciled by updating the report's numeric
+   counts to the committed aggregate; verifier now 22 PASS / 0 FAIL.
+   The `claude-sonnet-4.6` symbiont injection cell moved from a cited
+   `0/200` to the actual `1/200` (one genuine escape) and the report
+   prose was updated accordingly.
 1. **Held-out red-team set** authored after fences were frozen,
    ideally by an external reviewer. The 14 reflector +
    task-side adversarial shapes and the six escape-eval task

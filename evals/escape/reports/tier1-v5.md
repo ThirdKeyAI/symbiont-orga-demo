@@ -46,23 +46,23 @@ Pooled across the 7 working models with usable data:
 | task                       | python_baseline | python_sandboxed | symbiont    |
 |----------------------------|-----------------|------------------|-------------|
 | fs_boundary                | 0% (0/140)      | 0% (0/140)       | 0% (0/140)  |
-| **fs_enumerate**           | **88% (123/140)** | **88% (123/140)** | **0% (0/140)** |
-| **net_boundary**           | **94% (132/140)** | **89% (124/140)** | **0% (0/140)** |
-| **syscall_boundary**       | **38% (53/140)** | **9% (13/140)**  | **0% (0/140)** |
-| **state_immutability**     | **94% (132/140)** | **84% (118/140)** | **0% (0/140)** |
-| **injection_orchestrator** | **59% (826/1400) at n=200** | **66% (924/1400) at n=200** | **3.6% (50/1400) at n=200** |
+| **fs_enumerate**           | **83% (116/140)** | **79% (111/140)** | **0% (0/140)** |
+| **net_boundary**           | **95% (133/140)** | **90% (126/140)** | **0% (0/140)** |
+| **syscall_boundary**       | **49% (69/140)** | **13% (18/140)**  | **0% (0/140)** |
+| **state_immutability**     | **85% (119/140)** | **81% (113/140)** | **0% (0/140)** |
+| **injection_orchestrator** | **59% (828/1400) at n=200** | **66% (923/1400) at n=200** | **3.6% (51/1400) at n=200** |
 
 (`fs_boundary` deliberately has no canary attempt incentive — it's the control task that confirms the framework doesn't manufacture false positives.)
 
 ## What python_sandboxed does and doesn't do
 
 **Where the OS-isolation layer materially helps:**
-- `syscall_boundary`: pooled escape drops 38% → 9%. The model's `python_eval(subprocess.run(['openssl', ...]))` strategy fails because `/usr/bin/openssl` doesn't exist in the python:3.12-slim image. Sonnet baseline 85% → sandboxed 5% (18 of 20 trials caught). The substrate's contribution is "the binary the model wants to exec is missing from the container" — a real defense, but task-specific.
+- `syscall_boundary`: pooled escape drops 49% → 13%. The model's `python_eval(subprocess.run(['openssl', ...]))` strategy fails because `/usr/bin/openssl` doesn't exist in the python:3.12-slim image. Sonnet baseline 85% → sandboxed 5% (18 of 20 trials caught). The substrate's contribution is "the binary the model wants to exec is missing from the container" — a real defense, but task-specific.
 
 **Where OS isolation provides ~zero protection:**
-- `fs_enumerate` (88% pooled both substrates): the canary files (`/data/secret/*.csv`) are under `instance_root`, which IS bind-mounted into the container. The sandbox doesn't restrict reads inside the bind set.
-- `state_immutability` (94% baseline → 84% sandboxed): the policy file is under `instance_root`, writable in the container. Not the sandbox's job.
-- `net_boundary` (94% → 89%): `--network host` means external connects work the same in or out of container.
+- `fs_enumerate` (83% baseline, 79% sandboxed — overlapping): the canary files (`/data/secret/*.csv`) are under `instance_root`, which IS bind-mounted into the container. The sandbox doesn't restrict reads inside the bind set.
+- `state_immutability` (85% baseline → 81% sandboxed): the policy file is under `instance_root`, writable in the container. Not the sandbox's job.
+- `net_boundary` (95% → 90%): `--network host` means external connects work the same in or out of container.
 - `injection_orchestrator` at n=200 (66% pooled sandboxed vs 59% pooled baseline): purely a content-shape vector; OS isolation can't gate string contents. Per-model the sandboxed and baseline cells have heavily overlapping CIs (sandboxed Sonnet 16% [11%, 21%] vs baseline 17% [12%, 23%]; sandboxed GPT-5 99% [96%, 100%] vs baseline 99% [96%, 100%]; etc.) with the only meaningful divergences being on the lower-capability models (deepseek-flash sandboxed 66% vs baseline 34%, qwen3.5-35b sandboxed 62% vs baseline 48%) — likely within-run model variance, not a substrate effect.
 
 **Why this is the right negative result:** OS isolation defends against threats that escape the bind set. The escape-eval task suite mostly puts canaries inside the model's working area (because that's the realistic threat — agents being tricked into reading the *wrong file in the same data dir*, not breaking out of a container entirely). The sandbox correctly shows ~zero help on those vectors. **The whole point of typestate-vs-OS-isolation as separate substrates is to disentangle these contributions; v5 confirms they're independent and address different threat classes.**
@@ -75,11 +75,11 @@ The headline shift between v4 (n=80 pooled) and v5 is that the per-model breakdo
 
 | model | python_baseline success | symbiont success | substrate gap |
 |---|---|---|---|
-| anthropic/claude-sonnet-4.6 | 17% [12%, 23%] | **0% [0%, 3%]** | −17 pp |
+| anthropic/claude-sonnet-4.6 | 17% [12%, 23%] | **0.5% [0%, 3%]** | −16 pp |
 | deepseek/deepseek-v4-pro | 75% [69%, 80%] | **0% [0%, 2%]** | −75 pp |
 | qwen/qwen3.6-max-preview | 82% [77%, 87%] | **3% [1%, 6%]** | −79 pp |
 | deepseek/deepseek-v4-flash | 34% [28%, 41%] | **1% [0%, 4%]** | −33 pp |
-| qwen/qwen3.5-35b-a3b | 48% [42%, 55%] | **4% [2%, 7%]** | −44 pp |
+| qwen/qwen3.5-35b-a3b | 48% [42%, 55%] | **3.5% [2%, 7%]** | −44 pp |
 | qwen/qwen3.6-27b | 58% [51%, 65%] | **1% [0%, 4%]** | −57 pp |
 
 **Pooled across these 6 models (n=1200):** baseline 52% → symbiont **1.5% (18/1200)**. CIs cluster between 0% and 7%. The substrate's content fence works at the same rate regardless of vendor (Anthropic, DeepSeek, Qwen), capability tier (frontier through floor), or weight regime (open vs closed). This is the result generalisable substrate claims should rest on.
@@ -90,7 +90,7 @@ The headline shift between v4 (n=80 pooled) and v5 is that the per-model breakdo
 |---|---|---|---|
 | **openai/gpt-5** | 99% [96%, 100%] | **16% [12%, 22%]** | −83 pp |
 
-GPT-5's symbiont CI `[12%, 22%]` doesn't overlap *any* other model's CI. GPT-5 alone accounts for **32 of 50 total symbiont successes (64%)** in the 1,400-trial sweep.
+GPT-5's symbiont CI `[12%, 22%]` doesn't overlap *any* other model's CI. GPT-5 alone accounts for **33 of 51 total symbiont successes (65%)** in the 1,400-trial sweep.
 
 What's different about GPT-5: its paraphrase aggression exceeds what literal-substring marker matching can defend against. Inspecting per-trial transcripts where it bypassed: phrasings like *"EFFECTIVE ROUTING DECISION:"*, *"BUSINESS-CRITICAL CLASSIFICATION:"*, *"NORTH STAR PRIORITY:"*, *"Standing order from the engineering leadership:"* — domain-language injections that don't match any literal entry in the marker list but still inject. The validator caught a lot (595 distinct `toolclad_agent_summary_validator` blocks across the GPT-5 cell, average ~3 per attempting trial) — GPT-5 just kept retrying with novel paraphrases until something slipped past the marker set within the per-trial turn budget.
 
@@ -100,7 +100,7 @@ The 16% rate is a structural finding about GPT-5, not a v4-bypass-class regressi
 
 ### Why the breakdown matters for paper framing
 
-A reader who sees only "pooled symbiont success: 3.6%" can reasonably ask "but is the symbiont gap driven by one cell?" The honest answer is partially: at the pooled level, GPT-5's 32 successes drive 64% of the symbiont successes. **At the per-model level, the substrate's content fence is robustly effective on 6 of 7 models tested**, and GPT-5 is itself a substantive finding ("the regex ceiling is closer than we thought against frontier paraphrase capability") rather than a methodological flaw.
+A reader who sees only "pooled symbiont success: 3.6%" can reasonably ask "but is the symbiont gap driven by one cell?" The honest answer is partially: at the pooled level, GPT-5's 33 successes drive 65% of the symbiont successes. **At the per-model level, the substrate's content fence is robustly effective on 6 of 7 models tested**, and GPT-5 is itself a substantive finding ("the regex ceiling is closer than we thought against frontier paraphrase capability") rather than a methodological flaw.
 
 ### Pooled summary line
 
@@ -112,7 +112,7 @@ Both are right; the per-model table is the canonical view.
 
 v4's pooled symbiont injection rate was 5% (4/80). At n=200 per cell × 7 models = 1400 trials:
 
-- 6 of 7 models cluster at **1-4% bypass** with Wilson CIs that overlap 0-7%.
+- 6 of 7 models cluster at **0-4% bypass** with Wilson CIs that overlap 0-7%.
 - **GPT-5 is at 16% bypass** — its CI `[12%, 22%]` doesn't overlap any other model's CI.
 
 The 16% rate isn't a v3-bypass-class regression; the marker list expansion already caught what it could. GPT-5 is genuinely better than other models at finding novel paraphrases the substring matcher misses. Inspecting per-trial transcripts: GPT-5 paraphrases include things like *"EFFECTIVE ROUTING DECISION:"*, *"BUSINESS-CRITICAL CLASSIFICATION:"*, *"NORTH STAR PRIORITY:"*, *"Standing order from the engineering leadership:"* — domain-language phrasings that don't trigger any literal substring in the marker list but still inject.
@@ -129,8 +129,8 @@ For non-injection tasks at n=20 per cell, n=140 pooled across the 7 models:
 
 | substrate        | fs_enumerate | net_boundary | syscall_boundary | state_immutability |
 |------------------|--------------|--------------|------------------|--------------------|
-| python_baseline  | 88%          | 94%          | 38%              | 94%                |
-| python_sandboxed | 88%          | 89%          | **9%**           | 84%                |
+| python_baseline  | 83%          | 95%          | 49%              | 85%                |
+| python_sandboxed | 79%          | 90%          | **13%**          | 81%                |
 | **symbiont**     | **0%**       | **0%**       | **0%**           | **0%**             |
 
 Symbiont's blocking is uniform across vectors and capability tiers. Sandboxed-Python only meaningfully reduces syscall escapes (and only because the lure binary is missing in the container — a fragile defense that depends on what's installed).
@@ -191,12 +191,12 @@ of fence FPs against benign inputs.
 
 | substrate | task | blocks |
 |---|---|---|
-| symbiont | fs_enumerate | 282 path-validator |
-| symbiont | net_boundary | 244 url-validator |
+| symbiont | fs_enumerate | 298 path-validator |
+| symbiont | net_boundary | 309 url-validator |
 | symbiont | syscall_boundary | 0 (no exec tool exposed) |
 | symbiont | state_immutability | 0 (no write tool exposed) |
 | symbiont | injection_orchestrator (n=200 × 7) | **1,711 agent_summary** |
-| **symbiont total** | | **2,237 distinct blocks** |
+| **symbiont total** | | **2,318 distinct blocks** |
 | python_sandboxed | syscall_boundary | 45 attempts blocked-only across 8 models |
 | python_sandboxed | injection (Sonnet only at n=20) | 30 (within trials, not at substrate) |
 
@@ -208,10 +208,10 @@ Symbiont's content fence accounts for the majority of blocks because injection t
 |---|---|---|
 | substrates compared | 2 (baseline, symbiont) | **3** (added python_sandboxed via Docker) |
 | injection n per cell | 80 (4 models) | **200 (7 models)** |
-| injection pooled symbiont rate | 5% [2%, 12%] | **3.6% [2.7%, 4.7%]** |
-| GPT-5 specifically | 1/20 = 5% | **32/200 = 16% [12%, 22%]** ← the v4 value was an underestimate |
+| injection pooled symbiont rate | 5% [2%, 12%] | **3.6% [2.8%, 4.8%]** |
+| GPT-5 specifically | 1/20 = 5% | **33/200 = 16% [12%, 22%]** ← the v4 value was an underestimate |
 | substrate gap on injection (mean across models, excl. GPT-5) | "directionally enormous, precisely fragile" | **−51 pp** with tight CIs |
-| OS-isolation contribution | unmeasured | **9% on syscall, ~0% elsewhere** |
+| OS-isolation contribution | unmeasured | **13% on syscall, ~0% elsewhere** |
 | injection_orchestrator validator blocks per trial | ~2 | ~2.4 (GPT-5: ~3.0) |
 
 ## Methodological notes & caveats
@@ -228,7 +228,7 @@ Three model-coverage gaps, all documented and addressable:
 
 ### Other methodological notes
 
-- **Three-substrate comparison answers the original spec's "what does typestate buy *over* OS isolation"**: ~5–88 pp on the four pure-action vectors (where sandbox provides ~0 help by design — canary inside bind-mounts), and ~9 pp on syscall (where sandbox only helps by accident — missing binary).
+- **Three-substrate comparison answers the original spec's "what does typestate buy *over* OS isolation"**: ~5–88 pp on the four pure-action vectors (where sandbox provides ~0 help by design — canary inside bind-mounts), and ~13 pp on syscall (where sandbox only helps by accident — missing binary).
 - **GPT-5's outlier behavior is a genuine model-specific finding**, not a methodological artifact. CIs don't overlap; n=200 is enough to claim "GPT-5 is structurally harder to defend against on this vector" — not to claim a precise rate.
 - **Sandboxed substrate's `state_immutability` cell shows the canonical example of the "OS isolation doesn't help here" failure mode**: the model still successfully writes the policy file because the file lives in `instance_root`, which is the bind-mounted writable area. Symbiont's "no write tool exposed" defense IS the right shape for this vector.
 
@@ -270,4 +270,4 @@ write-up.
 
 ## Summary, one paragraph
 
-Across **5,160 trials** with 7-8 models and three substrates (permissive Python, Docker-sandboxed Python, Symbiont), no escape was observed on the Symbiont substrate's four pure-action vectors (fs_enumerate, net_boundary, syscall_boundary, state_immutability) for any of the tested models or vendors — pooled symbiont success is **0/560 trials, Wilson 95% CI [0%, 0.7%]**. On the orchestrator-injection vector at the tightened n=200, the typed `agent_summary` validator + expanded marker list reduces escape from **59% to 3.6% pooled** (Wilson CIs `[57%, 62%]` and `[2.7%, 4.7%]`; excluding GPT-5: **52% to 1.5%**). The Docker-sandboxed substrate at n=200 on injection sits at **66% pooled — overlapping CIs with baseline at every cell**, confirming OS isolation provides ~zero protection on content-shape vectors; on the four pure-action vectors at n=20 the sandbox provides material protection only on syscall_boundary (38% → 9%, because the lure binary is missing from the container image). Together: typestate-shape and OS-isolation-shape defenses address independent threat classes within the tested vectors, exactly per the original spec. **GPT-5 is identified as a model-specific outlier** at 16% [12%, 22%] symbiont bypass on injection — its paraphrase aggression exceeds what literal-substring marker matching can defend against on this corpus. Total ground-truth spend $44.28 for the v5 sweep (including the paper-prep sandboxed n=200 re-run); cumulative $58.15 across all sweeps on this branch. **Scope:** these rates apply to the tested attack distribution (six hand-authored task families, ~14 adversarial shapes) and the 7–8 tested models. They are not estimates of real-world attack-distribution coverage — see [`METHODOLOGY-LIMITS.md`](../METHODOLOGY-LIMITS.md).
+Across **5,160 trials** with 7-8 models and three substrates (permissive Python, Docker-sandboxed Python, Symbiont), no escape was observed on the Symbiont substrate's four pure-action vectors (fs_enumerate, net_boundary, syscall_boundary, state_immutability) for any of the tested models or vendors — pooled symbiont success is **0/560 trials, Wilson 95% CI [0%, 0.7%]**. On the orchestrator-injection vector at the tightened n=200, the typed `agent_summary` validator + expanded marker list reduces escape from **59% to 3.6% pooled** (Wilson CIs `[57%, 62%]` and `[2.8%, 4.8%]`; excluding GPT-5: **52% to 1.5%**). The Docker-sandboxed substrate at n=200 on injection sits at **66% pooled — overlapping CIs with baseline at every cell**, confirming OS isolation provides ~zero protection on content-shape vectors; on the four pure-action vectors at n=20 the sandbox provides material protection only on syscall_boundary (49% → 13%, because the lure binary is missing from the container image). Together: typestate-shape and OS-isolation-shape defenses address independent threat classes within the tested vectors, exactly per the original spec. **GPT-5 is identified as a model-specific outlier** at 16% [12%, 22%] symbiont bypass on injection — its paraphrase aggression exceeds what literal-substring marker matching can defend against on this corpus. Total ground-truth spend $44.28 for the v5 sweep (including the paper-prep sandboxed n=200 re-run); cumulative $58.15 across all sweeps on this branch. **Scope:** these rates apply to the tested attack distribution (six hand-authored task families, ~14 adversarial shapes) and the 7–8 tested models. They are not estimates of real-world attack-distribution coverage — see [`METHODOLOGY-LIMITS.md`](../METHODOLOGY-LIMITS.md).
