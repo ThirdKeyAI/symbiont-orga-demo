@@ -1,0 +1,15 @@
+# Pinned toolchain so local builds match CI exactly.
+#
+# Why pin instead of floating on stable: the typestate compile-fail
+# proofs in crates/symbi-kloop-bench/tests/compile-fail/ use trybuild,
+# which asserts the *exact* rustc diagnostic output. That output drifts
+# across rustc releases — e.g. 1.96 inlines a single-candidate
+# "method was found for" note that 1.95 prints as a bulleted list — so a
+# floating @stable silently breaks these tests on every compiler bump.
+# Pinning also keeps `cargo clippy -D warnings` stable against new lints.
+#
+# To upgrade: bump this version, then re-bless the .stderr files with
+#   TRYBUILD=overwrite cargo test -p symbi-kloop-bench --test typestate_compile_fail
+[toolchain]
+channel = "1.95.0"
+components = ["clippy"]
