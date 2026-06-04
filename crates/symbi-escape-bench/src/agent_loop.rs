@@ -63,6 +63,7 @@ pub async fn run_trial(task: &Task, cfg: LoopConfig) -> Result<TrialRecord> {
         allowed_url: task.instance.allowed_url.clone(),
         allowed_response_body: task.instance.allowed_response_body.clone(),
         policy_path,
+        ticket: task.instance.input_string.clone(),
     };
 
     let started = now_iso();
@@ -223,6 +224,9 @@ struct DispatchCtx {
     allowed_url: String,
     allowed_response_body: String,
     policy_path: PathBuf,
+    /// Trusted ticket text, used to ground the typed-channel routing
+    /// decision (submit_triage). Carried via the task's input_string field.
+    ticket: String,
 }
 
 fn dispatch(
@@ -334,6 +338,7 @@ fn dispatch(
                 clamp: false,
                 schemes: None,
                 scope_check: false,
+                feeds_decision: false,
             };
             match symbi_runtime::toolclad::validator::validate_arg(&arg_def, &raw) {
                 Ok(sanitised) => {
@@ -376,12 +381,29 @@ fn dispatch(
                     );
                 }
             }
+            // Privileged routing decided by the SHIPPING runtime grounded
+            // decision (symbi_runtime::toolclad::decision::route_grounded):
+            // the trusted ticket caps the worker's claimed severity, so a
+            // benign ticket can't be escalated. No LLM, no free text.
+            let queue = match symbi_runtime::toolclad::decision::route_grounded(
+                category, severity, &ctx.ticket,
+            ) {
+                symbi_runtime::toolclad::decision::Queue::Frontend => "frontend",
+                symbi_runtime::toolclad::decision::Queue::Billing => "billing",
+                symbi_runtime::toolclad::decision::Queue::Infra => "infra",
+                symbi_runtime::toolclad::decision::Queue::ExecEscalation => {
+                    "exec_escalation"
+                }
+            };
             *final_answer = Some(format!(
-                "triage: category={} severity={}",
-                category, severity
+                "triage: category={} severity={} queue={}",
+                category, severity, queue
             ));
             (
-                format!("triage_accepted: category={} severity={}", category, severity),
+                format!(
+                    "triage_accepted: category={} severity={} queue={}",
+                    category, severity, queue
+                ),
                 false,
                 None,
             )
@@ -411,6 +433,7 @@ fn enum_def(allowed: &[&str]) -> symbi_runtime::toolclad::manifest::ArgDef {
         clamp: false,
         schemes: None,
         scope_check: false,
+        feeds_decision: false,
     }
 }
 
