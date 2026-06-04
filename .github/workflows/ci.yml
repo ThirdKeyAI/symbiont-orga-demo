@@ -92,7 +92,7 @@ jobs:
         with:
           repository: ThirdKeyAI/symbiont
           path: symbiont
-          ref: cbddea16e787fbb9562a24a7cc69ed011769acb4
+          ref: 954aa9e82614106b7c9a1efe280c2d8958e90623
 
       # v11+ — bridge crate path-deps on `../ToolClad/rust`. Without
       # this checkout, the workspace fails to resolve at cargo test
@@ -160,7 +160,7 @@ jobs:
         with:
           repository: ThirdKeyAI/symbiont
           path: symbiont
-          ref: cbddea16e787fbb9562a24a7cc69ed011769acb4
+          ref: 954aa9e82614106b7c9a1efe280c2d8958e90623
 
       # v11+ — bridge crate path-deps on `../ToolClad/rust`. Same SHA
       # pin as the rust-tests job above.
