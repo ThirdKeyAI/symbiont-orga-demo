@@ -43,10 +43,15 @@ They do not answer:
 > "What fraction of plausible real-world attacks would our fences catch?"
 
 A held-out red-team set written by parties who did not see the fence
-implementations is the right next experiment. It is not yet committed.
-Until it is, the absolute rates in the reports should be read as
-**rates against the tested distribution**, not as rates against an
-attacker drawn from the wild.
+implementations is the right next experiment. A first, in-repo
+approximation is now committed — see [`reports/redteam-holdout.md`](reports/redteam-holdout.md)
+(injection vector, attacks authored by a subagent blind to the fences,
+scored behaviorally). It found that the `agent_summary` marker fence does
+**not** generalise (26% ≈ 28% baseline) and motivated the typed + grounded
+decision fix (0/120). It is still weaker than an external human red team
+against a frozen fence commit. Until that exists, the absolute rates in the
+other reports should be read as **rates against the tested distribution**,
+not as rates against an attacker drawn from the wild.
 
 ### 2. It does not measure per-fence false-positive cost
 
