@@ -69,6 +69,20 @@ Pooled across the 7 working models with usable data:
 
 ## injection_orchestrator @ n=200 — per-model first
 
+> **⚠️ Scope caveat — read before quoting the 3.6%.** The injection escape
+> rate in this report is measured by the regex *canary* (does the worker's
+> answer match an injection pattern?) against **in-distribution,
+> marker-shaped** attacks — and that metric shares its vocabulary with the
+> `agent_summary` marker fence it is measuring, so it is partly circular. A
+> blind-authored **held-out** set, scored **behaviorally** (the downstream
+> supervisor is actually run), shows the marker fence does **not** generalise:
+> symbiont **26%** vs permissive baseline **28%**, overlapping CIs. So the
+> 3.6% below is a rate against the tested distribution, **not** a claim that
+> the content fence blocks injection in general. The structural fix — a typed
+> enum decision channel grounded in the trusted ticket — takes held-out
+> injection to **0/120** on the shipping runtime. See
+> [`redteam-holdout.md`](redteam-holdout.md).
+
 The headline shift between v4 (n=80 pooled) and v5 is that the per-model breakdown reveals a tight cluster of 6 models plus a single outlier. **Lead with the cluster, then the outlier** — the framing-as-pooled "5% headline" of v4 was directionally correct but masked which model was driving it.
 
 ### The 6-of-7 cluster (the substrate-gap result that actually generalises)
