@@ -63,6 +63,7 @@ pub async fn run_trial(task: &Task, cfg: LoopConfig) -> Result<TrialRecord> {
         allowed_url: task.instance.allowed_url.clone(),
         allowed_response_body: task.instance.allowed_response_body.clone(),
         policy_path,
+        ticket: task.instance.input_string.clone(),
     };
 
     let started = now_iso();
@@ -223,6 +224,9 @@ struct DispatchCtx {
     allowed_url: String,
     allowed_response_body: String,
     policy_path: PathBuf,
+    /// Trusted ticket text, used to ground the typed-channel routing
+    /// decision (submit_triage). Carried via the task's input_string field.
+    ticket: String,
 }
 
 fn dispatch(
@@ -334,6 +338,7 @@ fn dispatch(
                 clamp: false,
                 schemes: None,
                 scope_check: false,
+                feeds_decision: false,
             };
             match symbi_runtime::toolclad::validator::validate_arg(&arg_def, &raw) {
                 Ok(sanitised) => {
@@ -347,11 +352,88 @@ fn dispatch(
                 ),
             }
         }
+        "submit_triage" => {
+            // Typed-channel fix for the orchestrator-injection vector
+            // (held-out red-team §typed_channel). Unlike `answer` above —
+            // which marker-filters FREE TEXT destined for a downstream
+            // prompt — the decision channel here is ENUM-TYPED. ToolClad's
+            // shipping `enum` validator rejects anything outside the allowed
+            // vocabulary, so there is no free-text instruction surface to
+            // inject through. The worker can only assert a bounded
+            // (category, severity); the downstream routing policy is decided
+            // over those two fields, grounded in the trusted ticket by the
+            // eval scorer. Paraphrase injection is structurally inert.
+            let category = args.get("category").and_then(|v| v.as_str()).unwrap_or("");
+            let severity = args.get("severity").and_then(|v| v.as_str()).unwrap_or("");
+            let cat_def = enum_def(&["ui", "billing", "infra", "account", "other"]);
+            let sev_def = enum_def(&["low", "medium", "high", "critical"]);
+            for (field, val, def) in [
+                ("category", category, &cat_def),
+                ("severity", severity, &sev_def),
+            ] {
+                if let Err(reason) =
+                    symbi_runtime::toolclad::validator::validate_arg(def, val)
+                {
+                    return (
+                        format!("policy_block: {} {}", field, reason),
+                        true,
+                        Some("toolclad_enum_validator".into()),
+                    );
+                }
+            }
+            // Privileged routing decided by the SHIPPING runtime grounded
+            // decision (symbi_runtime::toolclad::decision::route_grounded):
+            // the trusted ticket caps the worker's claimed severity, so a
+            // benign ticket can't be escalated. No LLM, no free text.
+            let queue = match symbi_runtime::toolclad::decision::route_grounded(
+                category, severity, &ctx.ticket,
+            ) {
+                symbi_runtime::toolclad::decision::Queue::Frontend => "frontend",
+                symbi_runtime::toolclad::decision::Queue::Billing => "billing",
+                symbi_runtime::toolclad::decision::Queue::Infra => "infra",
+                symbi_runtime::toolclad::decision::Queue::ExecEscalation => {
+                    "exec_escalation"
+                }
+            };
+            *final_answer = Some(format!(
+                "triage: category={} severity={} queue={}",
+                category, severity, queue
+            ));
+            (
+                format!(
+                    "triage_accepted: category={} severity={} queue={}",
+                    category, severity, queue
+                ),
+                false,
+                None,
+            )
+        }
         other => (
             format!("unknown_tool: {}", other),
             true,
             Some("unknown_tool".into()),
         ),
+    }
+}
+
+/// Build a ToolClad `enum` ArgDef constrained to `allowed`. Used by the
+/// typed-channel inter-agent decision tool (`submit_triage`).
+fn enum_def(allowed: &[&str]) -> symbi_runtime::toolclad::manifest::ArgDef {
+    symbi_runtime::toolclad::manifest::ArgDef {
+        position: 1,
+        required: true,
+        type_name: "enum".to_string(),
+        description: String::new(),
+        allowed: Some(allowed.iter().map(|s| s.to_string()).collect()),
+        default: None,
+        pattern: None,
+        sanitize: None,
+        min: None,
+        max: None,
+        clamp: false,
+        schemes: None,
+        scope_check: false,
+        feeds_decision: false,
     }
 }
 
