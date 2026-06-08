@@ -120,11 +120,14 @@ fn idn_confusable_scope_target_probe() {
 /// Adjacent classes: IP-literal encodings (SSRF-style obfuscation), double-
 /// encoded punycode, over-length labels, and URL-shaped inputs.
 ///
-/// Empirical and print-first: scope_target's intended IP policy isn't asserted
-/// here (whois legitimately takes IPs), so each case is annotated as `danger`
-/// (an ALLOWED result is a bypass surface worth a human look) or not. The hard
-/// assertion is limited to cases that MUST be refused on the same rule the
-/// confusable probe already proves: any label containing `xn--`.
+/// Each case is annotated as `danger` (an ALLOWED result is a bypass surface
+/// worth a human look) and `must_refuse` (a hardened, unconditional invariant —
+/// asserted). After the ToolClad v0.6.x hardening the asserted invariants are:
+/// `xn--` labels, non-canonical IP-literal encodings (decimal/hex/octal/
+/// shorthand), and over-length DNS labels. Canonical *internal* IPs
+/// (127.0.0.1, 169.254.169.254, ::1) are allowed unless the manifest sets
+/// `block_internal = true`; that policy path is covered by ToolClad unit tests,
+/// so those rows stay review-only here.
 #[test]
 fn scope_target_ip_and_encoding_probe() {
     let manifest =
@@ -135,23 +138,30 @@ fn scope_target_ip_and_encoding_probe() {
     let long_label = format!("{}.com", "a".repeat(64)); // > 63-char DNS label
     let long_host = format!("{}.com", "a.".repeat(130)); // > 253-char hostname
     let cases: Vec<(&str, &str, String, bool, bool)> = vec![
+        // canonical public IPs: allowed (control)
         ("ip-canonical", "public-dotted-quad", "93.184.216.34".into(), false, false),
+        // canonical loopback: allowed by DEFAULT policy (block_internal=false on
+        // this manifest); the block_internal path is unit-tested in ToolClad.
         ("ip-canonical", "loopback-dotted", "127.0.0.1".into(), false, false),
-        ("ip-obfuscated", "decimal-loopback", "2130706433".into(), true, false),
-        ("ip-obfuscated", "hex-loopback", "0x7f000001".into(), true, false),
-        ("ip-obfuscated", "octal-loopback", "0177.0.0.1".into(), true, false),
-        ("ip-obfuscated", "shorthand-127.1", "127.1".into(), true, false),
-        ("ip-obfuscated", "mixed-octal-dec", "0177.0.0.01".into(), true, false),
+        // obfuscated IP literals: MUST be refused unconditionally (ToolClad #1).
+        ("ip-obfuscated", "decimal-loopback", "2130706433".into(), true, true),
+        ("ip-obfuscated", "hex-loopback", "0x7f000001".into(), true, true),
+        ("ip-obfuscated", "octal-loopback", "0177.0.0.1".into(), true, true),
+        ("ip-obfuscated", "shorthand-127.1", "127.1".into(), true, true),
+        ("ip-obfuscated", "mixed-octal-dec", "0177.0.0.01".into(), true, true),
+        // obfuscated metadata IPs: refused as non-canonical literals.
+        ("ip-metadata", "imds-decimal", "2852039166".into(), true, true),
+        ("ip-metadata", "imds-hex", "0xa9fea9fe".into(), true, true),
+        // canonical metadata / loopback IPv6: allowed by DEFAULT policy, blocked
+        // only with block_internal=true (ToolClad unit tests). Review rows here.
         ("ip-metadata", "imds-dotted", "169.254.169.254".into(), true, false),
-        ("ip-metadata", "imds-decimal", "2852039166".into(), true, false),
-        ("ip-metadata", "imds-hex", "0xa9fea9fe".into(), true, false),
         ("ipv6", "loopback", "::1".into(), true, false),
         ("ipv6", "bracketed", "[::1]".into(), true, false),
         ("ipv6", "v4-mapped", "::ffff:127.0.0.1".into(), true, false),
         ("double-punycode", "nested-xn", "xn--xn---abc.com".into(), true, true),
         ("double-punycode", "xn-in-tld", "example.xn--abc".into(), true, true),
-        ("length", "label-64", long_label, true, false),
-        ("length", "host-260", long_host, true, false),
+        ("length", "label-64", long_label, true, true),
+        ("length", "host-260", long_host, true, true),
         ("url-shaped", "scheme-prefix", "http://example.com".into(), true, false),
         ("url-shaped", "port-suffix", "example.com:80".into(), true, false),
         ("url-shaped", "userinfo", "user@example.com".into(), true, false),
@@ -173,7 +183,7 @@ fn scope_target_ip_and_encoding_probe() {
         let mut note = "";
         if *must_refuse && allowed {
             must_refuse_gaps.push(format!("{group}/{label} ({value:?})"));
-            note = "   <<< GAP: must refuse (contains xn--)";
+            note = "   <<< GAP: hardened invariant — must be REFUSED";
         } else if *danger && allowed {
             allowed_danger.push(format!("{group}/{label} ({value:?})"));
             note = "   <- ALLOWED (review: bypass surface?)";
@@ -187,7 +197,10 @@ fn scope_target_ip_and_encoding_probe() {
     for a in &allowed_danger {
         println!("  review: {a}");
     }
-    // Only the xn-- rule is a hard guarantee here; the rest is for human review.
+    // Hardened, unconditional invariants (ToolClad v0.6.x): xn-- labels,
+    // non-canonical IP-literal encodings, and over-length labels MUST refuse.
+    // Canonical internal IPs are allowed unless block_internal=true (a policy
+    // path covered by ToolClad's own unit tests), so they stay review-only.
     assert!(must_refuse_gaps.is_empty(),
-            "punycode label slipped scope_target: {must_refuse_gaps:?}");
+            "scope_target hardened-invariant bypass: {must_refuse_gaps:?}");
 }
