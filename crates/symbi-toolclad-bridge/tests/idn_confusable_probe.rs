@@ -116,3 +116,78 @@ fn idn_confusable_scope_target_probe() {
     }
     assert!(gaps.is_empty(), "scope_target confusable bypass gaps: {gaps:?}");
 }
+
+/// Adjacent classes: IP-literal encodings (SSRF-style obfuscation), double-
+/// encoded punycode, over-length labels, and URL-shaped inputs.
+///
+/// Empirical and print-first: scope_target's intended IP policy isn't asserted
+/// here (whois legitimately takes IPs), so each case is annotated as `danger`
+/// (an ALLOWED result is a bypass surface worth a human look) or not. The hard
+/// assertion is limited to cases that MUST be refused on the same rule the
+/// confusable probe already proves: any label containing `xn--`.
+#[test]
+fn scope_target_ip_and_encoding_probe() {
+    let manifest =
+        LoadedManifest::from_path(manifests_dir().join("whois_lookup.clad.toml"))
+            .expect("manifest loads");
+
+    // (group, label, value, danger: ALLOWED would be concerning, must_refuse)
+    let long_label = format!("{}.com", "a".repeat(64)); // > 63-char DNS label
+    let long_host = format!("{}.com", "a.".repeat(130)); // > 253-char hostname
+    let cases: Vec<(&str, &str, String, bool, bool)> = vec![
+        ("ip-canonical", "public-dotted-quad", "93.184.216.34".into(), false, false),
+        ("ip-canonical", "loopback-dotted", "127.0.0.1".into(), false, false),
+        ("ip-obfuscated", "decimal-loopback", "2130706433".into(), true, false),
+        ("ip-obfuscated", "hex-loopback", "0x7f000001".into(), true, false),
+        ("ip-obfuscated", "octal-loopback", "0177.0.0.1".into(), true, false),
+        ("ip-obfuscated", "shorthand-127.1", "127.1".into(), true, false),
+        ("ip-obfuscated", "mixed-octal-dec", "0177.0.0.01".into(), true, false),
+        ("ip-metadata", "imds-dotted", "169.254.169.254".into(), true, false),
+        ("ip-metadata", "imds-decimal", "2852039166".into(), true, false),
+        ("ip-metadata", "imds-hex", "0xa9fea9fe".into(), true, false),
+        ("ipv6", "loopback", "::1".into(), true, false),
+        ("ipv6", "bracketed", "[::1]".into(), true, false),
+        ("ipv6", "v4-mapped", "::ffff:127.0.0.1".into(), true, false),
+        ("double-punycode", "nested-xn", "xn--xn---abc.com".into(), true, true),
+        ("double-punycode", "xn-in-tld", "example.xn--abc".into(), true, true),
+        ("length", "label-64", long_label, true, false),
+        ("length", "host-260", long_host, true, false),
+        ("url-shaped", "scheme-prefix", "http://example.com".into(), true, false),
+        ("url-shaped", "port-suffix", "example.com:80".into(), true, false),
+        ("url-shaped", "userinfo", "user@example.com".into(), true, false),
+        ("url-shaped", "path-suffix", "example.com/admin".into(), true, false),
+    ];
+
+    let mut must_refuse_gaps: Vec<String> = Vec::new();
+    let mut allowed_danger: Vec<String> = Vec::new();
+    let mut last = "";
+    println!("\nIP / encoding / length / URL probe (scope_target):");
+    for (group, label, value, danger, must_refuse) in &cases {
+        if *group != last {
+            println!("  [{group}]");
+            last = group;
+        }
+        let outcome = validate_args(&manifest, &serde_json::json!({ "target": value }))
+            .expect("validate_args runs");
+        let allowed = matches!(outcome, FenceOutcome::Validated(_));
+        let mut note = "";
+        if *must_refuse && allowed {
+            must_refuse_gaps.push(format!("{group}/{label} ({value:?})"));
+            note = "   <<< GAP: must refuse (contains xn--)";
+        } else if *danger && allowed {
+            allowed_danger.push(format!("{group}/{label} ({value:?})"));
+            note = "   <- ALLOWED (review: bypass surface?)";
+        }
+        let verdict = if allowed { "ALLOWED" } else { "REFUSED" };
+        println!("    {label:22} {value:34?} -> {verdict}{note}");
+    }
+
+    println!("\nsummary: {} of {} 'danger' inputs were ALLOWED.",
+             allowed_danger.len(), cases.iter().filter(|c| c.3).count());
+    for a in &allowed_danger {
+        println!("  review: {a}");
+    }
+    // Only the xn-- rule is a hard guarantee here; the rest is for human review.
+    assert!(must_refuse_gaps.is_empty(),
+            "punycode label slipped scope_target: {must_refuse_gaps:?}");
+}
