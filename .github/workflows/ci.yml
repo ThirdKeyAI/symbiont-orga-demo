@@ -103,10 +103,11 @@ jobs:
         with:
           repository: ThirdKeyAI/ToolClad
           path: ToolClad
-          # bumped to include the scope_target SSRF/IP-canonicalisation hardening
-          # that idn_confusable_probe asserts (block_internal, obfuscated-IP
-          # rejection, per-label length).
-          ref: 58262a45d4494681ed3ff164a7395a82a0c44a18
+          # includes the scope_target + url egress hardening that
+          # idn_confusable_probe asserts (block_internal, obfuscated-IP
+          # rejection, per-label length, always-block cloud metadata).
+          # NOTE: ToolClad PR #8 head — re-pin to the merge commit once merged.
+          ref: 519d7002121246eca875d77ce38eacfd3512482a
 
       - name: Install Rust toolchain (pinned — see rust-toolchain.toml)
         # Pinned, not @stable: the typestate trybuild compile-fail proofs
@@ -177,10 +178,11 @@ jobs:
         with:
           repository: ThirdKeyAI/ToolClad
           path: ToolClad
-          # bumped to include the scope_target SSRF/IP-canonicalisation hardening
-          # that idn_confusable_probe asserts (block_internal, obfuscated-IP
-          # rejection, per-label length).
-          ref: 58262a45d4494681ed3ff164a7395a82a0c44a18
+          # includes the scope_target + url egress hardening that
+          # idn_confusable_probe asserts (block_internal, obfuscated-IP
+          # rejection, per-label length, always-block cloud metadata).
+          # NOTE: ToolClad PR #8 head — re-pin to the merge commit once merged.
+          ref: 519d7002121246eca875d77ce38eacfd3512482a
 
       - uses: dtolnay/rust-toolchain@1.95.0   # pinned — see rust-toolchain.toml + rust-tests job
         with:

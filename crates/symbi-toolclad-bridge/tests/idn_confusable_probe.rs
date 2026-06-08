@@ -152,9 +152,11 @@ fn scope_target_ip_and_encoding_probe() {
         // obfuscated metadata IPs: refused as non-canonical literals.
         ("ip-metadata", "imds-decimal", "2852039166".into(), true, true),
         ("ip-metadata", "imds-hex", "0xa9fea9fe".into(), true, true),
-        // canonical metadata / loopback IPv6: allowed by DEFAULT policy, blocked
-        // only with block_internal=true (ToolClad unit tests). Review rows here.
-        ("ip-metadata", "imds-dotted", "169.254.169.254".into(), true, false),
+        // cloud metadata (link-local) is now blocked UNCONDITIONALLY, even with
+        // block_internal=false — IMDS credential theft, ~zero legit egress use.
+        ("ip-metadata", "imds-dotted", "169.254.169.254".into(), true, true),
+        // canonical loopback IPv6: allowed by DEFAULT policy, blocked only with
+        // block_internal=true (ToolClad unit tests). Review rows here.
         ("ipv6", "loopback", "::1".into(), true, false),
         ("ipv6", "bracketed", "[::1]".into(), true, false),
         ("ipv6", "v4-mapped", "::ffff:127.0.0.1".into(), true, false),
