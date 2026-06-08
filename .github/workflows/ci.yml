@@ -103,7 +103,10 @@ jobs:
         with:
           repository: ThirdKeyAI/ToolClad
           path: ToolClad
-          ref: 264a9d29370862fa1dfbde22e0da01d068bc6e57
+          # bumped to include the scope_target SSRF/IP-canonicalisation hardening
+          # that idn_confusable_probe asserts (block_internal, obfuscated-IP
+          # rejection, per-label length).
+          ref: 58262a45d4494681ed3ff164a7395a82a0c44a18
 
       - name: Install Rust toolchain (pinned — see rust-toolchain.toml)
         # Pinned, not @stable: the typestate trybuild compile-fail proofs
@@ -174,7 +177,10 @@ jobs:
         with:
           repository: ThirdKeyAI/ToolClad
           path: ToolClad
-          ref: 264a9d29370862fa1dfbde22e0da01d068bc6e57
+          # bumped to include the scope_target SSRF/IP-canonicalisation hardening
+          # that idn_confusable_probe asserts (block_internal, obfuscated-IP
+          # rejection, per-label length).
+          ref: 58262a45d4494681ed3ff164a7395a82a0c44a18
 
       - uses: dtolnay/rust-toolchain@1.95.0   # pinned — see rust-toolchain.toml + rust-tests job
         with:
