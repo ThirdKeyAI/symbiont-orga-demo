@@ -20,6 +20,8 @@ mod dashboard;
 mod db;
 mod delegator;
 mod harness;
+#[cfg(test)]
+mod jailbreak_action_layer;
 mod mock_scripts;
 mod perf;
 mod policy_gate;

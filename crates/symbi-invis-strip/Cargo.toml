@@ -27,3 +27,6 @@ metrics = []
 # typestate-style "this surface is structurally inaccessible"
 # argument the bench crate makes for AgentLoop<Phase>.
 trybuild = "1"
+# Data-driven test over the red-team obfuscation corpus additions
+# (tests/obfuscation_corpus_strip.rs). Dev-only; not a lib dependency.
+serde_json = "1"
