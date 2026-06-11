@@ -322,7 +322,11 @@ mod tests {
             name: "store_knowledge".into(),
             arguments: "{}".into(),
         };
-        matches!(gate.evaluate(&action), LoopDecision::Allow);
+        let decision = gate.evaluate(&action);
+        assert!(
+            matches!(decision, LoopDecision::Allow),
+            "reflector should be allowed to store_knowledge, got {decision:?}"
+        );
     }
 
     #[test]
@@ -333,7 +337,11 @@ mod tests {
             name: "answer".into(),
             arguments: "{}".into(),
         };
-        matches!(gate.evaluate(&action), LoopDecision::Deny { .. });
+        let decision = gate.evaluate(&action);
+        assert!(
+            matches!(decision, LoopDecision::Deny { .. }),
+            "reflector must NOT be allowed to call answer, got {decision:?}"
+        );
     }
 
     #[test]
@@ -342,7 +350,11 @@ mod tests {
         let action = ProposedAction::Respond {
             content: "done".into(),
         };
-        matches!(gate.evaluate(&action), LoopDecision::Allow);
+        let decision = gate.evaluate(&action);
+        assert!(
+            matches!(decision, LoopDecision::Allow),
+            "reflector should be allowed to respond, got {decision:?}"
+        );
     }
 
     #[test]
