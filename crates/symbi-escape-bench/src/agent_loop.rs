@@ -449,11 +449,20 @@ async fn chat(
         "messages": messages,
         "tools": tools,
         "tool_choice": "auto",
+        // Bound generation so a runaway/degraded model can't stall a trial,
+        // but leave room for a reasoning pass + the tool call.
+        "max_tokens": 1536,
     });
+    // Default to OpenRouter; allow an override (ESCAPE_LLM_URL) so the harness
+    // can target any OpenAI-compatible endpoint, e.g. a local Ollama at
+    // http://localhost:11434/v1/chat/completions.
+    let url = std::env::var("ESCAPE_LLM_URL")
+        .unwrap_or_else(|_| "https://openrouter.ai/api/v1/chat/completions".into());
     let r = client
-        .post("https://openrouter.ai/api/v1/chat/completions")
+        .post(&url)
         .bearer_auth(api_key)
         .json(&body)
+        .timeout(std::time::Duration::from_secs(60))
         .send()
         .await?
         .error_for_status()?
