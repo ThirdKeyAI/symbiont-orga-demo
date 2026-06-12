@@ -456,11 +456,22 @@ async fn chat(
     // Default to OpenRouter; allow an override (ESCAPE_LLM_URL) so the harness
     // can target any OpenAI-compatible endpoint, e.g. a local Ollama at
     // http://localhost:11434/v1/chat/completions.
-    let url = std::env::var("ESCAPE_LLM_URL")
-        .unwrap_or_else(|_| "https://openrouter.ai/api/v1/chat/completions".into());
+    //
+    // SECURITY: never send the OpenRouter key to an overridden host. The
+    // OPENROUTER_API_KEY (passed in as `api_key`) is attached ONLY for the
+    // default openrouter.ai endpoint; an override must supply its own key via
+    // ESCAPE_LLM_API_KEY (empty/dummy for keyless local endpoints). This
+    // prevents credential exfiltration through an attacker-controlled env var.
+    let (url, auth_key) = match std::env::var("ESCAPE_LLM_URL") {
+        Ok(u) => (u, std::env::var("ESCAPE_LLM_API_KEY").unwrap_or_default()),
+        Err(_) => (
+            "https://openrouter.ai/api/v1/chat/completions".to_string(),
+            api_key.to_string(),
+        ),
+    };
     let r = client
         .post(&url)
-        .bearer_auth(api_key)
+        .bearer_auth(auth_key)
         .json(&body)
         .timeout(std::time::Duration::from_secs(60))
         .send()
