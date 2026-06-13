@@ -56,3 +56,7 @@ journals*/
 # stays tracked; the raw per-iteration JSONs do not. See
 # evals/escape/PUBLISHABILITY.md for the policy.
 demo-output/**/journals/
+
+# Draft obfuscation corpus additions — staged for the PR #32 corpus.json merge,
+# not committed as a standalone file.
+evals/escape/redteam/corpus_additions_DRAFT.json
