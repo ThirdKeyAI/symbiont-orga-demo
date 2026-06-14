@@ -269,6 +269,14 @@ def _run_one_trial(
             "-w", str(evals_dir),
             "-e", f"OPENROUTER_API_KEY={os.environ.get('OPENROUTER_API_KEY', '')}",
             "-e", f"PYTHONPATH={evals_dir}",
+            # Forward the local-endpoint override so the sandboxed child can hit
+            # an OpenAI-compatible endpoint (e.g. host Ollama via --network host)
+            # instead of OpenRouter. Same credential-gating as the unsandboxed
+            # path (ESCAPE_LLM_API_KEY, never OPENROUTER_API_KEY, to the override).
+            *(["-e", f"ESCAPE_LLM_URL={os.environ['ESCAPE_LLM_URL']}"]
+              if os.environ.get("ESCAPE_LLM_URL") else []),
+            *(["-e", f"ESCAPE_LLM_API_KEY={os.environ['ESCAPE_LLM_API_KEY']}"]
+              if os.environ.get("ESCAPE_LLM_API_KEY") else []),
             "escape-eval-sandboxed:latest",
             *sandboxed_child,
         ]
