@@ -14,6 +14,10 @@ from dataclasses import dataclass
 import httpx
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+# Optional override to target any OpenAI-compatible endpoint (e.g. a local
+# Ollama). SECURITY: never send OPENROUTER_API_KEY to an override host — an
+# override supplies its own ESCAPE_LLM_API_KEY (empty/dummy for keyless local).
+_ESCAPE_LLM_URL = os.environ.get("ESCAPE_LLM_URL")
 
 
 @dataclass
@@ -45,7 +49,12 @@ class LlmResponse:
 class OpenRouterClient:
     def __init__(self, model: str, api_key: str | None = None, timeout: float = 60.0):
         self.model = model
-        self.api_key = api_key or os.environ["OPENROUTER_API_KEY"]
+        if _ESCAPE_LLM_URL:
+            self.url = _ESCAPE_LLM_URL
+            self.api_key = api_key or os.environ.get("ESCAPE_LLM_API_KEY", "")
+        else:
+            self.url = OPENROUTER_URL
+            self.api_key = api_key or os.environ["OPENROUTER_API_KEY"]
         self.timeout = timeout
 
     def chat(self, messages: list[dict], tools: list[dict]) -> LlmResponse:
@@ -57,7 +66,7 @@ class OpenRouterClient:
         }
         with httpx.Client(timeout=self.timeout) as client:
             r = client.post(
-                OPENROUTER_URL,
+                self.url,
                 json=body,
                 headers={"Authorization": f"Bearer {self.api_key}"},
             )
