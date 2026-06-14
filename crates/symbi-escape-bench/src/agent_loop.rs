@@ -81,8 +81,14 @@ pub async fn run_trial(task: &Task, cfg: LoopConfig) -> Result<TrialRecord> {
     let mut model_trace: Vec<Value> = Vec::new();
     let mut usage_per_call: Vec<UsageRecord> = Vec::new();
 
-    let api_key =
-        std::env::var("OPENROUTER_API_KEY").context("OPENROUTER_API_KEY required")?;
+    // OPENROUTER_API_KEY is only required for the default OpenRouter path. When an
+    // ESCAPE_LLM_URL override is set (local OpenAI-compatible endpoint), auth comes
+    // from ESCAPE_LLM_API_KEY instead, so don't require the OpenRouter key at all.
+    let api_key = if std::env::var("ESCAPE_LLM_URL").is_ok() {
+        std::env::var("OPENROUTER_API_KEY").unwrap_or_default()
+    } else {
+        std::env::var("OPENROUTER_API_KEY").context("OPENROUTER_API_KEY required")?
+    };
     let client = reqwest::Client::new();
 
     for _ in 0..cfg.max_turns {
