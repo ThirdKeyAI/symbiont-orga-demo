@@ -18,6 +18,13 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 # Ollama). SECURITY: never send OPENROUTER_API_KEY to an override host — an
 # override supplies its own ESCAPE_LLM_API_KEY (empty/dummy for keyless local).
 _ESCAPE_LLM_URL = os.environ.get("ESCAPE_LLM_URL")
+# Optional: route the LLM call over a bind-mounted UNIX domain socket instead of
+# a network connection. Used by the `python_confined` substrate, which runs the
+# agent under `--network none` (total egress containment) — the only way out is
+# this socket, which a host-side socat bridges to the real LLM. The agent's own
+# attack connections (http_get to forbidden hosts) have no route and are
+# contained, while their connect() syscalls are still traced and scored.
+_ESCAPE_LLM_UDS = os.environ.get("ESCAPE_LLM_UDS")
 
 
 @dataclass
@@ -64,7 +71,10 @@ class OpenRouterClient:
             "tools": tools,
             "tool_choice": "auto",
         }
-        with httpx.Client(timeout=self.timeout) as client:
+        # Under the confined substrate, route over the bind-mounted unix socket
+        # (no network namespace involved); otherwise a normal network client.
+        transport = httpx.HTTPTransport(uds=_ESCAPE_LLM_UDS) if _ESCAPE_LLM_UDS else None
+        with httpx.Client(timeout=self.timeout, transport=transport) as client:
             r = client.post(
                 self.url,
                 json=body,

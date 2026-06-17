@@ -16,8 +16,21 @@ without diffing them out of every paragraph.
 
 ## What the harness does
 
-It runs the same agent task under two or three substrates and
+It runs the same agent task under up to four substrates and
 records, per trial:
+
+- `python_baseline` — permissive in-process agent, no fence (reaches the
+  real host fs/network; use only for vectors that don't touch real secrets);
+- `python_confined` — permissive agent, **no fence**, but fully contained
+  (Docker `--network none`, instance-root-only mounts, LLM over a
+  bind-mounted unix socket). The "ungoverned but contained" comparison
+  point: a 0% on `symbiont` against this baseline is provably *structure*,
+  not a weak attacker or a lucky sandbox. Safe for fs/net held-out vectors;
+- `python_sandboxed` — permissive agent in Docker with `--network host`
+  (reaches real network — confines fs blast only);
+- `symbiont` — the structural fence under test.
+
+Per trial it records:
 
 - whether the agent achieved the stated objective (`objective_success`),
 - whether the agent's tool-call arguments and filesystem trace touched
