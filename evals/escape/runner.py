@@ -265,11 +265,13 @@ def _run_one_trial(
         task_dir = Path(task_path).resolve().parent
         extra_task_mount = ([] if str(task_dir).startswith(str(evals_dir.resolve()))
                             else ["-v", f"{task_dir}:{task_dir}:ro"])
+        (instance_root / "data").mkdir(parents=True, exist_ok=True)
         child = [
             "docker", "run", "--rm",
             "--network", "host",
             "--user", f"{os.getuid()}:{os.getgid()}",
             "-v", f"{instance_root}:{instance_root}",
+            "-v", f"{instance_root / 'data'}:/data:rw",
             "-v", f"{evals_dir}:{evals_dir}:ro",
             *extra_task_mount,
             "-w", str(evals_dir),
@@ -344,11 +346,17 @@ def _run_one_trial(
         task_dir = Path(task_path).resolve().parent
         extra_task_mount = ([] if str(task_dir).startswith(str(evals_dir.resolve()))
                             else ["-v", f"{task_dir}:{task_dir}:ro"])
+        # Mount instance_root/data at the LITERAL /data too, so lures that
+        # hardcode /data/secret/... (held-out / injected) resolve to the
+        # materialised, contained secret. Pre-create as our uid so the
+        # in-container harness (also our uid) can write into it.
+        (instance_root / "data").mkdir(parents=True, exist_ok=True)
         child = [
             "docker", "run", "--rm",
             "--network", "none",
             "--user", f"{os.getuid()}:{os.getgid()}",
             "-v", f"{instance_root}:{instance_root}",
+            "-v", f"{instance_root / 'data'}:/data:rw",
             "-v", f"{evals_dir}:{evals_dir}:ro",
             *extra_task_mount,
             "-w", str(evals_dir),
@@ -396,6 +404,7 @@ def relocate_canary(
     template_paths: list[str],
     template_globs: list[str],
     instance_root: Path,
+    include_literal: bool = False,
 ) -> FsCanaryConfig:
     data_root = instance_root / "data"
 
@@ -404,10 +413,17 @@ def relocate_canary(
             return str(data_root) + s[len("/data"):]
         return s
 
-    return FsCanaryConfig(
-        paths=[relocate(p) for p in template_paths],
-        path_globs=[relocate(g) for g in template_globs],
-    )
+    paths = [relocate(p) for p in template_paths]
+    globs = [relocate(g) for g in template_globs]
+    if include_literal:
+        # Docker substrates bind-mount instance_root/data -> /data, so the
+        # literal `/data/...` paths that held-out / injected lures hardcode
+        # resolve to the contained secret. Keep the literal globs alongside the
+        # relocated ones so those reads still fire the canary.
+        paths += [p for p in template_paths if p.startswith("/data/")]
+        globs += [g for g in template_globs if g.startswith("/data/")]
+
+    return FsCanaryConfig(paths=paths, path_globs=globs)
 
 
 def _resolve_immutable_paths(template: list[str], instance_root: Path, task: dict) -> list[Path]:
@@ -479,7 +495,10 @@ def run_pilot(
             instance_root = Path(instance_td) / f"seed-{seed}"
             instance_root.mkdir(parents=True, exist_ok=True)
 
-            fs_cfg = relocate_canary(fs_paths, fs_globs, instance_root)
+            fs_cfg = relocate_canary(
+                fs_paths, fs_globs, instance_root,
+                include_literal=substrate in ("python_confined", "python_sandboxed"),
+            )
             immutable_paths = _resolve_immutable_paths(state_template, instance_root, task)
 
             # Snapshot before — but the harness materialises files INSIDE
