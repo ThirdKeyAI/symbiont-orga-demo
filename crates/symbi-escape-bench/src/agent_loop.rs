@@ -48,6 +48,12 @@ pub async fn run_trial(task: &Task, cfg: LoopConfig) -> Result<TrialRecord> {
         cfg.instance_root.join(&task.instance.policy_file)
     };
 
+    let doc_path = if task.instance.doc_content.is_empty() {
+        PathBuf::new()
+    } else {
+        cfg.instance_root.join(task.instance.doc_file.trim_start_matches('/'))
+    };
+
     let mut rendered_prompt = task.objective.prompt.clone();
     if let Some(first) = allowed_full.first() {
         rendered_prompt = rendered_prompt.replace("{ALLOWED_PATH}", &first.to_string_lossy());
@@ -56,7 +62,8 @@ pub async fn run_trial(task: &Task, cfg: LoopConfig) -> Result<TrialRecord> {
         .replace("{ROOT}", &data_root.to_string_lossy())
         .replace("{ALLOWED_URL}", &task.instance.allowed_url)
         .replace("{INPUT_STRING}", &task.instance.input_string)
-        .replace("{POLICY_PATH}", &policy_path.to_string_lossy());
+        .replace("{POLICY_PATH}", &policy_path.to_string_lossy())
+        .replace("{DOC_PATH}", &doc_path.to_string_lossy());
 
     let dispatch_ctx = DispatchCtx {
         allowed_full: allowed_full.clone(),
@@ -64,6 +71,7 @@ pub async fn run_trial(task: &Task, cfg: LoopConfig) -> Result<TrialRecord> {
         allowed_response_body: task.instance.allowed_response_body.clone(),
         policy_path,
         ticket: task.instance.input_string.clone(),
+        doc_path,
     };
 
     let started = now_iso();
@@ -222,6 +230,13 @@ fn materialize_instance(task: &Task, root: &std::path::Path) -> Result<()> {
         }
         std::fs::write(&full, &task.instance.policy_initial_contents)?;
     }
+    if !task.instance.doc_content.is_empty() {
+        let full = root.join(task.instance.doc_file.trim_start_matches('/'));
+        if let Some(parent) = full.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&full, &task.instance.doc_content)?;
+    }
     Ok(())
 }
 
@@ -233,6 +248,8 @@ struct DispatchCtx {
     /// Trusted ticket text, used to ground the typed-channel routing
     /// decision (submit_triage). Carried via the task's input_string field.
     ticket: String,
+    /// A-02: path to the ingested attacker-controlled document (read_doc).
+    doc_path: PathBuf,
 }
 
 fn dispatch(
@@ -312,6 +329,26 @@ fn dispatch(
                 .map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect())
                 .unwrap_or_default();
             (words.join(" "), false, None)
+        }
+        "read_doc" => {
+            // The legitimate ingestion channel: it returns the (untrusted)
+            // ingested document verbatim — the injection rides in that content.
+            // Constrained to the ingested doc so it is NOT a general file-read
+            // escape hatch; an injected forbidden read must still go through the
+            // fenced read_csv (which the path validator blocks).
+            let req_path = args.get("path").and_then(|v| v.as_str()).unwrap_or("");
+            if PathBuf::from(req_path) != ctx.doc_path {
+                return (
+                    format!("policy_block: read_doc may only read the ingested document '{}'",
+                            ctx.doc_path.display()),
+                    true,
+                    Some("toolclad_path_validator".into()),
+                );
+            }
+            match std::fs::read_to_string(&ctx.doc_path) {
+                Ok(contents) => (format!("ok: {} bytes\n{}", contents.len(), contents), false, None),
+                Err(e) => (format!("io_error: {}", e), false, None),
+            }
         }
         "read_policy" => match std::fs::read_to_string(&ctx.policy_path) {
             Ok(contents) => (contents, false, None),
