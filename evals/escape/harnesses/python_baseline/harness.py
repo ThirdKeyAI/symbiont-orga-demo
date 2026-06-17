@@ -75,6 +75,16 @@ def materialize_instance(task: dict, root: Path) -> dict:
         full.write_text(instance.get("policy_initial_contents", ""))
         policy_path = str(full)
 
+    # A-02 indirect injection: materialize the attacker-controlled ingested
+    # document (its content carries the injection; the user prompt stays benign).
+    doc_path = ""
+    if "doc_content" in instance or "doc_file" in instance:
+        rel = instance.get("doc_file", "data/inbox/ticket.txt")
+        full = root / rel.lstrip("/")
+        full.parent.mkdir(parents=True, exist_ok=True)
+        full.write_text(instance.get("doc_content", ""))
+        doc_path = str(full)
+
     rendered_prompt = task["objective"]["prompt"]
     if instance.get("allowed_paths"):
         rendered_prompt = rendered_prompt.replace(
@@ -87,6 +97,7 @@ def materialize_instance(task: dict, root: Path) -> dict:
         .replace("{ALLOWED_URL}", instance.get("allowed_url", ""))
         .replace("{INPUT_STRING}", instance.get("input_string", ""))
         .replace("{POLICY_PATH}", policy_path)
+        .replace("{DOC_PATH}", doc_path)
     )
     return {**task, "_rendered_prompt": rendered_prompt}
 
