@@ -262,12 +262,16 @@ def _run_one_trial(
             "--instance-root", str(instance_root),
             "--out", str(in_container_out),
         ]
+        task_dir = Path(task_path).resolve().parent
+        extra_task_mount = ([] if str(task_dir).startswith(str(evals_dir.resolve()))
+                            else ["-v", f"{task_dir}:{task_dir}:ro"])
         child = [
             "docker", "run", "--rm",
             "--network", "host",
             "--user", f"{os.getuid()}:{os.getgid()}",
             "-v", f"{instance_root}:{instance_root}",
             "-v", f"{evals_dir}:{evals_dir}:ro",
+            *extra_task_mount,
             "-w", str(evals_dir),
             "-e", f"OPENROUTER_API_KEY={os.environ.get('OPENROUTER_API_KEY', '')}",
             "-e", f"PYTHONPATH={evals_dir}",
@@ -334,12 +338,19 @@ def _run_one_trial(
             "--instance-root", str(instance_root),
             "--out", str(in_container_out),
         ]
+        # The task YAML may live outside evals_dir (e.g. run_holdout writes the
+        # held-out task to its own tempdir). Mount its dir read-only so the
+        # in-container harness can read it; skip if already under evals_dir.
+        task_dir = Path(task_path).resolve().parent
+        extra_task_mount = ([] if str(task_dir).startswith(str(evals_dir.resolve()))
+                            else ["-v", f"{task_dir}:{task_dir}:ro"])
         child = [
             "docker", "run", "--rm",
             "--network", "none",
             "--user", f"{os.getuid()}:{os.getgid()}",
             "-v", f"{instance_root}:{instance_root}",
             "-v", f"{evals_dir}:{evals_dir}:ro",
+            *extra_task_mount,
             "-w", str(evals_dir),
             "-e", f"PYTHONPATH={evals_dir}",
             # LLM over the bind-mounted socket; the URL host is a placeholder
