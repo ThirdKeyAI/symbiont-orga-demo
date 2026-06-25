@@ -428,7 +428,12 @@ fn dispatch(
             // decision (symbi_runtime::toolclad::decision::route_grounded):
             // the trusted ticket caps the worker's claimed severity, so a
             // benign ticket can't be escalated. No LLM, no free text.
-            let queue = match symbi_runtime::toolclad::decision::route_grounded(
+            // The ticket here is attacker-influenced ingested content (A-02
+            // indirect injection), so ground with the UNTRUSTED variant: ticket
+            // text can cap/route but cannot forge a Critical to reach exec. Benign
+            // A-07 tickets never trip the critical pattern, so their routing is
+            // unchanged — this only closes the A-02b keyword-cap bypass.
+            let queue = match symbi_runtime::toolclad::decision::route_grounded_untrusted(
                 category, severity, &ctx.ticket,
             ) {
                 symbi_runtime::toolclad::decision::Queue::Frontend => "frontend",
