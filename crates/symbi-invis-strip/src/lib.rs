@@ -250,10 +250,26 @@ pub fn sanitize_field_with_markup(s: &str) -> String {
     // sanitiser ("one strip per field write").
     #[cfg(feature = "metrics")]
     let started = std::time::Instant::now();
-    let out = sanitize_field_inner(&strip_md_fences_inner(&strip_html_comments_inner(s)));
+    let out = defang_urls_inner(&sanitize_field_inner(&strip_md_fences_inner(
+        &strip_html_comments_inner(s),
+    )));
     #[cfg(feature = "metrics")]
     metrics::record(s.len(), out.len(), started.elapsed().as_nanos() as u64);
     out
+}
+
+/// Defang `http(s)://` URL schemes so no downstream renderer silently fetches
+/// them. Closes the render-channel exfil path (markdown image / link / html
+/// `<img src>`): the data stays visible to the human reviewer but is no longer a
+/// live URL a renderer auto-requests — the egress the network allowlist can't see
+/// because the renderer makes the request, not the agent. Idempotent.
+///
+/// ponytail: blunt scheme-defang over the whole field; upgrade to an
+/// egress-allowlist-aware strip (keep allowed hosts live, defang the rest) if
+/// legit clickable links must survive.
+#[inline]
+fn defang_urls_inner(s: &str) -> String {
+    s.replace("https://", "hxxps://").replace("http://", "hxxp://")
 }
 
 /// Strip balanced/unbalanced `<!-- ... -->` blocks. Exposed for
