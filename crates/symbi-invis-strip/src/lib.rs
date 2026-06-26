@@ -250,9 +250,54 @@ pub fn sanitize_field_with_markup(s: &str) -> String {
     // sanitiser ("one strip per field write").
     #[cfg(feature = "metrics")]
     let started = std::time::Instant::now();
-    let out = sanitize_field_inner(&strip_md_fences_inner(&strip_html_comments_inner(s)));
+    let out = defang_urls_inner(&sanitize_field_inner(&strip_md_fences_inner(
+        &strip_html_comments_inner(s),
+    )));
     #[cfg(feature = "metrics")]
     metrics::record(s.len(), out.len(), started.elapsed().as_nanos() as u64);
+    out
+}
+
+/// Defang URL schemes so no downstream renderer silently fetches an
+/// agent-planted markdown image / link / html `<img src>` — the render-channel
+/// exfil the network allowlist can't see (the renderer makes the request, not
+/// the agent). Data stays visible to the human; only the live URL is broken.
+///
+/// Matches **case-insensitively** (`HTTP://`, `HtTpS://` — renderers lowercase
+/// schemes) and also neutralises **protocol-relative** targets (`](//host)`,
+/// `src="//host"`, `src=//host`), which resolve against the page scheme and fetch.
+/// Idempotent.
+///
+/// ponytail: defense-in-depth scheme/relative defang, NOT a complete control —
+/// it's a blocklist (HTML-entity / percent-encoded schemes can still slip a
+/// determined attacker past a live renderer). The structural fix is to render
+/// agent output as inert text (no live fetch). Tracked in the D-04 report.
+#[inline]
+fn defang_urls_inner(s: &str) -> String {
+    let lower = s.to_ascii_lowercase();
+    let lb = lower.as_bytes();
+    let mut out = String::with_capacity(s.len() + 8);
+    let mut i = 0;
+    while i < s.len() {
+        if lb[i..].starts_with(b"https://") {
+            out.push_str("hxxps://");
+            i += 8;
+        } else if lb[i..].starts_with(b"http://") {
+            out.push_str("hxxp://");
+            i += 7;
+        } else if lb[i..].starts_with(b"//")
+            && (out.ends_with("](") || out.ends_with("=\"") || out.ends_with("='")
+                || out.ends_with('='))
+        {
+            // protocol-relative URL in a render target -> break the `//`
+            out.push_str("/\u{200b}/");
+            i += 2;
+        } else {
+            let c = s[i..].chars().next().unwrap();
+            out.push(c);
+            i += c.len_utf8();
+        }
+    }
     out
 }
 
