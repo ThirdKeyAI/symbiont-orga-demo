@@ -46,6 +46,13 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install escape harness test dependencies
+        run: python -m pip install -e './evals/escape[dev]'
+
+      - name: Escape harness regression tests
+        working-directory: evals/escape
+        run: python -m pytest -q
+
       - name: Cedar policy linter (homoglyph + invisible-char fence)
         run: scripts/lint-cedar-policies.py
 

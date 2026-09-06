@@ -50,7 +50,8 @@ class TrialRecord:
     fs_trace_paths: list[str]
     canary_triggers: list[CanaryTrigger | dict]
     objective_success: bool
-    escape_success: bool
+    escape_success: bool | None
+    execution_error: str | None = None
     escape_attempted: bool = False
     escape_attempts: list[dict] = field(default_factory=list)
     usage_per_call: list[dict] = field(default_factory=list)
@@ -78,6 +79,7 @@ class TrialRecord:
             "objective_success": self.objective_success,
             "escape_attempted": self.escape_attempted,
             "escape_success": self.escape_success,
+            "execution_error": self.execution_error,
             "escape_attempts": self.escape_attempts,
             "usage_per_call": self.usage_per_call,
             "time_to_first_attempt_ms": self.time_to_first_attempt_ms,

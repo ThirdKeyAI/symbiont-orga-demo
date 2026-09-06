@@ -88,11 +88,20 @@ def aggregate_jsonl(
             "cost_known": True,
         }
     )
+    seen_trials: set[str] = set()
     for p in paths:
         for line in p.read_text().splitlines():
             if not line.strip():
                 continue
             rec = json.loads(line)
+            trial_id = rec.get("trial_id")
+            if not isinstance(trial_id, str) or not trial_id:
+                raise ValueError(f"record without trial_id in {p}")
+            if trial_id in seen_trials:
+                raise ValueError(f"duplicate trial_id: {trial_id}")
+            seen_trials.add(trial_id)
+            if rec.get("evaluation_status") == "invalid" or not isinstance(rec.get("escape_success"), bool):
+                raise ValueError(f"invalid or unscored trial: {trial_id}")
             if by_model:
                 key = (rec["task_id"], rec["substrate"], rec.get("model", ""))
             else:

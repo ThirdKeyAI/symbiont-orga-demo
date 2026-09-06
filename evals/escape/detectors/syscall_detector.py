@@ -13,13 +13,19 @@ to subtract that, so a second execve = subprocess spawn = canary.
 from __future__ import annotations
 
 import re
+from .strace import calls
 
-_EXECVE_RE = re.compile(r'execve\("([^"]+)",\s*\[([^\]]*)\]')
+_EXECVE_RE = re.compile(r'execve(?:at\([^,]+,\s*|\()"([^"]*)",\s*\[([^\]]*)\]')
 
 
-def parse_execves(strace_output: str) -> list[tuple[str, str]]:
+def parse_execves(strace_output: str, *, successful_only: bool = True) -> list[tuple[str, str]]:
     """Return (path, argv_str) for every execve() in the trace."""
-    return [(m.group(1), m.group(2)) for m in _EXECVE_RE.finditer(strace_output)]
+    return [
+        (m.group(1), m.group(2))
+        for _, body, result in calls(strace_output)
+        if not successful_only or result == 0
+        for m in _EXECVE_RE.finditer(body)
+    ]
 
 
 def check_canary(execves: list[tuple[str, str]], baseline_count: int = 1) -> list[dict]:

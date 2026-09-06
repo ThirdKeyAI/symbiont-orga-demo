@@ -51,7 +51,8 @@ pub async fn run_trial(task: &Task, cfg: LoopConfig) -> Result<TrialRecord> {
     let doc_path = if task.instance.doc_content.is_empty() {
         PathBuf::new()
     } else {
-        cfg.instance_root.join(task.instance.doc_file.trim_start_matches('/'))
+        cfg.instance_root
+            .join(task.instance.doc_file.trim_start_matches('/'))
     };
 
     let mut rendered_prompt = task.objective.prompt.clone();
@@ -66,6 +67,7 @@ pub async fn run_trial(task: &Task, cfg: LoopConfig) -> Result<TrialRecord> {
         .replace("{DOC_PATH}", &doc_path.to_string_lossy());
 
     let dispatch_ctx = DispatchCtx {
+        allowed_tools: task.capabilities.iter().map(|c| c.name.clone()).collect(),
         allowed_full: allowed_full.clone(),
         allowed_url: task.instance.allowed_url.clone(),
         allowed_response_body: task.instance.allowed_response_body.clone(),
@@ -86,6 +88,7 @@ pub async fn run_trial(task: &Task, cfg: LoopConfig) -> Result<TrialRecord> {
 
     let mut tool_calls: Vec<ToolCall> = Vec::new();
     let mut final_answer: Option<String> = None;
+    let mut execution_error: Option<String> = None;
     let mut model_trace: Vec<Value> = Vec::new();
     let mut usage_per_call: Vec<UsageRecord> = Vec::new();
 
@@ -103,6 +106,7 @@ pub async fn run_trial(task: &Task, cfg: LoopConfig) -> Result<TrialRecord> {
         let resp = match chat(&client, &api_key, &cfg.model, &messages, &tools).await {
             Ok(r) => r,
             Err(e) => {
+                execution_error = Some(format!("inference: {}", e));
                 model_trace.push(json!({
                     "role": "assistant",
                     "content": format!("<llm_error: {}>", e),
@@ -112,9 +116,18 @@ pub async fn run_trial(task: &Task, cfg: LoopConfig) -> Result<TrialRecord> {
         };
         let usage = &resp["usage"];
         usage_per_call.push(UsageRecord {
-            prompt_tokens: usage.get("prompt_tokens").and_then(|v| v.as_u64()).unwrap_or(0),
-            completion_tokens: usage.get("completion_tokens").and_then(|v| v.as_u64()).unwrap_or(0),
-            total_tokens: usage.get("total_tokens").and_then(|v| v.as_u64()).unwrap_or(0),
+            prompt_tokens: usage
+                .get("prompt_tokens")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0),
+            completion_tokens: usage
+                .get("completion_tokens")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0),
+            total_tokens: usage
+                .get("total_tokens")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0),
             request_id: resp.get("id").and_then(|v| v.as_str()).map(String::from),
             served_by_model: resp.get("model").and_then(|v| v.as_str()).map(String::from),
         });
@@ -130,8 +143,7 @@ pub async fn run_trial(task: &Task, cfg: LoopConfig) -> Result<TrialRecord> {
         for tc in &calls {
             let name = tc["function"]["name"].as_str().unwrap_or("").to_string();
             let raw_args = tc["function"]["arguments"].as_str().unwrap_or("{}");
-            let args: Value =
-                serde_json::from_str(raw_args).unwrap_or(json!({"_raw": raw_args}));
+            let args: Value = serde_json::from_str(raw_args).unwrap_or(json!({"_raw": raw_args}));
             let (summary, blocked, blocked_by) =
                 dispatch(&name, &args, &dispatch_ctx, &mut final_answer);
             tool_calls.push(ToolCall {
@@ -185,6 +197,7 @@ pub async fn run_trial(task: &Task, cfg: LoopConfig) -> Result<TrialRecord> {
         objective_success,
         escape_attempted: false,
         escape_success: false,
+        execution_error,
         escape_attempts: Vec::<EscapeAttempt>::new(),
         usage_per_call,
         time_to_first_attempt_ms: None,
@@ -241,6 +254,7 @@ fn materialize_instance(task: &Task, root: &std::path::Path) -> Result<()> {
 }
 
 struct DispatchCtx {
+    allowed_tools: std::collections::HashSet<String>,
     allowed_full: Vec<PathBuf>,
     allowed_url: String,
     allowed_response_body: String,
@@ -258,6 +272,13 @@ fn dispatch(
     ctx: &DispatchCtx,
     final_answer: &mut Option<String>,
 ) -> (String, bool, Option<String>) {
+    if !ctx.allowed_tools.contains(name) {
+        return (
+            format!("policy_block: tool '{}' is not a task capability", name),
+            true,
+            Some("task_capability_allowlist".into()),
+        );
+    }
     match name {
         "read_csv" => {
             let req_path = args.get("path").and_then(|v| v.as_str()).unwrap_or("");
@@ -283,9 +304,7 @@ fn dispatch(
             match std::fs::read_dir(req_path) {
                 Ok(entries) => {
                     let mut names: Vec<String> = entries
-                        .filter_map(|e| {
-                            e.ok().and_then(|ee| ee.file_name().into_string().ok())
-                        })
+                        .filter_map(|e| e.ok().and_then(|ee| ee.file_name().into_string().ok()))
                         .collect();
                     names.sort();
                     (
@@ -320,13 +339,21 @@ fn dispatch(
         "split_words" => {
             let text = args.get("text").and_then(|v| v.as_str()).unwrap_or("");
             let words: Vec<&str> = text.split_whitespace().collect();
-            (serde_json::to_string(&words).unwrap_or_default(), false, None)
+            (
+                serde_json::to_string(&words).unwrap_or_default(),
+                false,
+                None,
+            )
         }
         "join_words" => {
             let words: Vec<String> = args
                 .get("words")
                 .and_then(|v| v.as_array())
-                .map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| x.as_str().map(String::from))
+                        .collect()
+                })
                 .unwrap_or_default();
             (words.join(" "), false, None)
         }
@@ -337,16 +364,22 @@ fn dispatch(
             // escape hatch; an injected forbidden read must still go through the
             // fenced read_csv (which the path validator blocks).
             let req_path = args.get("path").and_then(|v| v.as_str()).unwrap_or("");
-            if PathBuf::from(req_path) != ctx.doc_path {
+            if std::path::Path::new(req_path) != ctx.doc_path {
                 return (
-                    format!("policy_block: read_doc may only read the ingested document '{}'",
-                            ctx.doc_path.display()),
+                    format!(
+                        "policy_block: read_doc may only read the ingested document '{}'",
+                        ctx.doc_path.display()
+                    ),
                     true,
                     Some("toolclad_path_validator".into()),
                 );
             }
             match std::fs::read_to_string(&ctx.doc_path) {
-                Ok(contents) => (format!("ok: {} bytes\n{}", contents.len(), contents), false, None),
+                Ok(contents) => (
+                    format!("ok: {} bytes\n{}", contents.len(), contents),
+                    false,
+                    None,
+                ),
                 Err(e) => (format!("io_error: {}", e), false, None),
             }
         }
@@ -414,9 +447,7 @@ fn dispatch(
                 ("category", category, &cat_def),
                 ("severity", severity, &sev_def),
             ] {
-                if let Err(reason) =
-                    symbi_runtime::toolclad::validator::validate_arg(def, val)
-                {
+                if let Err(reason) = symbi_runtime::toolclad::validator::validate_arg(def, val) {
                     return (
                         format!("policy_block: {} {}", field, reason),
                         true,
@@ -434,14 +465,14 @@ fn dispatch(
             // A-07 tickets never trip the critical pattern, so their routing is
             // unchanged — this only closes the A-02b keyword-cap bypass.
             let queue = match symbi_runtime::toolclad::decision::route_grounded_untrusted(
-                category, severity, &ctx.ticket,
+                category,
+                severity,
+                &ctx.ticket,
             ) {
                 symbi_runtime::toolclad::decision::Queue::Frontend => "frontend",
                 symbi_runtime::toolclad::decision::Queue::Billing => "billing",
                 symbi_runtime::toolclad::decision::Queue::Infra => "infra",
-                symbi_runtime::toolclad::decision::Queue::ExecEscalation => {
-                    "exec_escalation"
-                }
+                symbi_runtime::toolclad::decision::Queue::ExecEscalation => "exec_escalation",
             };
             *final_answer = Some(format!(
                 "triage: category={} severity={} queue={}",
@@ -528,4 +559,47 @@ async fn chat(
         .json::<Value>()
         .await?;
     Ok(r)
+}
+
+#[cfg(test)]
+mod capability_tests {
+    use super::*;
+
+    #[test]
+    fn unadvertised_handlers_cannot_execute() {
+        let ctx = DispatchCtx {
+            allowed_tools: ["answer".to_string()].into_iter().collect(),
+            allowed_full: Vec::new(),
+            allowed_url: String::new(),
+            allowed_response_body: String::new(),
+            policy_path: PathBuf::new(),
+            ticket: String::new(),
+            doc_path: PathBuf::new(),
+        };
+        let mut final_answer = None;
+        for name in [
+            "list_dir",
+            "read_csv",
+            "http_get",
+            "read_policy",
+            "read_doc",
+            "submit_triage",
+            "reverse_string",
+            "split_words",
+            "join_words",
+        ] {
+            let (_, blocked, reason) = dispatch(name, &json!({}), &ctx, &mut final_answer);
+            assert!(blocked, "{} executed without a capability", name);
+            assert_eq!(reason.as_deref(), Some("task_capability_allowlist"));
+            assert!(final_answer.is_none());
+        }
+        let (result, blocked, _) = dispatch(
+            "answer",
+            &json!({"content": "ordinary response"}),
+            &ctx,
+            &mut final_answer,
+        );
+        assert!(!blocked);
+        assert_eq!(result, "ordinary response");
+    }
 }

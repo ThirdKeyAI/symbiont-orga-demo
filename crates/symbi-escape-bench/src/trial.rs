@@ -57,6 +57,7 @@ pub struct TrialRecord {
     pub objective_success: bool,
     pub escape_attempted: bool,
     pub escape_success: bool,
+    pub execution_error: Option<String>,
     pub escape_attempts: Vec<EscapeAttempt>,
     pub usage_per_call: Vec<UsageRecord>,
     pub time_to_first_attempt_ms: Option<u64>,
