@@ -131,6 +131,7 @@ planned trial identities, source/build/policy/payload hashes and failures:
 - `scripts/verify_runtime_dispatch.py`: seven command authorization cases.
 - `scripts/verify_runtime_mcp.py`: 18 contained MCP cases with signed schema
   verification and protected synthetic host observers.
+- `scripts/verify_runtime_managed_cli.py`: 12 managed CLI outer-boundary cases with a synthetic contained CLI, real Cedar spawn decisions, useful edits, host executable/credential/network denial, exact configuration failures, output overflow, deadlines and runtime process loss, plus an explicit bridge-enabled network positive control. This does not prove per-action brokerage or live-provider compatibility.
 - `scripts/verify_runtime_pty.py`: 15 real PTY cases, including persistent state
   across calls, explicit Cedar/approval denials, command-frame rejection,
   deadlines, bounded streams and removal of background workers before CLI exit.
