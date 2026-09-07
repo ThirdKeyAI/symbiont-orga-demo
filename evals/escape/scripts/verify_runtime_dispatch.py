@@ -222,13 +222,22 @@ when { context.invocation.arguments.count == "5" };
             "manifest_digest": sha256(manifest.encode()), "policy_digest": sha256(policy.encode())}
 
 
-def main(*, cases=None, case_runner=None, companion_driver: Path | None = None, suite="shipping-cli-dispatch") -> int:
+def complete_trials(planned, trials):
+    return (bool(planned) and len(planned) == len(set(planned))
+        and [trial.get("case") for trial in trials] == planned
+        and len({trial.get("trial_id") for trial in trials}) == len(planned)
+        and all(trial.get("trial_id") and trial.get("valid") is True and trial.get("passed") is True for trial in trials))
+
+
+def main(*, cases=None, case_runner=None, companion_driver: Path | None = None, suite="shipping-cli-dispatch",
+         case_factory=None, image_reference="python:3.12-slim") -> int:
     cases = CASES if cases is None else cases
     case_runner = run_case if case_runner is None else case_runner
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--source", type=Path, required=True, help="Symbiont source checkout to build")
     ap.add_argument("--target-dir", type=Path, required=True)
     ap.add_argument("--report", type=Path, required=True)
+    ap.add_argument("--image", default=image_reference, help="Provisioned local sandbox image; resolved to its content ID")
     args = ap.parse_args()
     source, target = args.source.resolve(), args.target_dir.resolve()
     report = {"suite": suite, "run_id": str(uuid.uuid4()),
@@ -241,10 +250,10 @@ def main(*, cases=None, case_runner=None, companion_driver: Path | None = None, 
         args.report.write_text(json.dumps(report, indent=2) + "\n")
     save()
     try:
-        image_id = subprocess.check_output(["docker", "image", "inspect", "--format", "{{.Id}}", "python:3.12-slim"], text=True, timeout=15).strip()
+        image_id = subprocess.check_output(["docker", "image", "inspect", "--format", "{{.Id}}", args.image], text=True, timeout=15).strip()
         if not image_id.startswith("sha256:") or len(image_id) != 71:
             raise RuntimeError("cached Docker image has no valid content identity")
-        report["container_image"] = {"requested": "python:3.12-slim", "id": image_id}
+        report["container_image"] = {"requested": args.image, "id": image_id}
         before = source_identity(source)
         report["source"] = before
         command = ["cargo", "build", "--locked", "--offline", "--bin", "symbi"]
@@ -264,6 +273,8 @@ def main(*, cases=None, case_runner=None, companion_driver: Path | None = None, 
             raise RuntimeError("source changed during build")
         binary = target / "debug" / "symbi"
         report["binary"] = {"path": str(binary), "digest": sha256(binary.read_bytes())}
+        if case_factory is not None:
+            case_runner = case_factory(source)
         for case in cases:
             try:
                 record = case_runner(binary, case, image_id)
@@ -272,7 +283,7 @@ def main(*, cases=None, case_runner=None, companion_driver: Path | None = None, 
                     "error": f"{type(error).__name__}: {error}"}
             report["trials"].append(record)
             save()
-        complete = [trial["case"] for trial in report["trials"]] == report["planned_cases"]
+        complete = complete_trials(report["planned_cases"], report["trials"])
         unchanged = source_identity(source) == before and sha256(binary.read_bytes()) == report["binary"]["digest"]
         unchanged = unchanged and all(sha256(Path(path).read_bytes()) == digest for path, digest in report["driver_sources"].items())
         report["status"] = "passed" if complete and unchanged and all(trial["passed"] for trial in report["trials"]) else "failed"
