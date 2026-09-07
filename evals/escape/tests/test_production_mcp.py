@@ -23,3 +23,22 @@ def test_inert_process_does_not_pass_mcp_denial_case(monkeypatch):
     assert record["observed_files"] == []
     assert record["valid"] is False
     assert record["passed"] is False
+
+
+def test_key_store_fault_preserves_independent_supervisor_state(monkeypatch):
+    import subprocess
+    import tomllib
+    seen = []
+    def execute(binary, root, *args, **kwargs):
+        config = tomllib.loads((root / "symbiont.toml").read_text())
+        state = Path(config["sandbox"]["docker"]["supervisor"]["state_dir"])
+        assert not state.is_relative_to(root / "home/.symbiont")
+        assert (root / "home/.symbiont").is_file()
+        seen.append(True)
+        return subprocess.CompletedProcess([], 0, "", ""), [], []
+    monkeypatch.setattr(module.common, "execute_fixture", execute)
+    monkeypatch.setattr(module, "signed_schema", lambda: ({}, "synthetic public key"))
+    monkeypatch.setattr(module, "worker_cleanup", lambda *args: ([], None))
+    case = next(case for case in module.CASES if case[0] == "mcp_key_store_failure")
+    module.run_case(Path("/unused"), case)
+    assert seen == [True]

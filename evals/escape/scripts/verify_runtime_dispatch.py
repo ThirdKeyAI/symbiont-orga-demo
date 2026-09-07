@@ -54,7 +54,7 @@ def source_identity(repo: Path) -> dict:
     return {"commit": head, "files": files, "tree_digest": sha256(json.dumps(files, sort_keys=True).encode())}
 
 
-def execute_fixture(binary: Path, root: Path, tool: str, arguments: dict, duplicate: bool = False, *, sequence: list[tuple[str, dict]] | None = None):
+def execute_fixture(binary: Path, root: Path, tool: str, arguments: dict, duplicate: bool = False, *, sequence: list[tuple[str, dict]] | None = None, process_observer=None):
     if sequence is not None and not 1 <= len(sequence) <= 8:
         raise ValueError("scripted sequence must contain 1 to 8 tool proposals")
     proposals = [(tool, arguments)] if sequence is None else sequence
@@ -103,7 +103,22 @@ def execute_fixture(binary: Path, root: Path, tool: str, arguments: dict, duplic
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        completed = subprocess.run(
+        def launch(command, **kwargs):
+            if process_observer is None:
+                return subprocess.run(command, **kwargs)
+            deadline = kwargs.pop("timeout")
+            kwargs.pop("capture_output")
+            with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs) as process:
+                try:
+                    process_observer(process)
+                    stdout, stderr = process.communicate(timeout=deadline)
+                except BaseException:
+                    process.kill()
+                    process.communicate(timeout=5)
+                    raise
+                return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+
+        completed = launch(
             [str(binary), "run", "fixture", "--input", "Execute the deterministic fixture", "--max-iterations", str(len(proposals) + 2)],
             cwd=root, env={"PATH": "/usr/bin:/bin", "HOME": str(root / "home"), "LANG": "C.UTF-8", "SYMBIONT_ENV": "production",
                 "SYMBI_AMBIENT_CANARY": "synthetic-ambient-value",

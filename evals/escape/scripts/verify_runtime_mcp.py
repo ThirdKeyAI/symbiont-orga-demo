@@ -137,6 +137,10 @@ max_output_bytes = 16384
 '''
         if mode == "unavailable":
             sandbox += 'docker_binary = "/missing/mcp-fixture-docker"\n'
+        if mode == "key_store_failure":
+            # Keep this fault specific to SchemaPin persistence. Supervision
+            # must remain available so the actual verified worker is exercised.
+            sandbox += f'\n[sandbox.docker.supervisor]\nstate_dir = "{root / "sandbox-leases"}"\n'
         (root / "symbiont.toml").write_text(sandbox)
         manifest = f'''[tool]
 name = "count_fixture"
