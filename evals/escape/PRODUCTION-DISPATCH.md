@@ -15,8 +15,12 @@ python3 evals/escape/scripts/verify_runtime_dispatch.py \
 ```
 
 The build is offline and locked, so dependencies must already be cached.
+Docker and the cached `python:3.12-slim` image are required. The driver resolves
+the image content ID and uses that immutable reference for every case; it never
+pulls an image.
 The suite records the planned cases before execution, source commit and file
-hashes, build command, executable digest, per-case manifest and policy hashes,
+hashes, build command, executable and image digests, per-case manifest, payload,
+sandbox configuration and policy hashes,
 observations, and failures. A changed source tree or executable, missing
 inference exchange, absent correlated tool result, failed build, incomplete
 case set, or unexpected effect prevents a passing result. Existing report
@@ -27,7 +31,10 @@ unadvertised tools, unexpected arguments, missing required approval, empty
 required arguments, and duplicate call identities. Successful completion of
 a subprocess alone is insufficient: the fixture requires the full inference
 and tool-result exchange, successful loop termination, and the expected
-externally observed files.
+externally observed files. The allowed tool must run as UID 65534 inside the
+selected container, write only to its explicitly mounted output directory, and
+report that a synthetic host canary and ambient credential are inaccessible.
+The observer separately verifies that the host canary remains intact.
 
 This suite provides deterministic regression evidence for CLI authorization.
 It does not certify OS containment or substitute for the escape evaluation's

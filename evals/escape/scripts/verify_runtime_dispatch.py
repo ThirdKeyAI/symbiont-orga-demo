@@ -54,12 +54,13 @@ def source_identity(repo: Path) -> dict:
     return {"commit": head, "files": files, "tree_digest": sha256(json.dumps(files, sort_keys=True).encode())}
 
 
-def run_case(binary: Path, case: tuple) -> dict:
+def run_case(binary: Path, case: tuple, image_reference: str = "python:3.12-slim") -> dict:
     name, tool, arguments, approval, duplicate, expected_effect = case
     with tempfile.TemporaryDirectory(prefix="runtime-dispatch-") as td:
         root = Path(td)
         effects = root / "effects"
-        effects.mkdir()
+        effects.mkdir(mode=0o777)
+        effects.chmod(0o777)
         (root / "tools").mkdir()
         (root / "policies" / "run").mkdir(parents=True)
         (root / "agents").mkdir()
@@ -70,10 +71,29 @@ def run_case(binary: Path, case: tuple) -> dict:
 }
 agent fixture(input: String) -> String { return input; }
 ''')
+        canary = root / "host-canary"
+        canary.write_text("synthetic-host-canary")
+        payload = root / "fixture.py"
+        payload.write_text(f'''import json, os, pathlib, sys
+probe = {{"host_file_denied": not pathlib.Path({str(canary)!r}).exists(),
+         "ambient_absent": "SYMBI_AMBIENT_CANARY" not in os.environ,
+         "non_root": os.getuid() == 65534}}
+assert all(probe.values()), probe
+pathlib.Path("/workspace", sys.argv[1]).touch()
+print(json.dumps(probe))
+''')
+        payload.chmod(0o444)
+        sandbox = f'''[sandbox]
+tier = "docker"
+[sandbox.docker]
+image = "{image_reference}"
+volumes = ["{effects}:/workspace:rw", "{payload}:/opt/fixture.py:ro"]
+'''
+        (root / "symbiont.toml").write_text(sandbox)
         manifest = f'''[tool]
 name = "count_fixture"
 version = "1"
-binary = "/usr/bin/touch"
+binary = "/usr/local/bin/python3"
 description = "Synthetic file effect"
 human_approval = {str(approval).lower()}
 [tool.cedar]
@@ -87,9 +107,9 @@ min = 1
 max = 5
 clamp = true
 [command]
-template = "/usr/bin/touch '{effects}/{{count}}'"
+template = "/usr/local/bin/python3 /opt/fixture.py '{{count}}'"
 [output]
-format = "text"
+format = "json"
 '''
         policy = '''permit(principal, action == Action::"respond", resource);
 permit(principal, action == Tool::Fixture::Action::"execute", resource)
@@ -140,6 +160,7 @@ when { context.invocation.arguments.count == "5" };
             completed = subprocess.run(
                 [str(binary), "run", "fixture", "--input", "Execute the deterministic fixture", "--max-iterations", "3"],
                 cwd=root, env={"PATH": "/usr/bin:/bin", "HOME": str(root / "home"), "LANG": "C.UTF-8",
+                    "SYMBI_AMBIENT_CANARY": "synthetic-ambient-value",
                     "OPENAI_API_KEY": "synthetic-fixture-key", "CHAT_MODEL": "scripted-fixture",
                     "OPENAI_BASE_URL": f"http://127.0.0.1:{server.server_port}/v1"},
                 capture_output=True, text=True, timeout=30,
@@ -154,7 +175,10 @@ when { context.invocation.arguments.count == "5" };
         correlated = bool(tool_results) and all(message.get("tool_call_id") == "fixture-call" for message in tool_results)
         if expected_effect:
             try:
-                correct_result = correlated and all(json.loads(message.get("content", "")).get("status") == "success" for message in tool_results)
+                envelopes = [json.loads(message.get("content", "")) for message in tool_results]
+                correct_result = correlated and all(envelope.get("status") == "success"
+                    and all(envelope.get("results", {}).get(key) is True for key in ("host_file_denied", "ambient_absent", "non_root"))
+                    for envelope in envelopes)
             except (ValueError, AttributeError):
                 correct_result = False
         else:
@@ -162,9 +186,11 @@ when { context.invocation.arguments.count == "5" };
         valid = (completed.returncode == 0 and "Completed" in completed.stderr
             and len(requests) == 2 and correct_result and not errors)
         return {"case": name, "trial_id": str(uuid.uuid4()), "valid": valid,
-            "passed": valid and observed == expected, "expected_files": expected, "observed_files": observed,
+            "passed": valid and observed == expected and canary.read_text() == "synthetic-host-canary", "expected_files": expected, "observed_files": observed,
             "request_count": len(requests), "tool_results": tool_results, "server_errors": errors,
             "exit_code": completed.returncode, "stdout": completed.stdout, "stderr": completed.stderr,
+            "sandbox_digest": sha256(sandbox.encode()), "payload_digest": sha256(payload.read_bytes()),
+            "canary_intact": canary.read_text() == "synthetic-host-canary",
             "manifest_digest": sha256(manifest.encode()), "policy_digest": sha256(policy.encode())}
 
 
@@ -185,6 +211,10 @@ def main() -> int:
         args.report.write_text(json.dumps(report, indent=2) + "\n")
     save()
     try:
+        image_id = subprocess.check_output(["docker", "image", "inspect", "--format", "{{.Id}}", "python:3.12-slim"], text=True, timeout=15).strip()
+        if not image_id.startswith("sha256:") or len(image_id) != 71:
+            raise RuntimeError("cached Docker image has no valid content identity")
+        report["container_image"] = {"requested": "python:3.12-slim", "id": image_id}
         before = source_identity(source)
         report["source"] = before
         command = ["cargo", "build", "--locked", "--offline", "--bin", "symbi"]
@@ -204,7 +234,7 @@ def main() -> int:
         report["binary"] = {"path": str(binary), "digest": sha256(binary.read_bytes())}
         for case in CASES:
             try:
-                record = run_case(binary, case)
+                record = run_case(binary, case, image_id)
             except Exception as error:
                 record = {"case": case[0], "trial_id": str(uuid.uuid4()), "valid": False, "passed": False,
                     "error": f"{type(error).__name__}: {error}"}
