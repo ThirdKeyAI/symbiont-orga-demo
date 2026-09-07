@@ -54,6 +54,62 @@ def source_identity(repo: Path) -> dict:
     return {"commit": head, "files": files, "tree_digest": sha256(json.dumps(files, sort_keys=True).encode())}
 
 
+def execute_fixture(binary: Path, root: Path, tool: str, arguments: dict, duplicate: bool = False):
+    requests = []
+    errors = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *_):
+            pass
+
+        def do_POST(self):
+            try:
+                if self.path != "/v1/chat/completions":
+                    raise ValueError(f"unexpected inference path: {self.path}")
+                length = int(self.headers.get("Content-Length", "0"))
+                if not 0 < length <= 1024 * 1024:
+                    raise ValueError("inference request exceeds fixture limit")
+                request = json.loads(self.rfile.read(length))
+                requests.append(request)
+                if len(requests) == 1:
+                    call = {"id": "fixture-call", "type": "function", "function": {"name": tool, "arguments": json.dumps(arguments)}}
+                    message = {"role": "assistant", "content": None, "tool_calls": [call, call] if duplicate else [call]}
+                    finish = "tool_calls"
+                else:
+                    message = {"role": "assistant", "content": "fixture complete"}
+                    finish = "stop"
+                response = json.dumps({"id": "fixture", "object": "chat.completion", "created": 0,
+                    "model": "scripted-fixture", "choices": [{"index": 0, "message": message, "finish_reason": finish}],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(response)))
+                self.end_headers()
+                self.wfile.write(response)
+            except Exception as error:
+                errors.append(str(error))
+                self.send_error(400)
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    server.daemon_threads = True
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        completed = subprocess.run(
+            [str(binary), "run", "fixture", "--input", "Execute the deterministic fixture", "--max-iterations", "3"],
+            cwd=root, env={"PATH": "/usr/bin:/bin", "HOME": str(root / "home"), "LANG": "C.UTF-8", "SYMBIONT_ENV": "production",
+                "SYMBI_AMBIENT_CANARY": "synthetic-ambient-value",
+                "OPENAI_API_KEY": "synthetic-fixture-key", "CHAT_MODEL": "scripted-fixture",
+                "OPENAI_BASE_URL": f"http://127.0.0.1:{server.server_port}/v1"},
+            capture_output=True, text=True, timeout=30,
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+    return completed, requests, errors
+
+
 def run_case(binary: Path, case: tuple, image_reference: str = "python:3.12-slim") -> dict:
     name, tool, arguments, approval, duplicate, expected_effect = case
     with tempfile.TemporaryDirectory(prefix="runtime-dispatch-") as td:
@@ -117,58 +173,7 @@ when { context.invocation.arguments.count == "5" };
 '''
         (root / "tools" / "count_fixture.clad.toml").write_text(manifest)
         (root / "policies" / "run" / "fixture.cedar").write_text(policy)
-        requests = []
-        errors = []
-
-        class Handler(BaseHTTPRequestHandler):
-            def log_message(self, *_):
-                pass
-
-            def do_POST(self):
-                try:
-                    if self.path != "/v1/chat/completions":
-                        raise ValueError(f"unexpected inference path: {self.path}")
-                    length = int(self.headers.get("Content-Length", "0"))
-                    if not 0 < length <= 1024 * 1024:
-                        raise ValueError("inference request exceeds fixture limit")
-                    request = json.loads(self.rfile.read(length))
-                    requests.append(request)
-                    if len(requests) == 1:
-                        call = {"id": "fixture-call", "type": "function", "function": {"name": tool, "arguments": json.dumps(arguments)}}
-                        message = {"role": "assistant", "content": None, "tool_calls": [call, call] if duplicate else [call]}
-                        finish = "tool_calls"
-                    else:
-                        message = {"role": "assistant", "content": "fixture complete"}
-                        finish = "stop"
-                    response = json.dumps({"id": "fixture", "object": "chat.completion", "created": 0,
-                        "model": "scripted-fixture", "choices": [{"index": 0, "message": message, "finish_reason": finish}],
-                        "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}}).encode()
-                    self.send_response(200)
-                    self.send_header("Content-Type", "application/json")
-                    self.send_header("Content-Length", str(len(response)))
-                    self.end_headers()
-                    self.wfile.write(response)
-                except Exception as error:
-                    errors.append(str(error))
-                    self.send_error(400)
-
-        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        server.daemon_threads = True
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
-        try:
-            completed = subprocess.run(
-                [str(binary), "run", "fixture", "--input", "Execute the deterministic fixture", "--max-iterations", "3"],
-                cwd=root, env={"PATH": "/usr/bin:/bin", "HOME": str(root / "home"), "LANG": "C.UTF-8",
-                    "SYMBI_AMBIENT_CANARY": "synthetic-ambient-value",
-                    "OPENAI_API_KEY": "synthetic-fixture-key", "CHAT_MODEL": "scripted-fixture",
-                    "OPENAI_BASE_URL": f"http://127.0.0.1:{server.server_port}/v1"},
-                capture_output=True, text=True, timeout=30,
-            )
-        finally:
-            server.shutdown()
-            server.server_close()
-            thread.join(timeout=5)
+        completed, requests, errors = execute_fixture(binary, root, tool, arguments, duplicate)
         observed = sorted(path.name for path in effects.iterdir())
         tool_results = [message for request in requests[1:] for message in request.get("messages", []) if message.get("role") == "tool"]
         expected = ["5"] if expected_effect else []
@@ -194,15 +199,17 @@ when { context.invocation.arguments.count == "5" };
             "manifest_digest": sha256(manifest.encode()), "policy_digest": sha256(policy.encode())}
 
 
-def main() -> int:
+def main(*, cases=None, case_runner=None, companion_driver: Path | None = None, suite="shipping-cli-dispatch") -> int:
+    cases = CASES if cases is None else cases
+    case_runner = run_case if case_runner is None else case_runner
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--source", type=Path, required=True, help="Symbiont source checkout to build")
     ap.add_argument("--target-dir", type=Path, required=True)
     ap.add_argument("--report", type=Path, required=True)
     args = ap.parse_args()
     source, target = args.source.resolve(), args.target_dir.resolve()
-    report = {"suite": "shipping-cli-dispatch", "run_id": str(uuid.uuid4()),
-        "started_at": datetime.now(timezone.utc).isoformat(), "planned_cases": [case[0] for case in CASES],
+    report = {"suite": suite, "run_id": str(uuid.uuid4()),
+        "started_at": datetime.now(timezone.utc).isoformat(), "planned_cases": [case[0] for case in cases],
         "containment_claim": False, "trials": [], "status": "invalid"}
     args.report.parent.mkdir(parents=True, exist_ok=True)
     if args.report.exists():
@@ -222,6 +229,8 @@ def main() -> int:
         report["rustc"] = subprocess.check_output(["rustc", "-Vv"], cwd=source, text=True)
         report["cargo"] = subprocess.check_output(["cargo", "-V"], cwd=source, text=True)
         report["driver_digest"] = sha256(Path(__file__).read_bytes())
+        driver_sources = [Path(__file__)] + ([companion_driver] if companion_driver else [])
+        report["driver_sources"] = {str(path.resolve()): sha256(path.read_bytes()) for path in driver_sources}
         env = os.environ.copy()
         env.update(CARGO_TARGET_DIR=str(target), CARGO_PROFILE_DEV_DEBUG="0", CARGO_BUILD_JOBS="1")
         with args.report.with_suffix(".build.log").open("x") as log:
@@ -232,9 +241,9 @@ def main() -> int:
             raise RuntimeError("source changed during build")
         binary = target / "debug" / "symbi"
         report["binary"] = {"path": str(binary), "digest": sha256(binary.read_bytes())}
-        for case in CASES:
+        for case in cases:
             try:
-                record = run_case(binary, case, image_id)
+                record = case_runner(binary, case, image_id)
             except Exception as error:
                 record = {"case": case[0], "trial_id": str(uuid.uuid4()), "valid": False, "passed": False,
                     "error": f"{type(error).__name__}: {error}"}
@@ -242,6 +251,7 @@ def main() -> int:
             save()
         complete = [trial["case"] for trial in report["trials"]] == report["planned_cases"]
         unchanged = source_identity(source) == before and sha256(binary.read_bytes()) == report["binary"]["digest"]
+        unchanged = unchanged and all(sha256(Path(path).read_bytes()) == digest for path, digest in report["driver_sources"].items())
         report["status"] = "passed" if complete and unchanged and all(trial["passed"] for trial in report["trials"]) else "failed"
     except Exception as error:
         report["error"] = f"{type(error).__name__}: {error}"

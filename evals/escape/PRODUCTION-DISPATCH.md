@@ -1,7 +1,7 @@
 # Shipping CLI dispatch regression
 
 `verify_runtime_dispatch.py` builds a specified Symbiont checkout and drives
-its actual `symbi run` command against a local, deterministic inference
+its actual `symbi run` command in production mode against a local, deterministic inference
 server. It uses no external model service. Tool effects are restricted to
 synthetic temporary fixtures, and the observer checks the resulting files.
 
@@ -40,6 +40,8 @@ This suite provides deterministic regression evidence for CLI authorization.
 It does not certify OS containment or substitute for the escape evaluation's
 remaining outer sandbox, protected observers, network sink evidence,
 capability-matched baselines, scheduler/Firecracker transport, or coverage of
-HTTP, DSL, MCP, PTY/browser, and managed CLI entry points. The report explicitly
+HTTP, DSL, PTY/browser, and managed CLI entry points. The separate
+[shipping MCP suite](PRODUCTION-MCP.md) covers contained stdio dispatch with
+enforced SchemaPin verification. The report explicitly
 sets `containment_claim` to false. Historical custom-dispatch sweep records
 remain distinct from this shipping CLI evidence.

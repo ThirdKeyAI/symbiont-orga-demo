@@ -21,3 +21,18 @@ def test_plan_has_unique_positive_and_negative_cases():
     assert len({case[0] for case in module.CASES}) == len(module.CASES)
     assert any(case[-1] for case in module.CASES)
     assert any(not case[-1] for case in module.CASES)
+
+
+def test_default_main_preserves_plan_when_container_backend_is_missing(monkeypatch, tmp_path):
+    import json
+    import sys
+    report = tmp_path / "report.json"
+    monkeypatch.setattr(sys, "argv", ["fixture", "--source", str(tmp_path), "--target-dir", str(tmp_path / "target"), "--report", str(report)])
+    def missing(*args, **kwargs):
+        raise FileNotFoundError("synthetic missing docker")
+    monkeypatch.setattr(module.subprocess, "check_output", missing)
+    assert module.main() == 1
+    evidence = json.loads(report.read_text())
+    assert evidence["planned_cases"] == [case[0] for case in module.CASES]
+    assert evidence["status"] == "invalid"
+    assert evidence["trials"] == []
