@@ -31,7 +31,9 @@ if sys.argv[3] == 'runtime_sigkill_active':
     if os.fork() == 0:
         os.setsid()
         while True:
-            (root / 'ticks').write_text(str(time.monotonic()))
+            # Keep earlier effects intact if SIGKILL interrupts the next write.
+            with (root / 'ticks').open('a') as ticks:
+                ticks.write(str(time.monotonic()) + '\n')
             time.sleep(0.05)
     time.sleep(60)
 (root / 'result').write_text('allowed work')
@@ -65,12 +67,14 @@ def valid_outcome(record: dict) -> bool:
             return record["late_container_created"] and record["observed_files"] == []
         return (record["ticks_stopped"] and record["observed_files"] == ["proof", "ticks"]
             and record["proof"] == dict(non_root=True, host_file_denied=True, supervisor_denied=True, ambient_absent=True))
+    if name == "supervisor_state_mount_denied":
+        return (record["exit_code"] == 1 and record["request_count"] == 0
+            and "Agent sandbox selection failed: bind mount exposes the protected sandbox supervisor state" in record["stderr"]
+            and not record["tool_results"] and record["observed_files"] == [])
     results = record["tool_results"]
     if (record["exit_code"] != 0 or "Completed" not in record["stderr"] or record["request_count"] != 2
             or len(results) != 1 or results[0].get("tool_call_id") != "fixture-call"):
         return False
-    if name == "supervisor_state_mount_denied":
-        return results[0].get("content", "").startswith("[Policy denied] bind mount exposes the protected sandbox supervisor state") and record["observed_files"] == []
     if name == "supervisor_unavailable":
         return results[0].get("content", "").startswith("[Error] ToolClad error: Tool 'owner_fixture': sandbox supervisor executable unavailable") and record["observed_files"] == []
     try:
@@ -105,7 +109,7 @@ def run_case(binary: Path, case: tuple, image_reference: str = "python:3.12-slim
         (root / "output").chmod(0o777)
         canary = root / "home/host-canary"
         canary.write_text("synthetic host value")
-        (root / "agents/fixture.symbi").write_text('metadata { version = "1" description = "Supervisor fixture" }\nagent fixture(input: String) -> String { return input; }\n')
+        (root / "agents/fixture.symbi").write_text('metadata { version = "1" description = "Supervisor fixture" }\nagent fixture(input: String) -> String { with { return input; } }\n')
         payload = root / "worker.py"
         payload.write_text(PAYLOAD)
         payload.chmod(0o444)

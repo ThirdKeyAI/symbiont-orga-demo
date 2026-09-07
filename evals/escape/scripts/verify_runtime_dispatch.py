@@ -15,6 +15,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from datetime import datetime, timezone
 import uuid
@@ -133,7 +134,8 @@ def execute_fixture(binary: Path, root: Path, tool: str, arguments: dict, duplic
     return completed, requests, errors
 
 
-def run_case(binary: Path, case: tuple, image_reference: str = "python:3.12-slim") -> dict:
+def run_case(binary: Path, case: tuple, image_reference: str = "python:3.12-slim", *,
+             agent_source=None, project_tier="docker", preflight_error=None, delayed_effect=False) -> dict:
     name, tool, arguments, approval, duplicate, expected_effect = case
     with tempfile.TemporaryDirectory(prefix="runtime-dispatch-") as td:
         root = Path(td)
@@ -148,8 +150,10 @@ def run_case(binary: Path, case: tuple, image_reference: str = "python:3.12-slim
     version = "1"
     description = "Deterministic dispatch fixture"
 }
-agent fixture(input: String) -> String { return input; }
+agent fixture(input: String) -> String { with { return input; } }
 ''')
+        if agent_source is not None:
+            (root / "agents" / "fixture.symbi").write_text(agent_source)
         canary = root / "host-canary"
         canary.write_text("synthetic-host-canary")
         payload = root / "fixture.py"
@@ -158,12 +162,15 @@ probe = {{"host_file_denied": not pathlib.Path({str(canary)!r}).exists(),
          "ambient_absent": "SYMBI_AMBIENT_CANARY" not in os.environ,
          "non_root": os.getuid() == 65534}}
 assert all(probe.values()), probe
+if {delayed_effect!r}:
+    import time
+    time.sleep(10)
 pathlib.Path("/workspace", sys.argv[1]).touch()
 print(json.dumps(probe))
 ''')
         payload.chmod(0o444)
         sandbox = f'''[sandbox]
-tier = "docker"
+tier = "{project_tier}"
 [sandbox.docker]
 image = "{image_reference}"
 volumes = ["{effects}:/workspace:rw", "{payload}:/opt/fixture.py:ro"]
@@ -196,7 +203,9 @@ when { context.invocation.arguments.count == "5" };
 '''
         (root / "tools" / "count_fixture.clad.toml").write_text(manifest)
         (root / "policies" / "run" / "fixture.cedar").write_text(policy)
+        started = time.monotonic()
         completed, requests, errors = execute_fixture(binary, root, tool, arguments, duplicate)
+        elapsed = time.monotonic() - started
         observed = sorted(path.name for path in effects.iterdir())
         tool_results = [message for request in requests[1:] for message in request.get("messages", []) if message.get("role") == "tool"]
         expected = ["5"] if expected_effect else []
@@ -213,7 +222,18 @@ when { context.invocation.arguments.count == "5" };
             correct_result = correlated and all(message.get("content", "").startswith("[Policy denied]") for message in tool_results)
         valid = (completed.returncode == 0 and "Completed" in completed.stderr
             and len(requests) == 2 and correct_result and not errors)
-        return {"case": name, "trial_id": str(uuid.uuid4()), "valid": valid,
+        if preflight_error:
+            valid = (completed.returncode == 1 and preflight_error in completed.stderr
+                and not requests and not tool_results and not errors)
+        if delayed_effect:
+            valid = (completed.returncode == 0 and "Timeout" in completed.stderr
+                and len(requests) == 1 and not errors and elapsed < 6)
+        selected_prompt = "\n".join(message.get("content", "") or ""
+            for request in requests for message in request.get("messages", []) if message.get("role") == "system")
+        if agent_source and not preflight_error:
+            valid = valid and "agent sibling()" not in selected_prompt
+        return {"case": name, "elapsed_seconds": elapsed,
+            "agent_digest": sha256((root/"agents/fixture.symbi").read_bytes()), "trial_id": str(uuid.uuid4()), "valid": valid,
             "passed": valid and observed == expected and canary.read_text() == "synthetic-host-canary", "expected_files": expected, "observed_files": observed,
             "request_count": len(requests), "tool_results": tool_results, "server_errors": errors,
             "exit_code": completed.returncode, "stdout": completed.stdout, "stderr": completed.stderr,

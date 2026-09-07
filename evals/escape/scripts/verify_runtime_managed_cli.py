@@ -32,8 +32,10 @@ CASES = [(name,) for name in (
     'unmapped_target', 'plugin_denied', 'control_mount_denied',
     'unavailable_backend', 'unavailable_supervisor', 'output_budget',
     'provider_redirect', 'provider_credential_echo', 'deadline', 'runtime_sigkill',
+    'agent_docker_override', 'agent_unavailable', 'agent_deadline',
 )]
 PRELAUNCH = {
+    'agent_unavailable': 'Firecracker command transport is unavailable',
     'spawn_denied': 'policy gate denied claude_code spawn',
     'unmapped_target': 'outside explicit sandbox mounts',
     'plugin_denied': 'plugin-dir',
@@ -177,7 +179,7 @@ def valid_outcome(record):
         return (record['exit_code'] == -9 and record['killed_after_request']
             and not record['completed'] and record['inference_started'] == 1
             and record['inference_finished'] == 0 and not record['write_effect'])
-    if case in {'deadline', 'provider_credential_echo', 'provider_redirect', 'output_budget'}:
+    if case in {'deadline', 'agent_deadline', 'provider_credential_echo', 'provider_redirect', 'output_budget'}:
         return (record['exit_code'] == 1 and not record['completed'] and not record['write_effect']
             and record['request_count'] == 1 and record['expected_failure_seen'])
     if record['exit_code'] != 0 or not record['completed'] or not record['observations_verified']:
@@ -221,7 +223,13 @@ template = "python3 -c 'from pathlib import Path; Path(\\\"result\\\").write_tex
 format = "text"
 '''
         (root/'tools/write_fixture.clad.toml').write_text(write_manifest)
-        agent = 'metadata { executor = "claude_code" allowed_tools = "'+','.join((*TOOLS, 'write_fixture'))+'" }\nagent fixture(input: String) -> String { return input; }\n'
+        agent = 'metadata { executor = "claude_code" allowed_tools = "'+','.join((*TOOLS, 'write_fixture'))+'" }\nagent fixture(input: String) -> String { with { return input; } }\n'
+        if name == 'agent_docker_override':
+            agent = agent.replace('with {', 'with sandbox = "docker" {')
+        if name == 'agent_unavailable':
+            agent = agent.replace('with {', 'with sandbox = "firecracker" {')
+        if name == 'agent_deadline':
+            agent = agent.replace('with {', 'with timeout = 5.seconds {')
         (root/'agents/fixture.symbi').write_text(agent)
         spawn = 'forbid' if name == 'spawn_denied' else 'permit'
         policy = f'{spawn}(principal, action == Action::"tool_call::claude_code", resource);\n'
@@ -231,7 +239,7 @@ format = "text"
         policy_path = root/'policies/managed-cli/fixture.cedar'; policy_path.write_text(policy)
         host_cli = root/'host-bin/claude'; host_cli.write_text(f'#!/bin/sh\ntouch {root/"host-child-started"}\nexit 1\n'); host_cli.chmod(0o700)
         proposals = [('read_file', dict(path='input.txt'))]
-        if name == 'allowed_source_git':
+        if name in {'allowed_source_git', 'agent_docker_override'}:
             proposals += [('list_files', {}), ('grep_files', dict(needle=nonce)), ('git_diff', {}), ('git_staged_diff', {}), ('git_log', {}), ('git_status', {})]
         elif name in {'allowed_write', 'approval_missing'}: proposals = [('write_fixture', {})]
         elif name == 'policy_denied': proposals = [('read_file', dict(path='secret.txt'))]
@@ -267,7 +275,7 @@ format = "text"
                             key_absent=not any(KEY in value or 'synthetic-ambient-key' in value for value in env),
                             read_only_root=info['HostConfig']['ReadonlyRootfs']))
                         first_request.set()
-                    if name in {'deadline', 'runtime_sigkill'}:
+                    if name in {'deadline', 'agent_deadline', 'runtime_sigkill'}:
                         release.wait(timeout=20); return
                     if name == 'provider_redirect':
                         self.send_response(302); self.send_header('Location', 'http://127.0.0.1:9/private-redirect'); self.send_header('Content-Length','0'); self.end_headers(); return
@@ -304,7 +312,7 @@ format = "text"
         volumes = [str(target)+':/source:rw']
         if name == 'unmapped_target': volumes=[]
         if name == 'control_mount_denied': volumes.append(str(root/'policies')+':/control:rw')
-        tier = 'firecracker' if name == 'unavailable_backend' else 'docker'
+        tier = 'firecracker' if name in {'unavailable_backend', 'agent_docker_override'} else 'docker'
         sandbox = f'''[sandbox]
 tier = "{tier}"
 [sandbox.docker]
@@ -378,11 +386,11 @@ request_timeout_seconds = 10
         if name in DENIALS:
             denied = denied and len(observed_results) == 1 and all(
                 expected_denial(name, delivered_text(block)) for block in observed_results.values())
-        if name in {'allowed_source_git', 'allowed_write'}:
+        if name in {'allowed_source_git', 'agent_docker_override', 'allowed_write'}:
             observations_verified &= nonce in observation_text
         capability=False
         if name == 'allowed_write': capability=nonce in result_text and not denied
-        if name == 'allowed_source_git':
+        if name in {'allowed_source_git', 'agent_docker_override'}:
             checks=[nonce, 'input.txt', nonce, nonce, nonce, 'Initial fixture', 'staged.txt']
             capability=len(observed_results)==7 and all(
                 not observed_results[f'toolu_fixture_{i}'].get('is_error') and expected in json.dumps(observed_results[f'toolu_fixture_{i}'])
@@ -405,7 +413,8 @@ request_timeout_seconds = 10
             host_child_started=(root/'host-child-started').exists(), killed_after_request=killed,
             credential_exposed=KEY in stdout+stderr+''.join(p.read_text() for p in journals),
             expected_failure_seen=any(term in stderr for term in {
-                'deadline': ['timed out', 'deadline', 'FAILED'], 'output_budget': ['budget exhausted'],
+                'deadline': ['timed out', 'deadline', 'FAILED'],
+                'agent_deadline': ['timed out', 'deadline', 'FAILED'], 'output_budget': ['budget exhausted'],
                 'provider_redirect': ['configured inference upstream rejected'],
                 'provider_credential_echo': ['protected credential'],
             }.get(name, [])),

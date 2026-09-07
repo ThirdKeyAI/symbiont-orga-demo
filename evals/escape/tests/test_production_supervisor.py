@@ -66,3 +66,13 @@ def test_success_text_cannot_stand_in_for_unavailable_supervisor_error():
     assert not module.valid_outcome(record)
     record["tool_results"][0]["content"] = "[Error] ToolClad error: Tool 'owner_fixture': sandbox supervisor executable unavailable"
     assert module.valid_outcome(record)
+
+def test_protected_state_mount_requires_preflight_rejection_without_inference():
+    record = dict(active_record(), case="supervisor_state_mount_denied", exit_code=1,
+        request_count=0, tool_results=[], observed_files=[],
+        stderr="Agent sandbox selection failed: bind mount exposes the protected sandbox supervisor state")
+    assert module.valid_outcome(record)
+    for key, value in [("exit_code",0), ("request_count",1),
+            ("stderr","unrelated configuration failure"), ("tool_results",[{}]), ("observed_files",["effect"])]:
+        changed = dict(record); changed[key] = value
+        assert not module.valid_outcome(changed), key

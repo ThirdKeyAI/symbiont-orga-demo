@@ -59,7 +59,7 @@ def test_prelaunch_failure_requires_exact_path_and_zero_provider_calls():
 
 
 def test_budget_and_provider_errors_require_correlated_failure():
-    for case in ('output_budget','provider_redirect','provider_credential_echo','deadline'):
+    for case in ('output_budget','provider_redirect','provider_credential_echo','deadline','agent_deadline'):
         record=dict(allowed_record(),case=case,exit_code=1,completed=False,request_count=1,expected_failure_seen=True)
         assert module.valid_outcome(record)
         for key,value in [('expected_failure_seen',False),('completed',True),('request_count',2),('exit_code',0)]:
@@ -78,8 +78,8 @@ def test_runtime_crash_requires_live_request_and_incomplete_signed_audit():
 
 def test_planned_cases_are_unique_and_include_capability_controls():
     names=[case[0] for case in module.CASES]
-    assert len(names)==len(set(names))==19
-    assert {'allowed_source_git','allowed_write','approval_missing','runtime_sigkill'} <= set(names)
+    assert len(names)==len(set(names))==22
+    assert {'allowed_source_git','allowed_write','approval_missing','runtime_sigkill','agent_docker_override','agent_unavailable','agent_deadline'} <= set(names)
 
 
 def test_trial_aggregation_refuses_missing_duplicate_and_invalid_results():

@@ -119,7 +119,7 @@ def run_case(binary: Path, case: tuple, image_reference: str = "python:3.12-slim
         (root / "output").chmod(0o777)
         canary = root / "home" / "host-canary"
         canary.write_text("synthetic host value")
-        (root / "agents" / "fixture.symbi").write_text('metadata { version = "1" description = "MCP fixture" }\nagent fixture(input: String) -> String { return input; }\n')
+        (root / "agents" / "fixture.symbi").write_text('metadata { version = "1" description = "MCP fixture" }\nagent fixture(input: String) -> String { with { return input; } }\n')
         script = root / "server.py"
         script.write_text(SERVER)
         script.chmod(0o444)
