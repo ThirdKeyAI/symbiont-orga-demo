@@ -4,7 +4,7 @@ error[E0382]: use of moved value: `agent_loop.state`
 19 |     agent_loop: AgentLoop<Reasoning>,
    |     ---------- move occurs because `agent_loop` has type `AgentLoop<symbi_runtime::reasoning::phases::Reasoning>`, which does not implement the `Copy` trait
 ...
-24 |     let _ = agent_loop.produce_output(&*provider, &ctx).await;
+24 |     let _ = agent_loop.produce_output(&*provider, &ctx, false).await;
    |             ---------- value moved here
 ...
 30 |     let _stolen = agent_loop.state;
