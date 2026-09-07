@@ -36,3 +36,27 @@ def test_default_main_preserves_plan_when_container_backend_is_missing(monkeypat
     assert evidence["planned_cases"] == [case[0] for case in module.CASES]
     assert evidence["status"] == "invalid"
     assert evidence["trials"] == []
+
+
+def test_imported_verifier_mutation_invalidates_otherwise_passing_trials(monkeypatch, tmp_path):
+    import json
+    import subprocess
+    import sys
+    verifier = tmp_path / "verifier.py"
+    verifier.write_text("original verifier")
+    binary = tmp_path / "target/debug/symbi"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("synthetic build artifact")
+    report = tmp_path / "report.json"
+    monkeypatch.setattr(sys, "argv", ["fixture", "--source", str(tmp_path), "--target-dir", str(tmp_path / "target"), "--report", str(report)])
+    monkeypatch.setattr(module, "source_identity", lambda _: {"fixture": "unchanged"})
+    monkeypatch.setattr(module.subprocess, "check_output", lambda command, **_: "sha256:"+"0"*64 if command[0] == "docker" else "fixture toolchain")
+    monkeypatch.setattr(module.subprocess, "run", lambda command, **_: subprocess.CompletedProcess(command, 0))
+    def trial(*_):
+        verifier.write_text("changed verifier")
+        return {"case": "positive", "trial_id": "unique", "valid": True, "passed": True}
+    assert module.main(cases=[("positive",)], case_runner=trial, additional_drivers=[verifier]) == 1
+    evidence = json.loads(report.read_text())
+    assert evidence["status"] == "failed"
+    assert str(verifier) in evidence["driver_sources"]
+    assert evidence["trials"][0]["passed"]

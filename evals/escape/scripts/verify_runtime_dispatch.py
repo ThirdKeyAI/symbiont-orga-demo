@@ -250,7 +250,7 @@ def complete_trials(planned, trials):
 
 
 def main(*, cases=None, case_runner=None, companion_driver: Path | None = None, suite="shipping-cli-dispatch",
-         case_factory=None, image_reference="python:3.12-slim") -> int:
+         case_factory=None, image_reference="python:3.12-slim", additional_drivers=()) -> int:
     cases = CASES if cases is None else cases
     case_runner = run_case if case_runner is None else case_runner
     ap = argparse.ArgumentParser(description=__doc__)
@@ -281,7 +281,7 @@ def main(*, cases=None, case_runner=None, companion_driver: Path | None = None, 
         report["rustc"] = subprocess.check_output(["rustc", "-Vv"], cwd=source, text=True)
         report["cargo"] = subprocess.check_output(["cargo", "-V"], cwd=source, text=True)
         report["driver_digest"] = sha256(Path(__file__).read_bytes())
-        driver_sources = [Path(__file__)] + ([companion_driver] if companion_driver else [])
+        driver_sources = [Path(__file__)] + ([companion_driver] if companion_driver else []) + list(additional_drivers)
         report["driver_sources"] = {str(path.resolve()): sha256(path.read_bytes()) for path in driver_sources}
         env = os.environ.copy()
         env.update(CARGO_TARGET_DIR=str(target), CARGO_PROFILE_DEV_DEBUG="0", CARGO_BUILD_JOBS="1")
