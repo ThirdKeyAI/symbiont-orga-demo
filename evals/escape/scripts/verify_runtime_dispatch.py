@@ -54,7 +54,10 @@ def source_identity(repo: Path) -> dict:
     return {"commit": head, "files": files, "tree_digest": sha256(json.dumps(files, sort_keys=True).encode())}
 
 
-def execute_fixture(binary: Path, root: Path, tool: str, arguments: dict, duplicate: bool = False):
+def execute_fixture(binary: Path, root: Path, tool: str, arguments: dict, duplicate: bool = False, *, sequence: list[tuple[str, dict]] | None = None):
+    if sequence is not None and not 1 <= len(sequence) <= 8:
+        raise ValueError("scripted sequence must contain 1 to 8 tool proposals")
+    proposals = [(tool, arguments)] if sequence is None else sequence
     requests = []
     errors = []
 
@@ -71,8 +74,13 @@ def execute_fixture(binary: Path, root: Path, tool: str, arguments: dict, duplic
                     raise ValueError("inference request exceeds fixture limit")
                 request = json.loads(self.rfile.read(length))
                 requests.append(request)
-                if len(requests) == 1:
-                    call = {"id": "fixture-call", "type": "function", "function": {"name": tool, "arguments": json.dumps(arguments)}}
+                step = len(requests) - 1
+                if step > len(proposals):
+                    raise ValueError("unexpected extra inference after scripted completion")
+                if step < len(proposals):
+                    current_tool, current_arguments = proposals[step]
+                    call_id = "fixture-call" if sequence is None else f"fixture-call-{step}"
+                    call = {"id": call_id, "type": "function", "function": {"name": current_tool, "arguments": json.dumps(current_arguments)}}
                     message = {"role": "assistant", "content": None, "tool_calls": [call, call] if duplicate else [call]}
                     finish = "tool_calls"
                 else:
@@ -96,12 +104,12 @@ def execute_fixture(binary: Path, root: Path, tool: str, arguments: dict, duplic
     thread.start()
     try:
         completed = subprocess.run(
-            [str(binary), "run", "fixture", "--input", "Execute the deterministic fixture", "--max-iterations", "3"],
+            [str(binary), "run", "fixture", "--input", "Execute the deterministic fixture", "--max-iterations", str(len(proposals) + 2)],
             cwd=root, env={"PATH": "/usr/bin:/bin", "HOME": str(root / "home"), "LANG": "C.UTF-8", "SYMBIONT_ENV": "production",
                 "SYMBI_AMBIENT_CANARY": "synthetic-ambient-value",
                 "OPENAI_API_KEY": "synthetic-fixture-key", "CHAT_MODEL": "scripted-fixture",
                 "OPENAI_BASE_URL": f"http://127.0.0.1:{server.server_port}/v1"},
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, text=True, timeout=max(30, 10 * len(proposals) + 10),
         )
     finally:
         server.shutdown()

@@ -121,3 +121,26 @@ artifacts from the child. The custom Rust dispatcher still differs from the
 shipping executor. End-to-end runtime fixtures, capability-matched arms, build
 provenance, trace completeness, and an outer lab with protected sinks remain
 required before making a production containment claim.
+
+## Shipping CLI boundary regressions
+
+The deterministic drivers build the selected checkout with an offline, locked
+Cargo build, then run the shipping CLI with local scripted inference. They retain
+planned trial identities, source/build/policy/payload hashes and failures:
+
+- `scripts/verify_runtime_dispatch.py`: seven command authorization cases.
+- `scripts/verify_runtime_mcp.py`: 18 contained MCP cases with signed schema
+  verification and protected synthetic host observers.
+- `scripts/verify_runtime_pty.py`: 15 real PTY cases, including persistent state
+  across calls, explicit Cedar/approval denials, command-frame rejection,
+  deadlines, bounded streams and removal of background workers before CLI exit.
+
+Each driver accepts `--source`, `--target-dir` and a new `--report` path. Docker
+and the cached `python:3.12-slim` fixture image are required; the driver pins its
+content identity before execution. The PTY suite checks real terminal I/O,
+non-root execution, absent ambient credentials, denied host-file/network access,
+correlated tool results and external file effects. An inert successful process,
+missing trial, changed source or leftover worker fails the suite. Missing
+backends count only as expected refusal cases. These are regression suites;
+reports retain `containment_claim: false` pending the complete outer-lab and
+production escape-adapter requirements above.
