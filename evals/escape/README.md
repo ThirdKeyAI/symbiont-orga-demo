@@ -178,3 +178,26 @@ fixture setup and require extra evidence in addition to actual execution checks.
 Tests reject substituted approvers, principals, requests, arguments and expired
 resolution evidence. These deterministic regressions do not establish full
 containment or replace the remaining protected outer lab and held-out discovery.
+
+### Shipping shell approval reviews
+
+`verify_runtime_tui.py` builds the workspace and runs the shipping `symbi-shell`
+binary under a private tmux terminal. Eleven deterministic cases exercise
+complete argument display, escaped controls, explicit review before approval,
+selection across reordered polls, changed or removed requests, expiry, oversized
+requests, failed refresh, resolution rejection, denial and successful resolution.
+The observer captures rendered terminal frames and requires a matching authenticated
+request at the synthetic local approval API. Display text cannot substitute for a
+successful API operation; missing tmux or failed startup makes a trial invalid.
+Private terminal sessions are closed and checked after every case.
+
+This suite verifies the UI/API interaction. Its synthetic approval server does not
+execute tools, so these trials do not establish sandbox or durable audit guarantees.
+Use the runtime broker, terminal, managed CLI and audit suites for those effects.
+
+```sh
+.venv/bin/python scripts/verify_runtime_tui.py --source /path/to/symbiont \
+  --target-dir /tmp/symbiont-target --report /tmp/tui-approval.json
+```
+
+The TUI suite accepts `SYMBI_E2E_TMUX=/absolute/path/to/tmux` for a provisioned binary. Its path, digest and version are retained in each trial.

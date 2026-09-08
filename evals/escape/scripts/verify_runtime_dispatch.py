@@ -279,7 +279,8 @@ def complete_trials(planned, trials):
 
 
 def main(*, cases=None, case_runner=None, companion_driver: Path | None = None, suite="shipping-cli-dispatch",
-         case_factory=None, image_reference="python:3.12-slim", additional_drivers=()) -> int:
+         case_factory=None, image_reference="python:3.12-slim", additional_drivers=(),
+         binary_name="symbi", build_command=None) -> int:
     cases = CASES if cases is None else cases
     case_runner = run_case if case_runner is None else case_runner
     ap = argparse.ArgumentParser(description=__doc__)
@@ -305,7 +306,7 @@ def main(*, cases=None, case_runner=None, companion_driver: Path | None = None, 
         report["container_image"] = {"requested": args.image, "id": image_id}
         before = source_identity(source)
         report["source"] = before
-        command = ["cargo", "build", "--locked", "--offline", "--bin", "symbi"]
+        command = build_command or ["cargo", "build", "--locked", "--offline", "--bin", "symbi"]
         report["build_command"] = command
         report["rustc"] = subprocess.check_output(["rustc", "-Vv"], cwd=source, text=True)
         report["cargo"] = subprocess.check_output(["cargo", "-V"], cwd=source, text=True)
@@ -320,7 +321,7 @@ def main(*, cases=None, case_runner=None, companion_driver: Path | None = None, 
             raise RuntimeError(f"build failed with exit {result.returncode}")
         if source_identity(source) != before:
             raise RuntimeError("source changed during build")
-        binary = target / "debug" / "symbi"
+        binary = target / "debug" / binary_name
         report["binary"] = {"path": str(binary), "digest": sha256(binary.read_bytes())}
         if case_factory is not None:
             case_runner = case_factory(source)
