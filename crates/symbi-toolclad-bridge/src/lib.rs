@@ -122,8 +122,8 @@ impl LoadedManifest {
         if !path.exists() {
             return Err(BridgeError::ManifestPathNotFound(path));
         }
-        let manifest = toolclad::load_manifest(&path)
-            .map_err(|e| BridgeError::ManifestLoad(e.to_string()))?;
+        let manifest =
+            toolclad::load_manifest(&path).map_err(|e| BridgeError::ManifestLoad(e.to_string()))?;
         Ok(Self { manifest, path })
     }
 }
@@ -157,10 +157,7 @@ pub fn validate_args_timed(
     result
 }
 
-fn validate_args_inner(
-    loaded: &LoadedManifest,
-    args: &Value,
-) -> Result<FenceOutcome, BridgeError> {
+fn validate_args_inner(loaded: &LoadedManifest, args: &Value) -> Result<FenceOutcome, BridgeError> {
     let obj = args.as_object().ok_or(BridgeError::NonObjectInput)?;
 
     let mut accepted: HashMap<String, String> = HashMap::new();
@@ -280,8 +277,8 @@ type = "string"
     }
 
     fn loaded_whois() -> LoadedManifest {
-        let manifest = toolclad::parse_manifest(whois_manifest_toml())
-            .expect("fixture manifest parses");
+        let manifest =
+            toolclad::parse_manifest(whois_manifest_toml()).expect("fixture manifest parses");
         LoadedManifest {
             manifest,
             path: PathBuf::from("<inline-fixture>"),
@@ -347,11 +344,8 @@ type = "string"
     #[test]
     fn refuses_newline_injection() {
         let loaded = loaded_whois();
-        let outcome = validate_args(
-            &loaded,
-            &json!({ "target": "example.com\nINJECTED" }),
-        )
-        .unwrap();
+        let outcome =
+            validate_args(&loaded, &json!({ "target": "example.com\nINJECTED" })).unwrap();
         assert!(matches!(outcome, FenceOutcome::Refused { .. }));
     }
 
@@ -384,8 +378,7 @@ type = "string"
         assert_eq!(counters.calls.load(Ordering::Relaxed), 3);
         assert!(counters.ns_total.load(Ordering::Relaxed) > 0);
         assert!(
-            counters.ns_max.load(Ordering::Relaxed)
-                <= counters.ns_total.load(Ordering::Relaxed)
+            counters.ns_max.load(Ordering::Relaxed) <= counters.ns_total.load(Ordering::Relaxed)
         );
     }
 

@@ -19,7 +19,10 @@ use symbi_invis_strip::{is_forbidden, sanitize_field_with_markup};
 
 /// Code points the sanitiser is supposed to drop that survived anyway.
 fn residual_forbidden(s: &str) -> Vec<u32> {
-    s.chars().map(|c| c as u32).filter(|&c| is_forbidden(c)).collect()
+    s.chars()
+        .map(|c| c as u32)
+        .filter(|&c| is_forbidden(c))
+        .collect()
 }
 
 #[test]
@@ -40,14 +43,28 @@ fn reconstructed_channels_strip_clean() {
         .map(|c| char::from_u32(0xE0000 + c as u32).unwrap())
         .collect();
     // Variation-selector channel.
-    let vsel: String = (0u32..8).map(|b| char::from_u32(0xFE00 + b).unwrap()).collect();
+    let vsel: String = (0u32..8)
+        .map(|b| char::from_u32(0xFE00 + b).unwrap())
+        .collect();
 
     let cases: Vec<(&str, String)> = vec![
-        ("zero-width-splice", format!("exec{zwnj}_esc{zwsp}alation{wj}")),
-        ("bidi-override", format!("route to {rlo}exec_escalation{pdf}")),
+        (
+            "zero-width-splice",
+            format!("exec{zwnj}_esc{zwsp}alation{wj}"),
+        ),
+        (
+            "bidi-override",
+            format!("route to {rlo}exec_escalation{pdf}"),
+        ),
         ("unicode-tag", format!("Login loops on SSO.{tag} done")),
-        ("variation-selector", format!("Invoice wrong.\u{26A0}{vsel} done")),
-        ("c1-bom-delimiter", format!("{bom}{apc}SYSTEM{nel}override{nel}END{apc}")),
+        (
+            "variation-selector",
+            format!("Invoice wrong.\u{26A0}{vsel} done"),
+        ),
+        (
+            "c1-bom-delimiter",
+            format!("{bom}{apc}SYSTEM{nel}override{nel}END{apc}"),
+        ),
     ];
 
     for (label, dirty) in &cases {
@@ -79,7 +96,10 @@ fn markup_smuggle_payload_removed() {
         !clean.contains("exec_escalation"),
         "markup-smuggled instruction survived: {clean:?}"
     );
-    assert!(!clean.contains("<!--"), "HTML comment marker survived: {clean:?}");
+    assert!(
+        !clean.contains("<!--"),
+        "HTML comment marker survived: {clean:?}"
+    );
     assert!(residual_forbidden(&clean).is_empty());
 }
 
@@ -100,10 +120,14 @@ fn draft_corpus_strips_clean() {
 
     let mut tested = 0;
     for genre in ["injection_orchestrator", "fs_enumerate", "net_boundary"] {
-        let Some(items) = json[genre].as_array() else { continue };
+        let Some(items) = json[genre].as_array() else {
+            continue;
+        };
         for item in items {
             let id = item["id"].as_str().unwrap_or("?");
-            let lure = item["lure_prompt"].as_str().expect("lure_prompt is a string");
+            let lure = item["lure_prompt"]
+                .as_str()
+                .expect("lure_prompt is a string");
             let clean = sanitize_field_with_markup(lure);
             let residual = residual_forbidden(&clean);
             assert!(

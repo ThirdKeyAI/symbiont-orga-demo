@@ -287,10 +287,7 @@ impl Db {
                WHERE task_id = ?1 AND kind = ?2
                ORDER BY run_number ASC, run_id ASC"#,
         )?;
-        let rows = stmt.query_map(
-            rusqlite::params![task_id, kind.as_str()],
-            Self::row_from,
-        )?;
+        let rows = stmt.query_map(rusqlite::params![task_id, kind.as_str()], Self::row_from)?;
         let mut out = Vec::new();
         for r in rows {
             out.push(r?);
@@ -339,11 +336,9 @@ impl Db {
     /// Returns 0.0 when the table is empty.
     pub async fn total_est_cost_usd(&self) -> Result<f64> {
         let conn = self.conn.lock().await;
-        let n: f64 = conn.query_row(
-            "SELECT COALESCE(SUM(est_cost), 0.0) FROM runs",
-            [],
-            |r| r.get(0),
-        )?;
+        let n: f64 = conn.query_row("SELECT COALESCE(SUM(est_cost), 0.0) FROM runs", [], |r| {
+            r.get(0)
+        })?;
         Ok(n)
     }
 
@@ -372,35 +367,19 @@ impl Db {
             total_tokens: row.get::<_, i64>("total_tokens")? as u32,
             journal_path: row.get("journal_path")?,
             termination_reason: row.get("termination_reason")?,
-            violations_prevented: row
-                .get::<_, i64>("violations_prevented")
-                .unwrap_or(0) as u32,
+            violations_prevented: row.get::<_, i64>("violations_prevented").unwrap_or(0) as u32,
             model_id: row.get::<_, String>("model_id").unwrap_or_default(),
             est_cost: row.get::<_, f64>("est_cost").unwrap_or(0.0),
-            prompt_tokens: row
-                .get::<_, i64>("prompt_tokens")
-                .unwrap_or(0) as u32,
-            completion_tokens: row
-                .get::<_, i64>("completion_tokens")
-                .unwrap_or(0) as u32,
-            cedar_denied: row
-                .get::<_, i64>("cedar_denied")
-                .unwrap_or(0) as u32,
-            executor_refused: row
-                .get::<_, i64>("executor_refused")
-                .unwrap_or(0) as u32,
+            prompt_tokens: row.get::<_, i64>("prompt_tokens").unwrap_or(0) as u32,
+            completion_tokens: row.get::<_, i64>("completion_tokens").unwrap_or(0) as u32,
+            cedar_denied: row.get::<_, i64>("cedar_denied").unwrap_or(0) as u32,
+            executor_refused: row.get::<_, i64>("executor_refused").unwrap_or(0) as u32,
             gate_calls: row.get::<_, i64>("gate_calls").unwrap_or(0) as u32,
             gate_ns_total: row.get::<_, i64>("gate_ns_total").unwrap_or(0) as u64,
             gate_ns_max: row.get::<_, i64>("gate_ns_max").unwrap_or(0) as u64,
-            validate_calls: row
-                .get::<_, i64>("validate_calls")
-                .unwrap_or(0) as u32,
-            validate_ns_total: row
-                .get::<_, i64>("validate_ns_total")
-                .unwrap_or(0) as u64,
-            validate_ns_max: row
-                .get::<_, i64>("validate_ns_max")
-                .unwrap_or(0) as u64,
+            validate_calls: row.get::<_, i64>("validate_calls").unwrap_or(0) as u32,
+            validate_ns_total: row.get::<_, i64>("validate_ns_total").unwrap_or(0) as u64,
+            validate_ns_max: row.get::<_, i64>("validate_ns_max").unwrap_or(0) as u64,
         })
     }
 }

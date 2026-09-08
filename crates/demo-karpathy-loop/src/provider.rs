@@ -178,8 +178,7 @@ impl MockInferenceProvider {
         }
         let needle = marker.to_ascii_lowercase();
         for msg in conversation.messages() {
-            if msg.role == MessageRole::Tool && msg.content.to_ascii_lowercase().contains(&needle)
-            {
+            if msg.role == MessageRole::Tool && msg.content.to_ascii_lowercase().contains(&needle) {
                 return true;
             }
         }
@@ -202,9 +201,7 @@ impl InferenceProvider for MockInferenceProvider {
         let role_tag = Self::role_tag_from_conversation(conversation);
 
         let script = self.scripts.get(&task_id).ok_or_else(|| {
-            InferenceError::InvalidRequest(format!(
-                "no script registered for task_id '{task_id}'"
-            ))
+            InferenceError::InvalidRequest(format!("no script registered for task_id '{task_id}'"))
         })?;
 
         // Pick which branch of the script to walk on first iteration.
@@ -377,7 +374,10 @@ mod tests {
             "- sort learned_marker sum (confidence 0.90)",
         ));
 
-        let r = p.complete(&conv, &InferenceOptions::default()).await.unwrap();
+        let r = p
+            .complete(&conv, &InferenceOptions::default())
+            .await
+            .unwrap();
         assert_eq!(r.tool_calls[0].name, "answer");
     }
 
@@ -390,7 +390,10 @@ mod tests {
         let mut conv = Conversation::with_system("You are the REFLECTOR agent.");
         conv.push(ConversationMessage::user("task_id=T1"));
 
-        let r = p.complete(&conv, &InferenceOptions::default()).await.unwrap();
+        let r = p
+            .complete(&conv, &InferenceOptions::default())
+            .await
+            .unwrap();
         assert_eq!(r.tool_calls[0].name, "store_knowledge");
     }
 }

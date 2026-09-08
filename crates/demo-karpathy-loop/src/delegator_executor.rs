@@ -62,12 +62,11 @@ impl DelegatorActionExecutor {
     pub fn tool_definition() -> ToolDefinition {
         ToolDefinition {
             name: "choose_task".into(),
-            description:
-                "Select which benchmark task a worker agent should \
+            description: "Select which benchmark task a worker agent should \
                  run next. Pass `task_id` as a string matching one of \
                  the known tasks (e.g. `T1`). Call exactly once per \
                  turn."
-                    .into(),
+                .into(),
             parameters: serde_json::json!({
                 "type": "object",
                 "properties": {

@@ -32,8 +32,18 @@ struct Case {
     should_refuse: bool,
 }
 
-fn c(group: &'static str, label: &'static str, value: impl Into<String>, should_refuse: bool) -> Case {
-    Case { group, label, value: value.into(), should_refuse }
+fn c(
+    group: &'static str,
+    label: &'static str,
+    value: impl Into<String>,
+    should_refuse: bool,
+) -> Case {
+    Case {
+        group,
+        label,
+        value: value.into(),
+        should_refuse,
+    }
 }
 
 fn cases() -> Vec<Case> {
@@ -44,30 +54,57 @@ fn cases() -> Vec<Case> {
         // ASCII look-alikes are valid hostnames — out of scope for this fence.
         c("ascii-lookalike(oos)", "digit-one", "examp1e.com", false),
         c("ascii-lookalike(oos)", "rn-for-m", "exarnple.com", false),
-
         // --- non-ASCII confusables: MUST be refused ---
         c("confusable", "cyrillic-a", "ex\u{0430}mple.com", true),
-        c("confusable", "greek-omicron", "g\u{03bf}\u{03bf}gle.com", true),
+        c(
+            "confusable",
+            "greek-omicron",
+            "g\u{03bf}\u{03bf}gle.com",
+            true,
+        ),
         c("confusable", "fullwidth-a", "\u{ff45}xample.com", true),
         c("confusable", "math-sans-e", "\u{1d5be}xample.com", true),
         c("confusable", "armenian-o", "g\u{0585}\u{0585}gle.com", true),
         c("confusable", "combining-acute", "exa\u{0301}mple.com", true),
         c("confusable", "latin-sharp-s", "stra\u{00df}e.com", true),
-        c("confusable", "greek-final-sigma", "example\u{03c2}.com", true),
-
+        c(
+            "confusable",
+            "greek-final-sigma",
+            "example\u{03c2}.com",
+            true,
+        ),
         // --- punycode case / position variants: MUST be refused ---
         c("punycode", "lower-leading", "xn--example-9c.com", true),
         c("punycode", "UPPER-leading", "XN--EXAMPLE-9C.COM", true),
         c("punycode", "Mixed-leading", "Xn--example-9c.com", true),
         c("punycode", "xN-leading", "xN--example-9c.com", true),
-        c("punycode", "non-leading-label", "www.xn--example-9c.com", true),
-        c("punycode", "punycode-subdomain", "xn--80ak6aa92e.example.com", true),
+        c(
+            "punycode",
+            "non-leading-label",
+            "www.xn--example-9c.com",
+            true,
+        ),
+        c(
+            "punycode",
+            "punycode-subdomain",
+            "xn--80ak6aa92e.example.com",
+            true,
+        ),
         c("punycode", "trailing-dot", "xn--example-9c.com.", true),
-        c("punycode", "UPPER-non-leading", "WWW.XN--EXAMPLE-9C.COM", true),
-
+        c(
+            "punycode",
+            "UPPER-non-leading",
+            "WWW.XN--EXAMPLE-9C.COM",
+            true,
+        ),
         // --- invisible / control / whitespace: MUST be refused ---
         c("invisible", "zero-width-space", "examp\u{200b}le.com", true),
-        c("invisible", "zero-width-joiner", "examp\u{200d}le.com", true),
+        c(
+            "invisible",
+            "zero-width-joiner",
+            "examp\u{200d}le.com",
+            true,
+        ),
         c("invisible", "bom-prefix", "\u{feff}example.com", true),
         c("invisible", "rtl-override", "\u{202e}example.com", true),
         c("invisible", "leading-space", " example.com", true),
@@ -79,9 +116,8 @@ fn cases() -> Vec<Case> {
 
 #[test]
 fn idn_confusable_scope_target_probe() {
-    let manifest =
-        LoadedManifest::from_path(manifests_dir().join("whois_lookup.clad.toml"))
-            .expect("manifest loads");
+    let manifest = LoadedManifest::from_path(manifests_dir().join("whois_lookup.clad.toml"))
+        .expect("manifest loads");
 
     let mut gaps: Vec<String> = Vec::new();
     let mut last_group = "";
@@ -103,7 +139,10 @@ fn idn_confusable_scope_target_probe() {
         } else {
             ""
         };
-        println!("    {:22} {:30?} -> {}{}", case.label, case.value, verdict, flag);
+        println!(
+            "    {:22} {:30?} -> {}{}",
+            case.label, case.value, verdict, flag
+        );
     }
 
     if gaps.is_empty() {
@@ -114,7 +153,10 @@ fn idn_confusable_scope_target_probe() {
             println!("  - {g}");
         }
     }
-    assert!(gaps.is_empty(), "scope_target confusable bypass gaps: {gaps:?}");
+    assert!(
+        gaps.is_empty(),
+        "scope_target confusable bypass gaps: {gaps:?}"
+    );
 }
 
 /// Adjacent classes: IP-literal encodings (SSRF-style obfuscation), double-
@@ -130,44 +172,133 @@ fn idn_confusable_scope_target_probe() {
 /// so those rows stay review-only here.
 #[test]
 fn scope_target_ip_and_encoding_probe() {
-    let manifest =
-        LoadedManifest::from_path(manifests_dir().join("whois_lookup.clad.toml"))
-            .expect("manifest loads");
+    let manifest = LoadedManifest::from_path(manifests_dir().join("whois_lookup.clad.toml"))
+        .expect("manifest loads");
 
     // (group, label, value, danger: ALLOWED would be concerning, must_refuse)
     let long_label = format!("{}.com", "a".repeat(64)); // > 63-char DNS label
     let long_host = format!("{}.com", "a.".repeat(130)); // > 253-char hostname
     let cases: Vec<(&str, &str, String, bool, bool)> = vec![
         // canonical public IPs: allowed (control)
-        ("ip-canonical", "public-dotted-quad", "93.184.216.34".into(), false, false),
+        (
+            "ip-canonical",
+            "public-dotted-quad",
+            "93.184.216.34".into(),
+            false,
+            false,
+        ),
         // canonical loopback: allowed by DEFAULT policy (block_internal=false on
         // this manifest); the block_internal path is unit-tested in ToolClad.
-        ("ip-canonical", "loopback-dotted", "127.0.0.1".into(), false, false),
+        (
+            "ip-canonical",
+            "loopback-dotted",
+            "127.0.0.1".into(),
+            false,
+            false,
+        ),
         // obfuscated IP literals: MUST be refused unconditionally (ToolClad #1).
-        ("ip-obfuscated", "decimal-loopback", "2130706433".into(), true, true),
-        ("ip-obfuscated", "hex-loopback", "0x7f000001".into(), true, true),
-        ("ip-obfuscated", "octal-loopback", "0177.0.0.1".into(), true, true),
-        ("ip-obfuscated", "shorthand-127.1", "127.1".into(), true, true),
-        ("ip-obfuscated", "mixed-octal-dec", "0177.0.0.01".into(), true, true),
+        (
+            "ip-obfuscated",
+            "decimal-loopback",
+            "2130706433".into(),
+            true,
+            true,
+        ),
+        (
+            "ip-obfuscated",
+            "hex-loopback",
+            "0x7f000001".into(),
+            true,
+            true,
+        ),
+        (
+            "ip-obfuscated",
+            "octal-loopback",
+            "0177.0.0.1".into(),
+            true,
+            true,
+        ),
+        (
+            "ip-obfuscated",
+            "shorthand-127.1",
+            "127.1".into(),
+            true,
+            true,
+        ),
+        (
+            "ip-obfuscated",
+            "mixed-octal-dec",
+            "0177.0.0.01".into(),
+            true,
+            true,
+        ),
         // obfuscated metadata IPs: refused as non-canonical literals.
-        ("ip-metadata", "imds-decimal", "2852039166".into(), true, true),
+        (
+            "ip-metadata",
+            "imds-decimal",
+            "2852039166".into(),
+            true,
+            true,
+        ),
         ("ip-metadata", "imds-hex", "0xa9fea9fe".into(), true, true),
         // cloud metadata (link-local) is now blocked UNCONDITIONALLY, even with
         // block_internal=false — IMDS credential theft, ~zero legit egress use.
-        ("ip-metadata", "imds-dotted", "169.254.169.254".into(), true, true),
+        (
+            "ip-metadata",
+            "imds-dotted",
+            "169.254.169.254".into(),
+            true,
+            true,
+        ),
         // canonical loopback IPv6: allowed by DEFAULT policy, blocked only with
         // block_internal=true (ToolClad unit tests). Review rows here.
         ("ipv6", "loopback", "::1".into(), true, false),
         ("ipv6", "bracketed", "[::1]".into(), true, false),
         ("ipv6", "v4-mapped", "::ffff:127.0.0.1".into(), true, false),
-        ("double-punycode", "nested-xn", "xn--xn---abc.com".into(), true, true),
-        ("double-punycode", "xn-in-tld", "example.xn--abc".into(), true, true),
+        (
+            "double-punycode",
+            "nested-xn",
+            "xn--xn---abc.com".into(),
+            true,
+            true,
+        ),
+        (
+            "double-punycode",
+            "xn-in-tld",
+            "example.xn--abc".into(),
+            true,
+            true,
+        ),
         ("length", "label-64", long_label, true, true),
         ("length", "host-260", long_host, true, true),
-        ("url-shaped", "scheme-prefix", "http://example.com".into(), true, false),
-        ("url-shaped", "port-suffix", "example.com:80".into(), true, false),
-        ("url-shaped", "userinfo", "user@example.com".into(), true, false),
-        ("url-shaped", "path-suffix", "example.com/admin".into(), true, false),
+        (
+            "url-shaped",
+            "scheme-prefix",
+            "http://example.com".into(),
+            true,
+            false,
+        ),
+        (
+            "url-shaped",
+            "port-suffix",
+            "example.com:80".into(),
+            true,
+            false,
+        ),
+        (
+            "url-shaped",
+            "userinfo",
+            "user@example.com".into(),
+            true,
+            false,
+        ),
+        (
+            "url-shaped",
+            "path-suffix",
+            "example.com/admin".into(),
+            true,
+            false,
+        ),
     ];
 
     let mut must_refuse_gaps: Vec<String> = Vec::new();
@@ -194,8 +325,11 @@ fn scope_target_ip_and_encoding_probe() {
         println!("    {label:22} {value:34?} -> {verdict}{note}");
     }
 
-    println!("\nsummary: {} of {} 'danger' inputs were ALLOWED.",
-             allowed_danger.len(), cases.iter().filter(|c| c.3).count());
+    println!(
+        "\nsummary: {} of {} 'danger' inputs were ALLOWED.",
+        allowed_danger.len(),
+        cases.iter().filter(|c| c.3).count()
+    );
     for a in &allowed_danger {
         println!("  review: {a}");
     }
@@ -203,6 +337,8 @@ fn scope_target_ip_and_encoding_probe() {
     // non-canonical IP-literal encodings, and over-length labels MUST refuse.
     // Canonical internal IPs are allowed unless block_internal=true (a policy
     // path covered by ToolClad's own unit tests), so they stay review-only.
-    assert!(must_refuse_gaps.is_empty(),
-            "scope_target hardened-invariant bypass: {must_refuse_gaps:?}");
+    assert!(
+        must_refuse_gaps.is_empty(),
+        "scope_target hardened-invariant bypass: {must_refuse_gaps:?}"
+    );
 }

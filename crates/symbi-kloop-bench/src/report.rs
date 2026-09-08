@@ -47,7 +47,11 @@ pub async fn write(ctx: &Ctx, out: &Path) -> anyhow::Result<()> {
 
     for id in &task_ids {
         let task = &ctx.tasks[*id];
-        let rows = ctx.db.task_runs(id, RunKind::Task).await.unwrap_or_default();
+        let rows = ctx
+            .db
+            .task_runs(id, RunKind::Task)
+            .await
+            .unwrap_or_default();
         writeln!(body, "### {} — {}", task.id, task.title)?;
         writeln!(body)?;
         if rows.is_empty() {
@@ -55,10 +59,7 @@ pub async fn write(ctx: &Ctx, out: &Path) -> anyhow::Result<()> {
             writeln!(body)?;
             continue;
         }
-        writeln!(
-            body,
-            "| Run | Score | Iterations | Tokens | Termination |"
-        )?;
+        writeln!(body, "| Run | Score | Iterations | Tokens | Termination |")?;
         writeln!(body, "|----:|------:|-----------:|-------:|:------------|")?;
         for r in &rows {
             writeln!(
@@ -102,8 +103,14 @@ pub async fn write(ctx: &Ctx, out: &Path) -> anyhow::Result<()> {
          let the reflector touch the task agent's tool vocabulary."
     )?;
     writeln!(body)?;
-    writeln!(body, "- Task agent policy: [`policies/task-agent.cedar`](../policies/task-agent.cedar)")?;
-    writeln!(body, "- Reflector policy: [`policies/reflector.cedar`](../policies/reflector.cedar)")?;
+    writeln!(
+        body,
+        "- Task agent policy: [`policies/task-agent.cedar`](../policies/task-agent.cedar)"
+    )?;
+    writeln!(
+        body,
+        "- Reflector policy: [`policies/reflector.cedar`](../policies/reflector.cedar)"
+    )?;
     writeln!(body)?;
     writeln!(body, "## What this demo is not")?;
     writeln!(body)?;

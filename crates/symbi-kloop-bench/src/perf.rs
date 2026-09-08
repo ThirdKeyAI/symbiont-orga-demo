@@ -61,9 +61,7 @@ impl PerfFormat {
             "md" | "markdown" => Ok(Self::Markdown),
             "csv" => Ok(Self::Csv),
             "json" => Ok(Self::Json),
-            other => anyhow::bail!(
-                "unknown --format '{other}'; expected md|csv|json"
-            ),
+            other => anyhow::bail!("unknown --format '{other}'; expected md|csv|json"),
         }
     }
 }
@@ -203,14 +201,22 @@ fn aggregate(rows: Vec<RawRow>, axis: PerfAxis) -> Vec<PerfRow> {
     for r in rows {
         let key = match axis {
             PerfAxis::Model => (
-                if r.model_id.is_empty() { "(mock)".into() } else { r.model_id.clone() },
+                if r.model_id.is_empty() {
+                    "(mock)".into()
+                } else {
+                    r.model_id.clone()
+                },
                 r.kind.clone(),
             ),
             PerfAxis::Task => (r.task_id.clone(), r.kind.clone()),
             PerfAxis::ModelTask => (
                 format!(
                     "{}::{}",
-                    if r.model_id.is_empty() { "(mock)".into() } else { r.model_id.clone() },
+                    if r.model_id.is_empty() {
+                        "(mock)".into()
+                    } else {
+                        r.model_id.clone()
+                    },
                     r.task_id
                 ),
                 r.kind.clone(),
@@ -241,8 +247,8 @@ fn aggregate(rows: Vec<RawRow>, axis: PerfAxis) -> Vec<PerfRow> {
             if latencies.is_empty() {
                 0.0
             } else {
-                let idx =
-                    ((q * (latencies.len() as f64 - 1.0)).round() as usize).min(latencies.len() - 1);
+                let idx = ((q * (latencies.len() as f64 - 1.0)).round() as usize)
+                    .min(latencies.len() - 1);
                 latencies[idx]
             }
         };
@@ -265,17 +271,14 @@ fn aggregate(rows: Vec<RawRow>, axis: PerfAxis) -> Vec<PerfRow> {
             0.0
         };
         let gate_max_ns: u64 = rs.iter().map(|r| r.gate_ns_max).max().unwrap_or(0);
-        let validate_calls_total: u64 =
-            rs.iter().map(|r| r.validate_calls as u64).sum();
-        let validate_ns_total_sum: u64 =
-            rs.iter().map(|r| r.validate_ns_total).sum();
+        let validate_calls_total: u64 = rs.iter().map(|r| r.validate_calls as u64).sum();
+        let validate_ns_total_sum: u64 = rs.iter().map(|r| r.validate_ns_total).sum();
         let validate_mean_ns = if validate_calls_total > 0 {
             validate_ns_total_sum as f64 / validate_calls_total as f64
         } else {
             0.0
         };
-        let validate_max_ns: u64 =
-            rs.iter().map(|r| r.validate_ns_max).max().unwrap_or(0);
+        let validate_max_ns: u64 = rs.iter().map(|r| r.validate_ns_max).max().unwrap_or(0);
         let enforcement_ns_total = gate_ns_total_sum + validate_ns_total_sum;
         out.push(PerfRow {
             group,
@@ -444,12 +447,24 @@ mod tests {
     fn parse_axis_and_format() {
         assert!(matches!(PerfAxis::parse("model").unwrap(), PerfAxis::Model));
         assert!(matches!(PerfAxis::parse("task").unwrap(), PerfAxis::Task));
-        assert!(matches!(PerfAxis::parse("model-task").unwrap(), PerfAxis::ModelTask));
-        assert!(matches!(PerfAxis::parse("model_task").unwrap(), PerfAxis::ModelTask));
+        assert!(matches!(
+            PerfAxis::parse("model-task").unwrap(),
+            PerfAxis::ModelTask
+        ));
+        assert!(matches!(
+            PerfAxis::parse("model_task").unwrap(),
+            PerfAxis::ModelTask
+        ));
         assert!(PerfAxis::parse("nope").is_err());
         assert!(matches!(PerfFormat::parse("csv").unwrap(), PerfFormat::Csv));
-        assert!(matches!(PerfFormat::parse("json").unwrap(), PerfFormat::Json));
-        assert!(matches!(PerfFormat::parse("md").unwrap(), PerfFormat::Markdown));
+        assert!(matches!(
+            PerfFormat::parse("json").unwrap(),
+            PerfFormat::Json
+        ));
+        assert!(matches!(
+            PerfFormat::parse("md").unwrap(),
+            PerfFormat::Markdown
+        ));
     }
 
     #[test]
@@ -484,12 +499,28 @@ mod tests {
         assert_eq!(r.n, 100);
         assert!((r.pass_rate - 0.5).abs() < 1e-9);
         // latencies 10..=1000 ms. p50 ≈ 500, p95 ≈ 950, p99 ≈ 990.
-        assert!((r.p50_latency_ms - 500.0).abs() < 15.0, "p50 was {}", r.p50_latency_ms);
-        assert!((r.p95_latency_ms - 950.0).abs() < 15.0, "p95 was {}", r.p95_latency_ms);
-        assert!((r.p99_latency_ms - 990.0).abs() < 15.0, "p99 was {}", r.p99_latency_ms);
+        assert!(
+            (r.p50_latency_ms - 500.0).abs() < 15.0,
+            "p50 was {}",
+            r.p50_latency_ms
+        );
+        assert!(
+            (r.p95_latency_ms - 950.0).abs() < 15.0,
+            "p95 was {}",
+            r.p95_latency_ms
+        );
+        assert!(
+            (r.p99_latency_ms - 990.0).abs() < 15.0,
+            "p99 was {}",
+            r.p99_latency_ms
+        );
         // v10 — gate aggregates: 100 runs × 5 calls × 1000 ns / call = 500 000 ns total.
         assert_eq!(r.gate_calls_total, 500);
-        assert!((r.gate_mean_ns - 1_000.0).abs() < 1.0, "gate_mean_ns was {}", r.gate_mean_ns);
+        assert!(
+            (r.gate_mean_ns - 1_000.0).abs() < 1.0,
+            "gate_mean_ns was {}",
+            r.gate_mean_ns
+        );
         assert_eq!(r.gate_max_ns, 1_500);
         // Phase A — validate aggregates: 100 runs × 2 calls × 2000 ns / call = 400 000 ns total.
         assert_eq!(r.validate_calls_total, 200);

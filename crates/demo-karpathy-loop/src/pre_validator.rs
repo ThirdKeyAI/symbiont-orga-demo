@@ -28,8 +28,7 @@ pub trait PreValidator: Send + Sync {
     /// Returns `Some(refusal)` to short-circuit the call, `None` to
     /// allow it. The arguments string is the raw JSON the LLM emitted
     /// — same shape Cedar and the existing executor see.
-    fn validate(&self, tool_name: &str, arguments_json: &str)
-        -> Option<PreValidationRefusal>;
+    fn validate(&self, tool_name: &str, arguments_json: &str) -> Option<PreValidationRefusal>;
 }
 
 /// Convenience: an `Arc<dyn PreValidator>` is the carry-shape used by

@@ -286,7 +286,9 @@ fn defang_urls_inner(s: &str) -> String {
             out.push_str("hxxp://");
             i += 7;
         } else if lb[i..].starts_with(b"//")
-            && (out.ends_with("](") || out.ends_with("=\"") || out.ends_with("='")
+            && (out.ends_with("](")
+                || out.ends_with("=\"")
+                || out.ends_with("='")
                 || out.ends_with('='))
         {
             // protocol-relative URL in a render target -> break the `//`
@@ -438,7 +440,11 @@ mod tests {
         // First call: 4 bytes in (a + 3 for U+200B), 2 bytes out.
         // Second call: 18 bytes in, 6 bytes out.
         assert!(s.bytes_in >= 22, "bytes_in was {}", s.bytes_in);
-        assert!(s.bytes_stripped > 0, "bytes_stripped was {}", s.bytes_stripped);
+        assert!(
+            s.bytes_stripped > 0,
+            "bytes_stripped was {}",
+            s.bytes_stripped
+        );
         assert!(s.ns_total > 0, "ns_total should be non-zero");
     }
 
@@ -487,7 +493,10 @@ mod tests {
 
     #[test]
     fn preserves_multilingual() {
-        assert_eq!(sanitize_field("Привет 世界 emoji 🎉"), "Привет 世界 emoji 🎉");
+        assert_eq!(
+            sanitize_field("Привет 世界 emoji 🎉"),
+            "Привет 世界 emoji 🎉"
+        );
     }
 
     #[test]
@@ -522,7 +531,9 @@ mod tests {
         let mut scanned = 0u32;
         for (lo, hi, label) in forbidden {
             for code in *lo..=*hi {
-                let Some(c) = char::from_u32(code) else { continue };
+                let Some(c) = char::from_u32(code) else {
+                    continue;
+                };
                 let raw = format!("pre{}post", c);
                 let got = sanitize_field(&raw);
                 assert_eq!(
@@ -540,11 +551,7 @@ mod tests {
         for code in 0x20..=0x7E {
             let c = char::from_u32(code).unwrap();
             let raw = format!("a{}b", c);
-            assert_eq!(
-                sanitize_field(&raw),
-                raw,
-                "printable U+{code:04X} stripped"
-            );
+            assert_eq!(sanitize_field(&raw), raw, "printable U+{code:04X} stripped");
         }
     }
 
@@ -579,10 +586,7 @@ mod tests {
             sanitize_field_with_markup("a<!--\nrun_shell('rm -rf /')\n-->b"),
             "ab"
         );
-        assert_eq!(
-            sanitize_field_with_markup("x<!--y-->z<!--q-->w"),
-            "xzw"
-        );
+        assert_eq!(sanitize_field_with_markup("x<!--y-->z<!--q-->w"), "xzw");
         assert_eq!(sanitize_field_with_markup("a<!---->b"), "ab");
     }
 
@@ -624,10 +628,7 @@ mod tests {
             "safeend"
         );
         // Multi-fence: each pair is removed.
-        assert_eq!(
-            sanitize_field_with_markup("a```x```b```y```c"),
-            "abc"
-        );
+        assert_eq!(sanitize_field_with_markup("a```x```b```y```c"), "abc");
         // Empty fence.
         assert_eq!(sanitize_field_with_markup("a``````b"), "ab");
     }

@@ -165,21 +165,19 @@ impl OpenRouterInferenceProvider {
 
         // Broadcast trace fields: observability dashboards hooked to
         // OpenRouter pick these up automatically.
-        let user = std::env::var("OPENROUTER_USER")
-            .unwrap_or_else(|_| "symbiont-orga-demo".into());
+        let user = std::env::var("OPENROUTER_USER").unwrap_or_else(|_| "symbiont-orga-demo".into());
         body["user"] = serde_json::Value::String(user);
 
         if let Some(t) = trace {
-            let role_tag = if t.role == "reflector" { "reflector" } else { "task-agent" };
+            let role_tag = if t.role == "reflector" {
+                "reflector"
+            } else {
+                "task-agent"
+            };
             // Session groups task-agent + its following reflector under
             // the same trace when callers build matching session ids.
             // Kept stable by caller: `<task>-n<NNN>-<role>`.
-            let session_id = format!(
-                "{}-n{:03}-{}",
-                t.task_id,
-                t.run_number,
-                role_tag
-            );
+            let session_id = format!("{}-n{:03}-{}", t.task_id, t.run_number, role_tag);
             body["session_id"] = serde_json::Value::String(session_id);
 
             let env_label = if t.environment.is_empty() {
@@ -255,29 +253,32 @@ impl InferenceProvider for OpenRouterInferenceProvider {
             .header("content-type", "application/json")
             // Referer + X-Title help OpenRouter's dashboard group spend
             // by caller; nothing the demo relies on.
-            .header("HTTP-Referer", "https://github.com/ThirdKeyAI/symbiont-orga-demo")
+            .header(
+                "HTTP-Referer",
+                "https://github.com/ThirdKeyAI/symbiont-orga-demo",
+            )
             .header("X-Title", "symbiont-orga-demo");
         // Also send session id as a header — OpenRouter accepts it in
         // either place, and headers survive request rewriting that
         // upstream providers sometimes do.
         if let Some(t) = &trace_snapshot {
-            let role_tag = if t.role == "reflector" { "reflector" } else { "task-agent" };
+            let role_tag = if t.role == "reflector" {
+                "reflector"
+            } else {
+                "task-agent"
+            };
             req = req.header(
                 "x-session-id",
                 format!("{}-n{:03}-{}", t.task_id, t.run_number, role_tag),
             );
         }
-        let resp = req
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| {
-                if e.is_timeout() {
-                    InferenceError::Timeout(std::time::Duration::from_secs(600))
-                } else {
-                    InferenceError::Provider(format!("request failed: {e}"))
-                }
-            })?;
+        let resp = req.json(&body).send().await.map_err(|e| {
+            if e.is_timeout() {
+                InferenceError::Timeout(std::time::Duration::from_secs(600))
+            } else {
+                InferenceError::Provider(format!("request failed: {e}"))
+            }
+        })?;
 
         let status = resp.status();
         if status.as_u16() == 429 {
@@ -307,10 +308,7 @@ impl InferenceProvider for OpenRouterInferenceProvider {
         let parsed = parse_openai_response(&json, &self.model)?;
 
         // Capture the OpenRouter-only fields into the call log.
-        let generation_id = json
-            .get("id")
-            .and_then(|v| v.as_str())
-            .map(str::to_string);
+        let generation_id = json.get("id").and_then(|v| v.as_str()).map(str::to_string);
         let upstream_provider = json
             .get("provider")
             .and_then(|v| v.as_str())

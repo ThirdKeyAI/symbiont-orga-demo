@@ -15,8 +15,7 @@ use chrono::Utc;
 use demo_karpathy_loop::{
     openrouter_provider::TraceContext,
     provider::{MockInferenceProvider, TaskScript},
-    KnowledgeStore, OllamaInferenceProvider, OpenRouterInferenceProvider, Task,
-    TaskActionExecutor,
+    KnowledgeStore, OllamaInferenceProvider, OpenRouterInferenceProvider, Task, TaskActionExecutor,
 };
 use symbi_runtime::reasoning::circuit_breaker::CircuitBreakerRegistry;
 use symbi_runtime::reasoning::context_manager::DefaultContextManager;
@@ -245,12 +244,14 @@ impl Ctx {
                 }
             }
             Provider::Ollama => {
-                let url = cfg.ollama_url.as_deref().ok_or_else(|| {
-                    anyhow::anyhow!("--provider ollama requires --ollama-url")
-                })?;
-                let model = cfg.ollama_model.as_deref().ok_or_else(|| {
-                    anyhow::anyhow!("--provider ollama requires --ollama-model")
-                })?;
+                let url = cfg
+                    .ollama_url
+                    .as_deref()
+                    .ok_or_else(|| anyhow::anyhow!("--provider ollama requires --ollama-url"))?;
+                let model = cfg
+                    .ollama_model
+                    .as_deref()
+                    .ok_or_else(|| anyhow::anyhow!("--provider ollama requires --ollama-model"))?;
                 let p = OllamaInferenceProvider::new(url, model);
                 ProviderSource::Cloud {
                     provider: Arc::new(p),
@@ -348,9 +349,7 @@ impl Ctx {
     /// v11 — accessor for the shared ToolClad pre-validator.
     /// Returns `None` when the fence is off, in which case executors
     /// stay on their pre-v11 path.
-    pub fn toolclad_pre_validator(
-        &self,
-    ) -> Option<Arc<dyn demo_karpathy_loop::PreValidator>> {
+    pub fn toolclad_pre_validator(&self) -> Option<Arc<dyn demo_karpathy_loop::PreValidator>> {
         self.toolclad_fence.clone()
     }
 
@@ -422,7 +421,9 @@ impl Ctx {
                 api_key,
                 ..
             } => Some(Arc::new(OpenRouterInferenceProvider::new(
-                base_url, reflect_model, api_key,
+                base_url,
+                reflect_model,
+                api_key,
             ))),
             _ => None,
         }
@@ -585,8 +586,7 @@ impl Ctx {
         only: Option<&str>,
         prompt: reflector::ReflectorPrompt,
     ) -> Result<DemoSummary> {
-        let mut task_ids: Vec<String> =
-            self.tasks.keys().cloned().collect();
+        let mut task_ids: Vec<String> = self.tasks.keys().cloned().collect();
         task_ids.sort();
         if let Some(target) = only {
             task_ids.retain(|id| id == target);
@@ -607,9 +607,7 @@ impl Ctx {
                 // path. Skip the check when the cap is disabled
                 // (<= 0.0) or when the runs db is empty.
                 if self.max_spend_usd > 0.0 {
-                    if let Ok(spent) =
-                        self.db.total_est_cost_usd().await
-                    {
+                    if let Ok(spent) = self.db.total_est_cost_usd().await {
                         if spent >= self.max_spend_usd {
                             tracing::warn!(
                                 spent = spent,
@@ -672,18 +670,14 @@ impl Ctx {
         // `Some(fence)` — `None` means control (no fence in front of
         // the closure); `Some` means treatment (fence inspects args
         // before the stub runs).
-        let whois_capture: task_tools::WhoisCapture =
-            Arc::new(std::sync::Mutex::new(Vec::new()));
+        let whois_capture: task_tools::WhoisCapture = Arc::new(std::sync::Mutex::new(Vec::new()));
         if matches!(
             self.task_adversarial,
             TaskAdversarialPrompt::ToolArgInjection
         ) {
             let fence = self.toolclad_pre_validator();
-            let extra = task_tools::register_whois_lookup(
-                &mut executor,
-                fence,
-                whois_capture.clone(),
-            )?;
+            let extra =
+                task_tools::register_whois_lookup(&mut executor, fence, whois_capture.clone())?;
             task_tool_defs.extend(extra);
         }
         let executor = Arc::new(executor);
@@ -708,9 +702,7 @@ impl Ctx {
                 let g: Arc<dyn ReasoningPolicyGate> = Arc::new(cedar);
                 (denied, calls, ns_total, ns_max, g)
             } else {
-                tracing::warn!(
-                    "v12.1 ablation: --cedar-mode off — gate is permissive stub"
-                );
+                tracing::warn!("v12.1 ablation: --cedar-mode off — gate is permissive stub");
                 let p = crate::policy_gate::PermissiveGate::new();
                 let denied = p.denied_counter();
                 let (calls, ns_total, ns_max) = p.latency_counters();
@@ -769,11 +761,9 @@ impl Ctx {
                 // so a 9 task × 5 iter sweep covers all 7 sub-shapes
                 // multiple times across the matrix.
                 let idx = task_tools::pick_sub_shape_index(&task.id, n);
-                let (_, payload_template) =
-                    task_tools::TOOL_ARG_INJECTION_SUB_SHAPES[idx];
+                let (_, payload_template) = task_tools::TOOL_ARG_INJECTION_SUB_SHAPES[idx];
                 let scan_id = format!("{}-{}", task.id, n);
-                let payload =
-                    task_tools::render_sub_shape_payload(payload_template, &scan_id);
+                let payload = task_tools::render_sub_shape_payload(payload_template, &scan_id);
                 let block = tool_arg_injection_block().replace("{{target}}", &payload);
                 format!("{}\n\n{}", block, task.prompt)
             }
@@ -818,12 +808,7 @@ impl Ctx {
         // itself, but the journal writer also calls the sanitiser
         // on every JSON string leaf via `write_journal_file`).
         let sanitiser_snap = symbi_invis_strip::metrics::snapshot();
-        let _ = self.write_sanitiser_metrics_sidecar(
-            &task.id,
-            n,
-            "task",
-            sanitiser_snap,
-        );
+        let _ = self.write_sanitiser_metrics_sidecar(&task.id, n, "task", sanitiser_snap);
 
         // v11 — drain the whois_lookup capture buffer (only populated
         // when --task-adversarial-variant tool-arg-injection registered
@@ -867,9 +852,7 @@ impl Ctx {
         // MODEL-SWEEP-REPORT.md §"Timeouts eat Gemini results silently".
         let answer = executor.outcome().await;
         let mut outcome = task.grade(answer.as_deref());
-        if answer.is_none()
-            && !matches!(result.termination_reason, TerminationReason::Completed)
-        {
+        if answer.is_none() && !matches!(result.termination_reason, TerminationReason::Completed) {
             outcome.score = 0.0;
         }
 
@@ -879,7 +862,8 @@ impl Ctx {
         let completion_tokens = result.total_usage.completion_tokens;
         // If the provider didn't split prompt vs completion, fall back
         // to a 70/30 heuristic so pricing is computable.
-        let (pt, ct) = if prompt_tokens == 0 && completion_tokens == 0
+        let (pt, ct) = if prompt_tokens == 0
+            && completion_tokens == 0
             && result.total_usage.total_tokens > 0
         {
             crate::pricing::split_70_30(result.total_usage.total_tokens)
@@ -893,8 +877,7 @@ impl Ctx {
         // Phase A — drain the ToolClad fence counters for this run's
         // window. Must happen *before* the reflector starts (which
         // shares the same fence Arc) so attribution stays clean.
-        let (validate_calls, validate_ns_total, validate_ns_max) =
-            self.drain_toolclad_latency();
+        let (validate_calls, validate_ns_total, validate_ns_max) = self.drain_toolclad_latency();
 
         let run_id = self
             .db
@@ -1179,11 +1162,7 @@ mod sanitize_json_tests {
 
     #[test]
     fn strips_md_fence_in_array() {
-        let mut v = json!([
-            "ok",
-            "before```ignore me```after",
-            "ok2"
-        ]);
+        let mut v = json!(["ok", "before```ignore me```after", "ok2"]);
         sanitize_json_strings(&mut v);
         assert_eq!(v[0].as_str().unwrap(), "ok");
         assert_eq!(v[1].as_str().unwrap(), "beforeafter");
@@ -1197,7 +1176,10 @@ mod sanitize_json_tests {
         // silent rewrite.
         let mut v = json!({"key_with_no_payload": "value\u{200B}with_payload"});
         sanitize_json_strings(&mut v);
-        assert_eq!(v["key_with_no_payload"].as_str().unwrap(), "valuewith_payload");
+        assert_eq!(
+            v["key_with_no_payload"].as_str().unwrap(),
+            "valuewith_payload"
+        );
     }
 }
 
@@ -1302,9 +1284,7 @@ fn summarise_tool_trace(
                 } else {
                     format!(" {args_preview}")
                 };
-                lines.push(format!(
-                    "{idx:>2}. {name}{args_hint} -> {obs_preview}"
-                ));
+                lines.push(format!("{idx:>2}. {name}{args_hint} -> {obs_preview}"));
                 if lines.len() >= max_calls {
                     break;
                 }
@@ -1435,9 +1415,7 @@ type ToolCladFenceBuild = (
     Option<symbi_toolclad_bridge::LatencyCounters>,
 );
 
-fn build_toolclad_fence(
-    mode: ToolCladMode,
-) -> Result<ToolCladFenceBuild> {
+fn build_toolclad_fence(mode: ToolCladMode) -> Result<ToolCladFenceBuild> {
     if !mode.is_active() {
         return Ok((None, None));
     }
@@ -1446,11 +1424,8 @@ fn build_toolclad_fence(
         ("store_knowledge", "store_knowledge.clad.toml"),
         ("whois_lookup", "whois_lookup.clad.toml"),
     ];
-    let fence = crate::toolclad_fence::ToolCladFence::from_paths(
-        &manifests_dir,
-        mappings,
-    )
-    .map_err(|e| anyhow::anyhow!("v11 ToolClad fence init failed: {e}"))?;
+    let fence = crate::toolclad_fence::ToolCladFence::from_paths(&manifests_dir, mappings)
+        .map_err(|e| anyhow::anyhow!("v11 ToolClad fence init failed: {e}"))?;
     tracing::info!(
         "v11 ToolClad fence active: {} tool(s) under typed-argument validation",
         fence.tool_count()
@@ -1471,4 +1446,3 @@ fn trim_to(s: &str, max_chars: usize) -> String {
         out
     }
 }
-

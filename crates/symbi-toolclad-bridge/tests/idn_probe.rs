@@ -17,10 +17,8 @@ fn manifests_dir() -> PathBuf {
 
 #[test]
 fn idn_homoglyph_scope_target_outcome() {
-    let manifest = LoadedManifest::from_path(
-        manifests_dir().join("whois_lookup.clad.toml"),
-    )
-    .expect("manifest loads");
+    let manifest = LoadedManifest::from_path(manifests_dir().join("whois_lookup.clad.toml"))
+        .expect("manifest loads");
 
     let cases: &[(&str, &str)] = &[
         ("plain ASCII", "example.com"),
@@ -31,11 +29,7 @@ fn idn_homoglyph_scope_target_outcome() {
 
     println!("\nv11 homoglyph-idn probe results:");
     for (label, value) in cases {
-        let outcome = validate_args(
-            &manifest,
-            &serde_json::json!({ "target": value }),
-        )
-        .unwrap();
+        let outcome = validate_args(&manifest, &serde_json::json!({ "target": value })).unwrap();
         match outcome {
             FenceOutcome::Validated(_) => {
                 println!("  {label:30} {value:30}  → ALLOWED");

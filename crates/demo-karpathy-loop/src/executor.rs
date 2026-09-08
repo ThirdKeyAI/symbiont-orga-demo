@@ -68,9 +68,7 @@ pub struct TaskActionExecutor {
 /// Takes a JSON-encoded argument blob (as the loop passes it), returns
 /// either a human-readable observation string or an error. Errors are
 /// surfaced to the LLM as tool-error observations.
-pub type ToolHandler = Arc<
-    dyn Fn(&str) -> Result<String, String> + Send + Sync + 'static,
->;
+pub type ToolHandler = Arc<dyn Fn(&str) -> Result<String, String> + Send + Sync + 'static>;
 
 /// v10 — postprocess hook applied to every successful tool-result
 /// string. Used by the tool-result-injection adversarial variant
@@ -120,10 +118,7 @@ impl TaskActionExecutor {
             name.as_str(),
             "answer" | "recall_knowledge" | "store_knowledge"
         ) {
-            anyhow::bail!(
-                "tool name '{}' is reserved by the runtime / executor",
-                name
-            );
+            anyhow::bail!("tool name '{}' is reserved by the runtime / executor", name);
         }
         self.handlers.insert(name, Arc::new(handler));
         // `definition` is accepted but not stored here — the harness gathers
@@ -151,12 +146,11 @@ impl TaskActionExecutor {
         vec![
             ToolDefinition {
                 name: "answer".into(),
-                description:
-                    "Commit your final answer for this task. Pass a single \
+                description: "Commit your final answer for this task. Pass a single \
                      string `content`. Call this exactly once when you are \
                      confident in your answer. For tasks that expect a list, \
                      pass a JSON array serialized as a string."
-                        .into(),
+                    .into(),
                 parameters: serde_json::json!({
                     "type": "object",
                     "properties": {
@@ -170,12 +164,11 @@ impl TaskActionExecutor {
             },
             ToolDefinition {
                 name: "recall_knowledge".into(),
-                description:
-                    "Read procedures this agent has previously learned for \
+                description: "Read procedures this agent has previously learned for \
                      the current task. Returns up to `limit` bullet points \
                      (default 5, max 20). Call this once near the start of a \
                      run before choosing your approach."
-                        .into(),
+                    .into(),
                 parameters: serde_json::json!({
                     "type": "object",
                     "properties": {
@@ -206,18 +199,15 @@ impl TaskActionExecutor {
                 *self.captured_answer.lock().await = Some(content.clone());
                 Some(Observation {
                     source: "answer".into(),
-                    content: format!(
-                        "Answer committed: {}",
-                        truncate_for_observation(&content)
-                    ),
+                    content: format!("Answer committed: {}", truncate_for_observation(&content)),
                     is_error: false,
                     call_id: Some(call_id.clone()),
                     metadata: Default::default(),
                 })
             }
             "recall_knowledge" => {
-                let parsed: serde_json::Value = serde_json::from_str(arguments)
-                    .unwrap_or(serde_json::Value::Null);
+                let parsed: serde_json::Value =
+                    serde_json::from_str(arguments).unwrap_or(serde_json::Value::Null);
                 let task_id = parsed
                     .get("task_id")
                     .and_then(|v| v.as_str())
@@ -288,10 +278,7 @@ impl TaskActionExecutor {
                 },
                 None => Some(Observation {
                     source: other.into(),
-                    content: format!(
-                        "tool '{}' is not available for this agent",
-                        other
-                    ),
+                    content: format!("tool '{}' is not available for this agent", other),
                     is_error: true,
                     call_id: Some(call_id.clone()),
                     metadata: Default::default(),

@@ -53,9 +53,7 @@ pub async fn run_delegator(
 ) -> Result<Option<String>> {
     let agent_id = AgentId::new();
 
-    let executor = Arc::new(DelegatorActionExecutor::new(
-        allowed_task_ids.to_vec(),
-    ));
+    let executor = Arc::new(DelegatorActionExecutor::new(allowed_task_ids.to_vec()));
 
     // v12.1 — branch on cedar_mode for ablation.
     let (cedar_denied, gate_calls, gate_ns_total, gate_ns_max, gate) = {
@@ -70,9 +68,7 @@ pub async fn run_delegator(
             let g: Arc<dyn ReasoningPolicyGate> = Arc::new(cedar);
             (denied, calls, ns_total, ns_max, g)
         } else {
-            tracing::warn!(
-                "v12.1 ablation: delegator --cedar-mode off — gate is permissive stub"
-            );
+            tracing::warn!("v12.1 ablation: delegator --cedar-mode off — gate is permissive stub");
             let p = crate::policy_gate::PermissiveGate::new();
             let denied = p.denied_counter();
             let (calls, ns_total, ns_max) = p.latency_counters();
@@ -138,8 +134,7 @@ pub async fn run_delegator(
     // Persist journal (sanitised by harness::write_journal_file's
     // pipeline).
     let entries = journal.entries().await;
-    let journal_path = ctx
-        .write_named_journal("delegator", iteration, "delegate", &entries)?;
+    let journal_path = ctx.write_named_journal("delegator", iteration, "delegate", &entries)?;
 
     // OpenRouter call sidecar + cost capture.
     let mut authoritative_cost: Option<f64> = None;
@@ -161,24 +156,22 @@ pub async fn run_delegator(
 
     let prompt_tokens = result.total_usage.prompt_tokens;
     let completion_tokens = result.total_usage.completion_tokens;
-    let (pt, ct) = if prompt_tokens == 0 && completion_tokens == 0
-        && result.total_usage.total_tokens > 0
-    {
-        crate::pricing::split_70_30(result.total_usage.total_tokens)
-    } else {
-        (prompt_tokens, completion_tokens)
-    };
+    let (pt, ct) =
+        if prompt_tokens == 0 && completion_tokens == 0 && result.total_usage.total_tokens > 0 {
+            crate::pricing::split_70_30(result.total_usage.total_tokens)
+        } else {
+            (prompt_tokens, completion_tokens)
+        };
     let task_pricing_key = ctx.pricing_key_for("task");
-    let est_cost = authoritative_cost
-        .unwrap_or_else(|| crate::pricing::cost_usd(&task_pricing_key, pt, ct));
+    let est_cost =
+        authoritative_cost.unwrap_or_else(|| crate::pricing::cost_usd(&task_pricing_key, pt, ct));
 
     // Phase A — drain ToolClad fence counters for the delegator's
     // window. The delegator currently routes through a path that
     // doesn't engage the typed-arg fence; drain is still called
     // unconditionally so any stray counts on the shared fence are
     // attributed to this iteration rather than leaking forward.
-    let (validate_calls, validate_ns_total, validate_ns_max) =
-        ctx.drain_toolclad_latency();
+    let (validate_calls, validate_ns_total, validate_ns_max) = ctx.drain_toolclad_latency();
 
     let chosen_label = chosen.clone().unwrap_or_else(|| "(none)".into());
     ctx.db
@@ -214,7 +207,9 @@ pub async fn run_delegator(
     Ok(chosen)
 }
 
-fn describe_termination(reason: &symbi_runtime::reasoning::loop_types::TerminationReason) -> String {
+fn describe_termination(
+    reason: &symbi_runtime::reasoning::loop_types::TerminationReason,
+) -> String {
     use symbi_runtime::reasoning::loop_types::TerminationReason as T;
     match reason {
         T::Completed => "completed".into(),

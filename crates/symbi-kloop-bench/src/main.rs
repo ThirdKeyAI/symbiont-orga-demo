@@ -36,7 +36,11 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Parser, Debug)]
-#[command(name = "symbi-kloop-bench", version, about = "Karpathy loop for Symbiont agents")]
+#[command(
+    name = "symbi-kloop-bench",
+    version,
+    about = "Karpathy loop for Symbiont agents"
+)]
 struct Cli {
     /// SQLite database path.
     #[arg(long, default_value = "data/runs.db", global = true)]

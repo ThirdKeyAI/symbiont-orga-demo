@@ -55,8 +55,14 @@ fn executor_sources() -> Vec<(&'static str, PathBuf)> {
     let crate_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     vec![
         ("executor.rs", crate_dir.join("src/executor.rs")),
-        ("reflector_executor.rs", crate_dir.join("src/reflector_executor.rs")),
-        ("delegator_executor.rs", crate_dir.join("src/delegator_executor.rs")),
+        (
+            "reflector_executor.rs",
+            crate_dir.join("src/reflector_executor.rs"),
+        ),
+        (
+            "delegator_executor.rs",
+            crate_dir.join("src/delegator_executor.rs"),
+        ),
     ]
 }
 
@@ -65,9 +71,8 @@ fn no_executor_shells_out() {
     let mut findings: Vec<String> = Vec::new();
 
     for (label, path) in executor_sources() {
-        let src = std::fs::read_to_string(&path).unwrap_or_else(|e| {
-            panic!("could not read executor source {}: {}", path.display(), e)
-        });
+        let src = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("could not read executor source {}: {}", path.display(), e));
 
         // Strip line comments so a sentinel like
         // `// previously called Command::new` doesn't false-positive.
