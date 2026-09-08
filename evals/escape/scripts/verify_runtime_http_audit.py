@@ -12,7 +12,7 @@ import verify_runtime_scheduler as runtime_driver
 import verify_runtime_dispatch as common
 import verify_runtime_managed_cli as audit_driver
 
-CASES = [(name,) for name in ("http_payload", "http_audit_storage", "http_audit_write_failure", "http_provider_error")]
+CASES = [(name,) for name in ("http_payload", "http_resource_limits", "http_audit_storage", "http_audit_write_failure", "http_provider_error")]
 
 
 def run_case(binary, case, image):
@@ -20,6 +20,15 @@ def run_case(binary, case, image):
     trusted = {}
 
     def setup(root):
+        if name == "http_resource_limits":
+            profile = root/"symbiont.toml"
+            profile.write_text(profile.read_text() + 'memory_limit="1g"\ncpu_limit=2.0\n')
+            path = root/"tools/record_payload.clad.toml"
+            manifest = path.read_text()
+            needle = '"uid":os.getuid(),'
+            assert needle in manifest
+            manifest = manifest.replace(needle, '"memory":int(Path("/sys/fs/cgroup/memory.max").read_text()),"cpu":Path("/sys/fs/cgroup/cpu.max").read_text().strip(),'+needle)
+            path.write_text(manifest)
         audit = root/".symbiont/governed"
         audit.mkdir(parents=True, mode=0o700)
         if name == "http_audit_storage":
@@ -62,12 +71,17 @@ def run_case(binary, case, image):
                 return response.code, json.load(response)
         status, body = call(name)
         record["http_status"] = status
-        if name == "http_payload":
+        if name in ("http_payload", "http_resource_limits"):
             audits = []
             for token, response_status, response in [(name,status,body), (name+"_second",*call(name+"_second"))]:
                 assert response_status == 200 and response["status"] == "completed", (response_status,response)
                 value = json.loads((root/"effects"/(token+".json")).read_text())
-                assert value == {"token":token,"uid":65534,"host_visible":False,"credential_visible":False}, value
+                expected = {"token":token,"uid":65534,"host_visible":False,"credential_visible":False}
+                if name == "http_resource_limits":
+                    cpu = [int(part) for part in value["cpu"].split()]
+                    assert len(cpu) == 2 and cpu[0] == cpu[1] and cpu[1] > 0, value
+                    expected.update(memory=512*1024*1024, cpu=value["cpu"])
+                assert value == expected, value
                 audit = response["audit"]
                 assert audit["public_key"] == trusted["public"]
                 path = Path(audit["path"])

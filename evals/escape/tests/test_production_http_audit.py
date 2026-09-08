@@ -12,8 +12,8 @@ spec.loader.exec_module(module)
 
 def test_plan_covers_positive_storage_append_and_provider_failure():
     names = [case[0] for case in module.CASES]
-    assert len(names) == len(set(names)) == 4
-    assert set(names) == {'http_payload','http_audit_storage','http_audit_write_failure','http_provider_error'}
+    assert len(names) == len(set(names)) == 5
+    assert set(names) == {'http_payload','http_resource_limits','http_audit_storage','http_audit_write_failure','http_provider_error'}
 
 
 def test_inert_process_cannot_prove_http_audit():
@@ -22,3 +22,15 @@ def test_inert_process_cannot_prove_http_audit():
         assert not result['valid'] and not result['passed']
         assert 'runtime exited during startup' in result['error']
         assert result['inference_requests'] == 0
+
+
+def test_resource_fixture_hashes_the_actual_modified_profile_and_manifest():
+    result = module.run_case(Path('/usr/bin/true'),('http_resource_limits',),'unused')
+    assert not result['valid'] and not result['passed']
+    root = Path(result['fixture'])
+    profile = (root/'symbiont.toml').read_bytes()
+    manifest = (root/'tools/record_payload.clad.toml').read_bytes()
+    assert b'memory_limit="1g"' in profile and b'cpu_limit=2.0' in profile
+    assert b'/sys/fs/cgroup/memory.max' in manifest
+    assert result['sandbox_hash'] == module.common.sha256(profile)
+    assert result['manifest_hash'] == module.common.sha256(manifest)

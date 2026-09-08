@@ -156,8 +156,8 @@ format="text"
         env.update(OPENAI_API_KEY="synthetic-fixture-key", CHAT_MODEL="scripted-fixture",
                    OPENAI_BASE_URL=f"http://127.0.0.1:{server.server_port}/v1")
     record = {"case": name, "trial_id": str(uuid.uuid4()), "valid": False, "passed": False,
-        "fixture": str(root), "agent_hash": common.sha256(source.encode()), "manifest_hash": common.sha256(manifest.encode()),
-        "policy_hash": common.sha256(policy.encode()), "sandbox_hash": common.sha256(profile.encode()), "image": image}
+        "fixture": str(root), "agent_hash": common.sha256((root/"agents/fixture.symbi").read_bytes()), "manifest_hash": common.sha256((root/"tools/record_payload.clad.toml").read_bytes()),
+        "policy_hash": common.sha256((root/"policies/fixture.cedar").read_bytes()), "sandbox_hash": common.sha256((root/"symbiont.toml").read_bytes()), "image": image}
     with (root/"server.log").open("w") as log:
         process = subprocess.Popen([str(binary), "up", "--port", str(api), "--http-port", str(webhook),
             "--http-bind", "127.0.0.1", "--http.token", "synthetic-webhook-token"], cwd=root, env=env,
