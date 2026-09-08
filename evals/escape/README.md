@@ -149,3 +149,32 @@ missing trial, changed source or leftover worker fails the suite. Missing
 backends count only as expected refusal cases. These are regression suites;
 reports retain `containment_claim: false` pending the complete outer-lab and
 production escape-adapter requirements above.
+
+## Shipping terminal approvals
+
+`verify_runtime_terminal.py` runs the actual ordinary CLI in a synthetic local
+controlling terminal. Its twelve cases cover useful approved execution, denial,
+generic yes, wrong IDs, expiry, oversized displays, terminal controls and Unicode,
+missing controlling terminals, run deadlines, process cancellation, replay and
+expiry followed by a fresh request. The operator waits for the complete escaped
+request and checks the effect file before answering. Requests and actual answers
+are retained separately from runtime evidence.
+
+`verify_runtime_terminal_managed.py` exercises approval, denial, wrong IDs and
+expiry through the native managed CLI image and protected broker. It checks the
+source write before answering and preserves the existing capability, credential,
+worker-profile, correlated-result and cleanup requirements. Both suites provision
+a synthetic audit key before startup, verify signed bytes with OpenSSL and match
+approved receipts to the displayed request, normalized arguments and host UID.
+No external approval messages or paid provider requests are sent.
+
+```bash
+.venv/bin/python scripts/verify_runtime_terminal.py --source /path/to/symbiont --target-dir /tmp/symbi-target --report /tmp/terminal.json
+.venv/bin/python scripts/verify_runtime_terminal_managed.py --source /path/to/symbiont --target-dir /tmp/symbi-target --report /tmp/terminal-managed.json
+```
+
+The shared fixture hooks retain actual process results, hash configuration after
+fixture setup and require extra evidence in addition to actual execution checks.
+Tests reject substituted approvers, principals, requests, arguments and expired
+resolution evidence. These deterministic regressions do not establish full
+containment or replace the remaining protected outer lab and held-out discovery.

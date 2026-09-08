@@ -197,7 +197,9 @@ def valid_outcome(record):
     return record['capability_verified'] and record['write_effect'] == (case == 'allowed_write')
 
 
-def run_case(binary: Path, case: tuple, image_reference: str, *, source: Path):
+def run_case(binary: Path, case: tuple, image_reference: str, *, source: Path,
+             fixture_setup=None, process_runner=None, command_options=(), evidence_verifier=None,
+             denial_text=None):
     name = case[0]
     with fixture_directory() as root:
         for relative in ('source', 'agents', 'tools', 'policies/managed-cli', 'home', 'host-bin', 'leases'):
@@ -349,18 +351,27 @@ request_timeout_seconds = 10
             SYMBIONT_ENV='production', SYNTHETIC_PROVIDER_KEY=KEY, ANTHROPIC_API_KEY='synthetic-ambient-key',
             HTTP_PROXY='http://127.0.0.1:9', HTTPS_PROXY='http://127.0.0.1:9',
             ALL_PROXY='http://127.0.0.1:9', NO_PROXY='')
+        command += list(command_options)
+        if fixture_setup is not None:
+            fixture_setup(root)
+        manifest_digests = {p.name:common.sha256(p.read_bytes()) for p in (root/'tools').iterdir()}
         killed = False; cleanup_error = None
         try:
-            with subprocess.Popen(command, cwd=root, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
-                try:
-                    if name == 'runtime_sigkill':
-                        wait_for(lambda: first_request.is_set() or process.poll() is not None, 'provider request never started')
-                        if not first_request.is_set(): raise AssertionError('runtime exited before inference')
-                        process.kill(); killed=True
-                    stdout, stderr = process.communicate(timeout=60)
-                except BaseException:
-                    process.kill(); process.communicate(timeout=5); raise
-                exit_code = process.returncode
+            if process_runner is not None:
+                process_result = process_runner(command, cwd=root, env=env, capture_output=True, text=True, timeout=60)
+                stdout, stderr, exit_code = process_result.stdout, process_result.stderr, process_result.returncode
+            else:
+                with subprocess.Popen(command, cwd=root, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
+                    try:
+                        if name == 'runtime_sigkill':
+                            wait_for(lambda: first_request.is_set() or process.poll() is not None, 'provider request never started')
+                            if not first_request.is_set(): raise AssertionError('runtime exited before inference')
+                            process.kill(); killed=True
+                        stdout, stderr = process.communicate(timeout=60)
+                    except BaseException:
+                        process.kill(); process.communicate(timeout=5); raise
+                    exit_code = process.returncode
+                process_result = subprocess.CompletedProcess(command, exit_code, stdout, stderr)
             wait_for(lambda: not workers(label) and not list((root/'leases').glob('*.json')), 'worker or lease survived run')
         finally:
             release.set(); server.shutdown(); server.server_close(); thread.join(timeout=5)
@@ -393,7 +404,8 @@ request_timeout_seconds = 10
                 == sorted((delivered_text(block), bool(block.get('is_error'))) for block in observed_results.values()))
         if name in DENIALS:
             denied = denied and len(observed_results) == 1 and all(
-                expected_denial(name, delivered_text(block)) for block in observed_results.values())
+                (delivered_text(block) == denial_text if denial_text is not None else expected_denial(name, delivered_text(block)))
+                for block in observed_results.values())
         if name in {'allowed_source_git', 'agent_docker_override', 'allowed_write'}:
             observations_verified &= nonce in observation_text
         capability=False
@@ -429,8 +441,16 @@ request_timeout_seconds = 10
             cleanup_error=cleanup_error, leftover_workers=workers(label), leftover_leases=[p.name for p in (root/'leases').glob('*.json')],
             sandbox_digest=common.sha256(sandbox.encode()), policy_digest=common.sha256(policy.encode()), agent_digest=common.sha256(agent.encode()),
             proposal_digest=common.sha256(json.dumps(proposals,sort_keys=True).encode()),
-            manifest_digests={p.name:common.sha256(p.read_bytes()) for p in (root/'tools').iterdir()})
+            manifest_digests=manifest_digests)
         record['valid']=record['passed']=valid_outcome(record)
+        if evidence_verifier is not None:
+            try:
+                evidence = evidence_verifier(root, process_result, entries)
+                record['extra_evidence'] = evidence
+                record['valid'] = record['valid'] and evidence.get('passed') is True
+                record['passed'] = record['passed'] and record['valid']
+            except Exception as error:
+                record.update(valid=False, passed=False, evidence_error=f'{type(error).__name__}: {error}')
         return record
 
 

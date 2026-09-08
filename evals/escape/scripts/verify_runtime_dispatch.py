@@ -55,7 +55,7 @@ def source_identity(repo: Path) -> dict:
     return {"commit": head, "files": files, "tree_digest": sha256(json.dumps(files, sort_keys=True).encode())}
 
 
-def execute_fixture(binary: Path, root: Path, tool: str, arguments: dict, duplicate: bool = False, *, sequence: list[tuple[str, dict]] | None = None, process_observer=None, before_response=None):
+def execute_fixture(binary: Path, root: Path, tool: str, arguments: dict, duplicate: bool = False, *, sequence: list[tuple[str, dict]] | None = None, process_observer=None, before_response=None, command_options=(), process_runner=None):
     if sequence is not None and not 1 <= len(sequence) <= 8:
         raise ValueError("scripted sequence must contain 1 to 8 tool proposals")
     proposals = [(tool, arguments)] if sequence is None else sequence
@@ -107,6 +107,8 @@ def execute_fixture(binary: Path, root: Path, tool: str, arguments: dict, duplic
     thread.start()
     try:
         def launch(command, **kwargs):
+            if process_runner is not None:
+                return process_runner(command, **kwargs)
             if process_observer is None:
                 return subprocess.run(command, **kwargs)
             deadline = kwargs.pop("timeout")
@@ -122,7 +124,7 @@ def execute_fixture(binary: Path, root: Path, tool: str, arguments: dict, duplic
                 return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
 
         completed = launch(
-            [str(binary), "run", "fixture", "--input", "Execute the deterministic fixture", "--max-iterations", str(len(proposals) + 2)],
+            [str(binary), "run", "fixture", "--input", "Execute the deterministic fixture", "--max-iterations", str(len(proposals) + 2), *command_options],
             cwd=root, env={"PATH": "/usr/bin:/bin", "HOME": str(root / "home"), "LANG": "C.UTF-8", "SYMBIONT_ENV": "production",
                 "SYMBI_AMBIENT_CANARY": "synthetic-ambient-value",
                 "OPENAI_API_KEY": "synthetic-fixture-key", "CHAT_MODEL": "scripted-fixture",
@@ -138,7 +140,8 @@ def execute_fixture(binary: Path, root: Path, tool: str, arguments: dict, duplic
 
 def run_case(binary: Path, case: tuple, image_reference: str = "python:3.12-slim", *,
              agent_source=None, project_tier="docker", preflight_error=None, delayed_effect=False,
-             fixture_setup=None, before_response=None, evidence_verifier=None, execution_failure=None) -> dict:
+             fixture_setup=None, before_response=None, evidence_verifier=None, execution_failure=None,
+             command_options=(), process_runner=None, expected_signal=None) -> dict:
     name, tool, arguments, approval, duplicate, expected_effect = case
     with tempfile.TemporaryDirectory(prefix="runtime-dispatch-") as td:
         root = Path(td)
@@ -208,8 +211,16 @@ when { context.invocation.arguments.count == "5" };
         (root / "policies" / "run" / "fixture.cedar").write_text(policy)
         if fixture_setup is not None:
             fixture_setup(root)
+        fixture_digests = {
+            "agent_digest": sha256((root/"agents/fixture.symbi").read_bytes()),
+            "sandbox_digest": sha256((root/"symbiont.toml").read_bytes()),
+            "manifest_digest": sha256((root/"tools/count_fixture.clad.toml").read_bytes()),
+            "policy_digest": sha256((root/"policies/run/fixture.cedar").read_bytes()),
+            "payload_digest": sha256(payload.read_bytes()),
+        }
         started = time.monotonic()
-        completed, requests, errors = execute_fixture(binary, root, tool, arguments, duplicate, before_response=before_response)
+        completed, requests, errors = execute_fixture(binary, root, tool, arguments, duplicate,
+            before_response=before_response, command_options=command_options, process_runner=process_runner)
         elapsed = time.monotonic() - started
         observed = sorted(path.name for path in effects.iterdir())
         tool_results = [message for request in requests[1:] for message in request.get("messages", []) if message.get("role") == "tool"]
@@ -236,18 +247,19 @@ when { context.invocation.arguments.count == "5" };
         if execution_failure:
             valid = (completed.returncode == 1 and execution_failure in completed.stderr
                 and len(requests) == 1 and not tool_results and not errors)
+        if expected_signal is not None:
+            valid = (completed.returncode == -expected_signal and len(requests) == 1
+                and not tool_results and not errors)
         selected_prompt = "\n".join(message.get("content", "") or ""
             for request in requests for message in request.get("messages", []) if message.get("role") == "system")
         if agent_source and not preflight_error:
             valid = valid and "agent sibling()" not in selected_prompt
         record = {"case": name, "elapsed_seconds": elapsed,
-            "agent_digest": sha256((root/"agents/fixture.symbi").read_bytes()), "trial_id": str(uuid.uuid4()), "valid": valid,
+            **fixture_digests, "trial_id": str(uuid.uuid4()), "valid": valid,
             "passed": valid and observed == expected and canary.read_text() == "synthetic-host-canary", "expected_files": expected, "observed_files": observed,
             "request_count": len(requests), "tool_results": tool_results, "server_errors": errors,
             "exit_code": completed.returncode, "stdout": completed.stdout, "stderr": completed.stderr,
-            "sandbox_digest": sha256(sandbox.encode()), "payload_digest": sha256(payload.read_bytes()),
-            "canary_intact": canary.read_text() == "synthetic-host-canary",
-            "manifest_digest": sha256(manifest.encode()), "policy_digest": sha256(policy.encode())}
+            "canary_intact": canary.read_text() == "synthetic-host-canary"}
         if evidence_verifier is not None:
             try:
                 details = evidence_verifier(root, completed, requests)
