@@ -63,3 +63,14 @@ def test_plan_requires_stateful_positive_and_boundary_failures():
     assert len({case[0] for case in module.CASES}) == len(module.CASES)
     assert {case[-1] for case in module.CASES} == {"success", "policy", "backend", "deadline", "stream", "closed"}
     assert any(len(case[2]) > 1 and case[-1] == "success" for case in module.CASES)
+
+
+def test_failed_run_requires_nonzero_exit_and_correlated_backend_denial():
+    record = successful_record()
+    record.update(exit_code=1, stderr='terminated: Error', events=[], observed_files=[],
+                  tool_results=[dict(tool_call_id='fixture-call-0', content='[Error] ToolClad error: unavailable')])
+    assert module.valid_outcome(record, 'backend')
+    record['exit_code'] = 0
+    assert not module.valid_outcome(record, 'backend')
+    record.update(exit_code=1, request_count=0)
+    assert not module.valid_outcome(record, 'backend')

@@ -97,12 +97,12 @@ def source_snapshot(root):
     return snapshot
 
 
-def verify_journal(path, public_key):
+def verify_journal(path, public_key, *, run_id=None):
     """Verify canonical signed payloads, exact-byte chain and one principal."""
     content = path.read_bytes()
     if not content or len(content) > 64*1024*1024 or not content.endswith(b'\n'):
         raise ValueError('missing, oversized or incomplete journal')
-    entries, previous, principal = [], '0'*64, None
+    entries, previous, principal, first_run = [], '0'*64, None, None
     with tempfile.TemporaryDirectory(prefix='managed-audit-verify-') as directory:
         root = Path(directory)
         (root/'key.der').write_bytes(bytes.fromhex('302a300506032b6570032100') + bytes.fromhex(public_key))
@@ -111,7 +111,15 @@ def verify_journal(path, public_key):
                 raise ValueError('oversized record')
             record = json.loads(line)
             payload = record['payload']; entry = payload['entry']
-            if payload['version'] != 1 or payload['previous_hash'] != previous or entry['sequence'] != len(entries):
+            version, current_run = payload['version'], payload.get('run_id')
+            valid_version = type(version) is int and ((version == 1 and current_run is None) or
+                (version == 2 and isinstance(current_run, str) and str(uuid.UUID(current_run)) == current_run))
+            if not valid_version or (run_id is not None and current_run != str(run_id)):
+                raise ValueError('invalid journal version or invocation identity')
+            if entries and current_run != first_run:
+                raise ValueError('journal invocation identity changed')
+            first_run = current_run
+            if payload['previous_hash'] != previous or entry['sequence'] != len(entries):
                 raise ValueError('invalid journal sequence or chain')
             principal = entry['agent_id'] if principal is None else principal
             if entry['agent_id'] != principal:

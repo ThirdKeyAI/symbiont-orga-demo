@@ -55,7 +55,7 @@ def source_identity(repo: Path) -> dict:
     return {"commit": head, "files": files, "tree_digest": sha256(json.dumps(files, sort_keys=True).encode())}
 
 
-def execute_fixture(binary: Path, root: Path, tool: str, arguments: dict, duplicate: bool = False, *, sequence: list[tuple[str, dict]] | None = None, process_observer=None):
+def execute_fixture(binary: Path, root: Path, tool: str, arguments: dict, duplicate: bool = False, *, sequence: list[tuple[str, dict]] | None = None, process_observer=None, before_response=None):
     if sequence is not None and not 1 <= len(sequence) <= 8:
         raise ValueError("scripted sequence must contain 1 to 8 tool proposals")
     proposals = [(tool, arguments)] if sequence is None else sequence
@@ -76,6 +76,8 @@ def execute_fixture(binary: Path, root: Path, tool: str, arguments: dict, duplic
                 request = json.loads(self.rfile.read(length))
                 requests.append(request)
                 step = len(requests) - 1
+                if before_response is not None:
+                    before_response(root, step, request)
                 if step > len(proposals):
                     raise ValueError("unexpected extra inference after scripted completion")
                 if step < len(proposals):
@@ -135,7 +137,8 @@ def execute_fixture(binary: Path, root: Path, tool: str, arguments: dict, duplic
 
 
 def run_case(binary: Path, case: tuple, image_reference: str = "python:3.12-slim", *,
-             agent_source=None, project_tier="docker", preflight_error=None, delayed_effect=False) -> dict:
+             agent_source=None, project_tier="docker", preflight_error=None, delayed_effect=False,
+             fixture_setup=None, before_response=None, evidence_verifier=None, execution_failure=None) -> dict:
     name, tool, arguments, approval, duplicate, expected_effect = case
     with tempfile.TemporaryDirectory(prefix="runtime-dispatch-") as td:
         root = Path(td)
@@ -203,8 +206,10 @@ when { context.invocation.arguments.count == "5" };
 '''
         (root / "tools" / "count_fixture.clad.toml").write_text(manifest)
         (root / "policies" / "run" / "fixture.cedar").write_text(policy)
+        if fixture_setup is not None:
+            fixture_setup(root)
         started = time.monotonic()
-        completed, requests, errors = execute_fixture(binary, root, tool, arguments, duplicate)
+        completed, requests, errors = execute_fixture(binary, root, tool, arguments, duplicate, before_response=before_response)
         elapsed = time.monotonic() - started
         observed = sorted(path.name for path in effects.iterdir())
         tool_results = [message for request in requests[1:] for message in request.get("messages", []) if message.get("role") == "tool"]
@@ -226,13 +231,16 @@ when { context.invocation.arguments.count == "5" };
             valid = (completed.returncode == 1 and preflight_error in completed.stderr
                 and not requests and not tool_results and not errors)
         if delayed_effect:
-            valid = (completed.returncode == 0 and "Timeout" in completed.stderr
+            valid = (completed.returncode == 1 and "Timeout" in completed.stderr
                 and len(requests) == 1 and not errors and elapsed < 6)
+        if execution_failure:
+            valid = (completed.returncode == 1 and execution_failure in completed.stderr
+                and len(requests) == 1 and not tool_results and not errors)
         selected_prompt = "\n".join(message.get("content", "") or ""
             for request in requests for message in request.get("messages", []) if message.get("role") == "system")
         if agent_source and not preflight_error:
             valid = valid and "agent sibling()" not in selected_prompt
-        return {"case": name, "elapsed_seconds": elapsed,
+        record = {"case": name, "elapsed_seconds": elapsed,
             "agent_digest": sha256((root/"agents/fixture.symbi").read_bytes()), "trial_id": str(uuid.uuid4()), "valid": valid,
             "passed": valid and observed == expected and canary.read_text() == "synthetic-host-canary", "expected_files": expected, "observed_files": observed,
             "request_count": len(requests), "tool_results": tool_results, "server_errors": errors,
@@ -240,6 +248,15 @@ when { context.invocation.arguments.count == "5" };
             "sandbox_digest": sha256(sandbox.encode()), "payload_digest": sha256(payload.read_bytes()),
             "canary_intact": canary.read_text() == "synthetic-host-canary",
             "manifest_digest": sha256(manifest.encode()), "policy_digest": sha256(policy.encode())}
+        if evidence_verifier is not None:
+            try:
+                details = evidence_verifier(root, completed, requests)
+                record["extra_evidence"] = details
+                record["valid"] = record["valid"] and details.get("passed") is True
+                record["passed"] = record["passed"] and record["valid"]
+            except Exception as error:
+                record.update(valid=False, passed=False, evidence_error=f"{type(error).__name__}: {error}")
+        return record
 
 
 def complete_trials(planned, trials):

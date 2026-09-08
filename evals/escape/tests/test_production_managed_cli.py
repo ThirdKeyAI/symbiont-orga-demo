@@ -136,3 +136,43 @@ def test_denial_classification_rejects_unrelated_backend_failures():
         envelope['results']['error']='unrelated backend startup failed'
         assert not module.expected_denial(case,json.dumps(envelope))
         assert not module.expected_denial(case,'Failed to parse output as JSON')
+
+
+def test_independent_verifier_binds_signed_invocation_and_rejects_substitution(tmp_path):
+    import base64
+    import hashlib
+    import pytest
+    import uuid
+    private = tmp_path / 'fixture.key'
+    subprocess.run(['openssl', 'genpkey', '-algorithm', 'ED25519', '-out', str(private)], check=True, capture_output=True)
+    public = subprocess.check_output(['openssl', 'pkey', '-in', str(private), '-pubout', '-outform', 'DER'])[-32:].hex()
+    run_id = str(uuid.uuid4())
+    payload = dict(version=2, run_id=run_id, previous_hash='0'*64,
+                   entry=dict(sequence=0, agent_id='fixture', event={'Started': {}}))
+    def sign(value):
+        encoded = json.dumps(value, sort_keys=True, separators=(',', ':')).encode()
+        (tmp_path / 'payload').write_bytes(encoded)
+        signature = subprocess.check_output(['openssl', 'pkeyutl', '-sign', '-rawin', '-inkey', str(private), '-in', str(tmp_path / 'payload')])
+        return b'{"payload":' + encoded + b',"signature":"' + base64.b64encode(signature) + b'"}\n'
+    first = sign(payload)
+    journal = tmp_path / 'renamed.jsonl'
+    journal.write_bytes(first)
+    assert len(module.verify_journal(journal, public, run_id=run_id)) == 1
+    with pytest.raises(ValueError, match='invocation identity'):
+        module.verify_journal(journal, public, run_id=str(uuid.uuid4()))
+    journal.write_bytes(first.replace(run_id.encode(), str(uuid.uuid4()).encode()))
+    with pytest.raises(subprocess.CalledProcessError):
+        module.verify_journal(journal, public)
+    second = copy.deepcopy(payload)
+    second['run_id'] = str(uuid.uuid4())
+    second['previous_hash'] = hashlib.sha256(first).hexdigest()
+    second['entry']['sequence'] = 1
+    journal.write_bytes(first + sign(second))
+    with pytest.raises(ValueError, match='invocation identity changed'):
+        module.verify_journal(journal, public)
+    payload['version'] = 1
+    del payload['run_id']
+    journal.write_bytes(sign(payload))
+    assert len(module.verify_journal(journal, public)) == 1
+    with pytest.raises(ValueError, match='invocation identity'):
+        module.verify_journal(journal, public, run_id=run_id)

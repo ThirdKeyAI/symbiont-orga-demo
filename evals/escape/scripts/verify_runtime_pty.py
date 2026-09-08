@@ -112,7 +112,9 @@ def valid_outcome(record: dict, outcome: str) -> bool:
     try:
         sequence = record["commands"]
         results = record["tool_results"]
-        if not (record["exit_code"] == 0 and ("Completed" in record["stderr"] or (outcome == "backend" and "terminated: Error" in record["stderr"]))
+        terminal_ok = ((record["exit_code"] == 0 and "Completed" in record["stderr"]) or
+                       (record["exit_code"] == 1 and outcome == "backend" and "terminated: Error" in record["stderr"]))
+        if not (terminal_ok
             and record["request_count"] == len(sequence) + 1 and not record["server_errors"]
             and not record["leftover_workers"] and not record["cleanup_error"]
             and not record["host_connections"] and record["canary_intact"]

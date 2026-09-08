@@ -29,7 +29,7 @@ def free_port():
         return sock.getsockname()[1]
 
 
-def run_case(binary, case, image):
+def run_case(binary, case, image, *, invocation=None, fixture_setup=None, before_inference=None):
     name = case[0]
     root = Path(tempfile.mkdtemp(prefix="symbiont-scheduler-e2e-"))
     for directory in ("effects", "home", "agents", "tools", "policies"):
@@ -70,6 +70,8 @@ template=\'\'\'python3 -c '%s' {token} {delay}\'\'\'
 format="text"
 ''' % (str(name == "mandatory_approval").lower(), code)
     (root/"tools/record_payload.clad.toml").write_text(manifest)
+    if fixture_setup is not None:
+        fixture_setup(root)
     requests, errors = [], []
 
     class Handler(BaseHTTPRequestHandler):
@@ -85,6 +87,15 @@ format="text"
                     raise ValueError("fixture inference budget exceeded")
                 body = json.loads(self.rfile.read(length))
                 requests.append(body)
+                override = before_inference(root, body) if before_inference is not None else None
+                if override is not None:
+                    response = json.dumps(override).encode()
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(response)))
+                    self.end_headers()
+                    self.wfile.write(response)
+                    return
                 tool_results = [message for message in body["messages"] if message["role"] == "tool"]
                 if any(message["role"] == "assistant" for message in body["messages"]):
                     feedback = tool_results[-1] if tool_results else body["messages"][-1]
@@ -166,102 +177,105 @@ format="text"
             entries = agents["agents"] if isinstance(agents, dict) else agents
             agent = next(agent for agent in entries if agent["name"] == "fixture")
             agent_id = agent["id"]
-            if name == "unavailable_selected":
-                status, _ = call("/agents/"+agent_id, {"dsl": 'agent fixture() { with sandbox = "firecracker" {} }'}, "PUT")
-                assert status == 200, status
-            payload = {"token": name, "delay": "8" if name == "cancel_active" else "2" if name == "timer_payload" else "0"}
-            record["input_hash"] = common.sha256(json.dumps(payload, sort_keys=True).encode())
-            status, job = call("/schedules", {"name": name, "agent_name": "fixture", "timezone": "UTC",
-                "cron_expression": "* * * * * *" if name == "timer_payload" else "0 0 0 1 1 * 2099",
-                "input": payload, "policy_ids": [], "one_shot": name == "timer_payload"})
-            assert status == 201, (status, job)
-            job_id = job["job_id"]
+            if invocation is not None:
+                invocation(root, webhook, agent_id, requests, record)
+            else:
+                if name == "unavailable_selected":
+                    status, _ = call("/agents/"+agent_id, {"dsl": 'agent fixture() { with sandbox = "firecracker" {} }'}, "PUT")
+                    assert status == 200, status
+                payload = {"token": name, "delay": "8" if name == "cancel_active" else "2" if name == "timer_payload" else "0"}
+                record["input_hash"] = common.sha256(json.dumps(payload, sort_keys=True).encode())
+                status, job = call("/schedules", {"name": name, "agent_name": "fixture", "timezone": "UTC",
+                    "cron_expression": "* * * * * *" if name == "timer_payload" else "0 0 0 1 1 * 2099",
+                    "input": payload, "policy_ids": [], "one_shot": name == "timer_payload"})
+                assert status == 201, (status, job)
+                job_id = job["job_id"]
 
-            def history():
-                status, body = call("/schedules/"+job_id+"/history")
-                assert status == 200, (status, body)
-                return body["history"]
+                def history():
+                    status, body = call("/schedules/"+job_id+"/history")
+                    assert status == 200, (status, body)
+                    return body["history"]
 
-            if name == "timer_payload":
-                eventually(lambda: (root/"effects"/(name+".started")).exists())
-                running = history()
-                assert len(running) == 1 and running[0]["status"] == "Running", running
-                record["observed_running"] = True
-            elif name == "cancel_active":
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                    trigger = pool.submit(call, "/schedules/"+job_id+"/trigger", {})
+                if name == "timer_payload":
                     eventually(lambda: (root/"effects"/(name+".started")).exists())
-                    status, _ = call("/agents/"+agent_id, method="DELETE")
-                    assert status == 200, status
-                    record["trigger_status"] = trigger.result(timeout=35)[0]
-            else:
-                record["trigger_status"] = call("/schedules/"+job_id+"/trigger", {})[0]
-
-            def terminal():
-                runs = history()
-                return runs if len(runs) == 1 and runs[0]["status"] != "Running" else None
-            runs = eventually(terminal)
-            result = runs[0]
-            record["result"] = result
-            execution = result.get("execution")
-            effects = root/"effects"/(name+".json")
-            if name in ("manual_payload", "timer_payload"):
-                assert result["status"] == "Succeeded", result
-                value = json.loads(effects.read_text())
-                assert value == {"token": name, "uid": 65534, "host_visible": False, "credential_visible": False}, value
-                assert name in execution["output"], execution
-                assert len(requests) == 2, len(requests)
-                record["effect"] = value
-            elif name in ("missing_provider", "unavailable_selected"):
-                expected = "no inference provider" if name == "missing_provider" else "unavailable"
-                assert result["status"] == "Failed" and expected in result["error"], result
-                assert not requests and not effects.exists()
-            else:
-                assert not effects.exists(), "denied or cancelled effect completed"
-                if name == "cancel_active":
-                    assert execution["status"] == "Terminated", execution
-                    time.sleep(9)
-                    assert not effects.exists(), "worker survived cancellation"
+                    running = history()
+                    assert len(running) == 1 and running[0]["status"] == "Running", running
+                    record["observed_running"] = True
+                elif name == "cancel_active":
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                        trigger = pool.submit(call, "/schedules/"+job_id+"/trigger", {})
+                        eventually(lambda: (root/"effects"/(name+".started")).exists())
+                        status, _ = call("/agents/"+agent_id, method="DELETE")
+                        assert status == 200, status
+                        record["trigger_status"] = trigger.result(timeout=35)[0]
                 else:
-                    assert len(requests) == 2 and execution["status"] == "Completed", execution
-                    assert not (root/"effects"/(name+".started")).exists()
-            if execution and execution.get("audit"):
-                audit = execution["audit"]
-                path = Path(audit["path"])
-                assert path.resolve().is_relative_to(root/".symbiont/governed")
-                entries = verify_journal(path, audit["public_key"])
-                assert entries[-1]["event"].get("Terminated") is not None
-                assert all(entry["agent_id"] == agent_id for entry in entries)
-                if name in ("mandatory_approval", "policy_denial"):
-                    expected = "required approval relay is unavailable" if name == "mandatory_approval" else "Cedar denied action"
-                    assert expected in json.dumps(entries), "expected refusal is absent from signed evidence"
-                    record["refusal"] = expected
-                record["journal_hash"] = common.sha256(path.read_bytes())
-                record["journal_records"] = len(entries)
-            elif name not in ("missing_provider", "unavailable_selected"):
-                raise AssertionError("execution lacks a protected audit")
-            if name == "manual_payload":
-                # The direct agent API uses the same real scheduler and records
-                # its terminal status under the admission's actual run identity.
-                direct_payload = {"token": "direct_payload", "delay": "0"}
-                status, direct = call("/agents/"+agent_id+"/execute", {"input": direct_payload})
-                assert status == 200 and direct["status"] == "queued", (status, direct)
-                direct_id = direct["execution_id"]
-                assert direct_id != execution["run_id"]
-                def direct_completed():
-                    status, history = call("/agents/"+agent_id+"/history")
-                    assert status == 200, status
-                    return any(entry["execution_id"] == direct_id and entry["status"] == "Completed" for entry in history["history"])
-                eventually(direct_completed)
-                value = json.loads((root/"effects/direct_payload.json").read_text())
-                assert value == {"token": "direct_payload", "uid": 65534, "host_visible": False, "credential_visible": False}, value
-                direct_journal = root/".symbiont/governed"/(agent_id+"."+direct_id+".jsonl")
-                direct_entries = verify_journal(direct_journal, execution["audit"]["public_key"])
-                assert direct_entries[-1]["event"]["Terminated"]["reason"] == "Completed"
-                assert all(entry["agent_id"] == agent_id for entry in direct_entries)
-                assert len(requests) == 4
-                record["direct_execution"] = {"run_id": direct_id, "effect": value,
-                    "journal_hash": common.sha256(direct_journal.read_bytes())}
+                    record["trigger_status"] = call("/schedules/"+job_id+"/trigger", {})[0]
+
+                def terminal():
+                    runs = history()
+                    return runs if len(runs) == 1 and runs[0]["status"] != "Running" else None
+                runs = eventually(terminal)
+                result = runs[0]
+                record["result"] = result
+                execution = result.get("execution")
+                effects = root/"effects"/(name+".json")
+                if name in ("manual_payload", "timer_payload"):
+                    assert result["status"] == "Succeeded", result
+                    value = json.loads(effects.read_text())
+                    assert value == {"token": name, "uid": 65534, "host_visible": False, "credential_visible": False}, value
+                    assert name in execution["output"], execution
+                    assert len(requests) == 2, len(requests)
+                    record["effect"] = value
+                elif name in ("missing_provider", "unavailable_selected"):
+                    expected = "no inference provider" if name == "missing_provider" else "unavailable"
+                    assert result["status"] == "Failed" and expected in result["error"], result
+                    assert not requests and not effects.exists()
+                else:
+                    assert not effects.exists(), "denied or cancelled effect completed"
+                    if name == "cancel_active":
+                        assert execution["status"] == "Terminated", execution
+                        time.sleep(9)
+                        assert not effects.exists(), "worker survived cancellation"
+                    else:
+                        assert len(requests) == 2 and execution["status"] == "Completed", execution
+                        assert not (root/"effects"/(name+".started")).exists()
+                if execution and execution.get("audit"):
+                    audit = execution["audit"]
+                    path = Path(audit["path"])
+                    assert path.resolve().is_relative_to(root/".symbiont/governed")
+                    entries = verify_journal(path, audit["public_key"], run_id=execution["run_id"])
+                    assert entries[-1]["event"].get("Terminated") is not None
+                    assert all(entry["agent_id"] == agent_id for entry in entries)
+                    if name in ("mandatory_approval", "policy_denial"):
+                        expected = "required approval relay is unavailable" if name == "mandatory_approval" else "Cedar denied action"
+                        assert expected in json.dumps(entries), "expected refusal is absent from signed evidence"
+                        record["refusal"] = expected
+                    record["journal_hash"] = common.sha256(path.read_bytes())
+                    record["journal_records"] = len(entries)
+                elif name not in ("missing_provider", "unavailable_selected"):
+                    raise AssertionError("execution lacks a protected audit")
+                if name == "manual_payload":
+                    # The direct agent API uses the same real scheduler and records
+                    # its terminal status under the admission's actual run identity.
+                    direct_payload = {"token": "direct_payload", "delay": "0"}
+                    status, direct = call("/agents/"+agent_id+"/execute", {"input": direct_payload})
+                    assert status == 200 and direct["status"] == "queued", (status, direct)
+                    direct_id = direct["execution_id"]
+                    assert direct_id != execution["run_id"]
+                    def direct_completed():
+                        status, history = call("/agents/"+agent_id+"/history")
+                        assert status == 200, status
+                        return any(entry["execution_id"] == direct_id and entry["status"] == "Completed" for entry in history["history"])
+                    eventually(direct_completed)
+                    value = json.loads((root/"effects/direct_payload.json").read_text())
+                    assert value == {"token": "direct_payload", "uid": 65534, "host_visible": False, "credential_visible": False}, value
+                    direct_journal = root/".symbiont/governed"/(agent_id+"."+direct_id+".jsonl")
+                    direct_entries = verify_journal(direct_journal, execution["audit"]["public_key"], run_id=direct_id)
+                    assert direct_entries[-1]["event"]["Terminated"]["reason"] == "Completed"
+                    assert all(entry["agent_id"] == agent_id for entry in direct_entries)
+                    assert len(requests) == 4
+                    record["direct_execution"] = {"run_id": direct_id, "effect": value,
+                        "journal_hash": common.sha256(direct_journal.read_bytes())}
             assert not errors, errors
             assert (root/"host-canary").read_text() == "synthetic-host-canary"
             record.update(valid=True, passed=True)
