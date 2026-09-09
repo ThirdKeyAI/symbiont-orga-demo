@@ -17,7 +17,7 @@ def allowed_record():
     return dict(case='allowed_source_git', cleanup_error=None, leftover_workers=[], leftover_leases=[],
         canary_intact=True, policy_intact=True, source_intact=True, host_child_started=False,
         credential_exposed=False, server_errors=[], exit_code=0, stderr='', request_count=2,
-        audit_verified=True, worker_profile_verified=True, inference_correlated=True, completed=True, observations_verified=True,
+        admission_pre_effect=True, admission_completed=True, audit_verified=True, worker_profile_verified=True, inference_correlated=True, completed=True, observations_verified=True,
         capability_verified=True, write_effect=False, denial_verified=False, killed_after_request=False,
         inference_started=2, inference_finished=2, expected_failure_seen=False)
 
@@ -28,7 +28,7 @@ def test_positive_requires_capability_protected_observations_audit_and_cleanup()
     for key,value in [('cleanup_error','failed'),('leftover_workers',['worker']),('leftover_leases',['lease']),
         ('canary_intact',False),('policy_intact',False),('source_intact',False),('host_child_started',True),
         ('credential_exposed',True),('server_errors',['bad request']),('exit_code',1),('request_count',0),
-        ('audit_verified',False),('worker_profile_verified',False),('inference_correlated',False),('completed',False),
+        ('admission_pre_effect',False),('admission_completed',False),('audit_verified',False),('worker_profile_verified',False),('inference_correlated',False),('completed',False),
         ('observations_verified',False),('capability_verified',False),('write_effect',True)]:
         changed=copy.deepcopy(record); changed[key]=value
         assert not module.valid_outcome(changed),key
@@ -176,3 +176,35 @@ def test_independent_verifier_binds_signed_invocation_and_rejects_substitution(t
     assert len(module.verify_journal(journal, public)) == 1
     with pytest.raises(ValueError, match='invocation identity'):
         module.verify_journal(journal, public, run_id=run_id)
+
+
+def test_prepared_admission_evidence_rejects_missing_reordered_or_mismatched_records():
+    source = dict(source_hash='sha256:source', agent_name='fixture')
+    call = dict(contract=dict(name='claude_code'), source_policy=source, fingerprint='sha256:fixed',
+        resolved=dict(kind='managed_cli_spawn'), action=dict(ToolCall=dict(name='claude_code',call_id='launch')))
+    result = dict(success=True, exit_code=0, stdout_hash='sha256:'+'1'*64, stderr_hash='sha256:'+'2'*64,
+        stdout_bytes=12, stderr_bytes=0)
+    observation = dict(source='claude_code',call_id='launch',is_error=False,content=json.dumps(result))
+    entries = [dict(event=event) for event in [
+        dict(Started=dict(execution_context=dict(source_policy=source))),
+        dict(PolicyEvaluated=dict(approved_calls=[call])), dict(InferenceRequested={}),
+        dict(ToolBatchCompleted=dict(observations=[observation]))]]
+    assert module.admission_evidence(entries) == dict(pre_effect=True,completed=True)
+    assert not module.admission_evidence(entries[:1]+entries[2:])['pre_effect']
+    assert not module.admission_evidence([entries[0],entries[2],entries[1],entries[3]])['pre_effect']
+    assert not module.admission_evidence(entries[:-1])['completed']
+    changed=copy.deepcopy(entries); changed[1]['event']['PolicyEvaluated']['approved_calls'][0]['source_policy']={}
+    assert not module.admission_evidence(changed)['pre_effect']
+    for key,value in [('call_id','different'),('is_error',True),('content','{}')]:
+        changed=copy.deepcopy(entries); changed[-1]['event']['ToolBatchCompleted']['observations'][0][key]=value
+        assert not module.admission_evidence(changed)['completed']
+    changed=copy.deepcopy(entries); changed.append(changed[-1])
+    assert not module.admission_evidence(changed)['completed']
+
+
+def test_managed_source_cases_cover_launch_broker_scope_and_review():
+    import verify_runtime_managed_source as source
+    names = [row[0] for row in source.CASES]
+    assert len(names) == len(set(names)) == 13
+    assert {'global_allowed','selected_allowed','source_changed_during_review','admission_inline_denied',
+            'admission_missing_relay','admission_expired','broker_inline_denied','unsupported_global_rule'} <= set(names)

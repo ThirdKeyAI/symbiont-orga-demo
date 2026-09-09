@@ -201,3 +201,20 @@ Use the runtime broker, terminal, managed CLI and audit suites for those effects
 ```
 
 The TUI suite accepts `SYMBI_E2E_TMUX=/absolute/path/to/tmux` for a provisioned binary. Its path, digest and version are retained in each trial.
+
+
+`verify_runtime_managed_source.py` runs 13 shipping managed CLI cases covering
+file-wide and selected-agent inline policies, admission approval and refusal,
+missing/expired/wrong approval responses, broker denial before review, unsupported
+rules, the reserved admission tool name and source/profile/manifest edits while
+review is pending. It uses the native worker image and local synthetic inference.
+Admission records are correlated separately from delivered broker observations;
+positive trials require both a prepared pre-effect launch and its matching outcome.
+The native driver hashes actual fixture contents after trusted setup hooks.
+
+```sh
+.venv/bin/python scripts/verify_runtime_managed_source.py --source /path/to/symbiont --target-dir /tmp/symbi-target --report /tmp/managed-source.json
+```
+
+These cases remain deterministic regressions, not a whole-system containment
+claim or a replacement for an independently protected evaluation lab.

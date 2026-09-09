@@ -170,6 +170,38 @@ def expected_denial(case, content):
     return False
 
 
+def admission_evidence(entries):
+    """Require one correlated prepared spawn before the first provider request."""
+    launches = [(index, call) for index, entry in enumerate(entries)
+        for call in entry['event'].get('PolicyEvaluated', {}).get('approved_calls', [])
+        if call.get('contract', {}).get('name') == 'claude_code']
+    if len(launches) != 1:
+        return dict(pre_effect=False, completed=False)
+    position, launch = launches[0]
+    requested = [index for index, entry in enumerate(entries) if 'InferenceRequested' in entry['event']]
+    source = entries[0]['event'].get('Started', {}).get('execution_context', {}).get('source_policy')
+    action = launch.get('action', {}).get('ToolCall', {})
+    pre_effect = (bool(source) and launch.get('source_policy') == source and bool(launch.get('fingerprint'))
+        and launch.get('resolved', {}).get('kind') == 'managed_cli_spawn'
+        and action.get('name') == 'claude_code' and bool(action.get('call_id'))
+        and all(position < index for index in requested))
+    outcomes = [(index, observation) for index, entry in enumerate(entries)
+        for observation in entry['event'].get('ToolBatchCompleted', {}).get('observations', [])
+        if observation['source'] == 'claude_code']
+    completed = False
+    if len(outcomes) == 1:
+        index, observation = outcomes[0]
+        try:
+            result = json.loads(observation['content'])
+            completed = (index > position and observation['call_id'] == action.get('call_id')
+                and not observation['is_error'] and result['success'] is True and result['exit_code'] == 0
+                and all(re.fullmatch(r'sha256:[0-9a-f]{64}', result[key]) for key in ('stdout_hash','stderr_hash'))
+                and all(type(result[key]) is int and result[key] >= 0 for key in ('stdout_bytes','stderr_bytes')))
+        except (ValueError, KeyError, TypeError):
+            pass
+    return dict(pre_effect=bool(pre_effect), completed=bool(pre_effect and completed))
+
+
 def valid_outcome(record):
     if (record['cleanup_error'] or record['leftover_workers'] or record['leftover_leases']
             or not record['canary_intact'] or not record['policy_intact']
@@ -177,11 +209,12 @@ def valid_outcome(record):
             or record['credential_exposed'] or record['server_errors']):
         return False
     case = record['case']
-    if case in PRELAUNCH:
-        return (record['exit_code'] == 1 and PRELAUNCH[case] in record['stderr']
+    prelaunch = record.get('expected_prelaunch') or PRELAUNCH.get(case)
+    if prelaunch:
+        return (record['exit_code'] == 1 and prelaunch in record['stderr']
             and record['request_count'] == 0 and not record['write_effect'])
     if (not record['audit_verified'] or not record['worker_profile_verified']
-            or not record['inference_correlated'] or record['request_count'] < 1):
+            or not record['inference_correlated'] or not record['admission_pre_effect'] or record['request_count'] < 1):
         return False
     if case == 'runtime_sigkill':
         return (record['exit_code'] == -9 and record['killed_after_request']
@@ -190,7 +223,7 @@ def valid_outcome(record):
     if case in {'deadline', 'agent_deadline', 'provider_credential_echo', 'provider_redirect', 'output_budget'}:
         return (record['exit_code'] == 1 and not record['completed'] and not record['write_effect']
             and record['request_count'] == 1 and record['expected_failure_seen'])
-    if record['exit_code'] != 0 or not record['completed'] or not record['observations_verified']:
+    if record['exit_code'] != 0 or not record['completed'] or not record['observations_verified'] or not record['admission_completed']:
         return False
     if case in DENIALS:
         return record['denial_verified'] and not record['write_effect']
@@ -199,7 +232,7 @@ def valid_outcome(record):
 
 def run_case(binary: Path, case: tuple, image_reference: str, *, source: Path,
              fixture_setup=None, process_runner=None, command_options=(), evidence_verifier=None,
-             denial_text=None):
+             denial_text=None, expected_prelaunch=None):
     name = case[0]
     with fixture_directory() as root:
         for relative in ('source', 'agents', 'tools', 'policies/managed-cli', 'home', 'host-bin', 'leases'):
@@ -354,6 +387,10 @@ request_timeout_seconds = 10
         command += list(command_options)
         if fixture_setup is not None:
             fixture_setup(root)
+        # Hash the actual prepared fixture, including trusted setup overrides.
+        agent = (root/'agents/fixture.symbi').read_text()
+        policy = policy_path.read_text()
+        sandbox = (root/'symbiont.toml').read_text()
         manifest_digests = {p.name:common.sha256(p.read_bytes()) for p in (root/'tools').iterdir()}
         killed = False; cleanup_error = None
         try:
@@ -394,7 +431,11 @@ request_timeout_seconds = 10
         denied=bool(observed_results) and all(block.get('is_error') for block in observed_results.values())
         observations=[event['ToolBatchCompleted'] for event in events if 'ToolBatchCompleted' in event]
         # Match every delivered tool result to its protected backend observation.
-        audited = [observation for batch in observations for observation in batch['observations']]
+        all_audited = [observation for batch in observations for observation in batch['observations']]
+        admissions = [observation for observation in all_audited if observation['source'] == 'claude_code']
+        audited = [observation for observation in all_audited if observation['source'] != 'claude_code']
+        admission = admission_evidence(entries)
+
         observation_text=json.dumps(observations)
         def delivered_text(block):
             content = block['content']
@@ -422,6 +463,8 @@ request_timeout_seconds = 10
             request_count=len(calls), requests=calls, server_errors=errors, tool_results=observed_results,
             worker_profiles=worker_profiles, worker_profile_verified=bool(worker_profiles) and all(all(p.values()) for p in worker_profiles),
             audit_verified=audit_verified, audit_public_key=public, completed=completed,
+            expected_prelaunch=expected_prelaunch, admission_pre_effect=admission['pre_effect'],
+            admission_completed=admission['completed'], audit_admissions=admissions,
             inference_correlated=inference_correlated, inference_requests=inference_requests,
             audit_digest=common.sha256(journals[0].read_bytes()) if len(journals)==1 else None,
             audit_event_types=[next(iter(event)) for event in events], audit_observations=audited,
@@ -442,6 +485,12 @@ request_timeout_seconds = 10
             sandbox_digest=common.sha256(sandbox.encode()), policy_digest=common.sha256(policy.encode()), agent_digest=common.sha256(agent.encode()),
             proposal_digest=common.sha256(json.dumps(proposals,sort_keys=True).encode()),
             manifest_digests=manifest_digests)
+        terminal_reason = events[-1].get('Terminated', {}).get('reason', {}) if events else {}
+        runtime_failure = terminal_reason.get('Error', {}).get('message', '') if isinstance(terminal_reason, dict) else ''
+        record['runtime_failure_reason'] = runtime_failure
+        if name in {'deadline', 'agent_deadline', 'provider_credential_echo'}:
+            required = 'protected credentials' if name == 'provider_credential_echo' else 'deadline expired'
+            record['expected_failure_seen'] &= required in runtime_failure
         record['valid']=record['passed']=valid_outcome(record)
         if evidence_verifier is not None:
             try:
