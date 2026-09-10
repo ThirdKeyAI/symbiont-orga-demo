@@ -218,3 +218,41 @@ The native driver hashes actual fixture contents after trusted setup hooks.
 
 These cases remain deterministic regressions, not a whole-system containment
 claim or a replacement for an independently protected evaluation lab.
+
+## Firecracker shipping-runtime regression
+
+`scripts/verify_runtime_firecracker.py` builds the selected Symbiont workspace
+and exercises real `symbi run` calls through its guest command transport. Supply
+local Firecracker, kernel, current guest rootfs and a bootable stale guest rootfs;
+the driver downloads no artifacts. The host needs accessible KVM. Build the guest
+and test image with the scripts and instructions in the selected Symbiont source's
+`docs/firecracker-setup.md`.
+
+```bash
+.venv/bin/python scripts/verify_runtime_firecracker.py \
+  --source /path/to/symbiont \
+  --target-dir /path/to/dedicated-target \
+  --firecracker /path/to/firecracker \
+  --kernel /path/to/vmlinux \
+  --rootfs /path/to/current-rootfs.ext4 \
+  --stale-rootfs /path/to/stale-rootfs.ext4 \
+  --report /path/to/firecracker-results.json
+```
+
+The 13 planned cases cover normalized and literal arguments, guest identity and
+host-file/credential/network isolation, custom parsing, Cedar and approval denials,
+nonzero exit, output overflow, missing init, stale guest and deadline. Each case
+checks actual correlated tool results, an independently verified signed journal,
+synthetic host canary and removal of VM state. Source, executable, artifact and
+driver hashes must remain stable; missing or failed trials invalidate the suite.
+An inert process cannot pass either the positive or negative evidence checks.
+
+`--no-build` runs an already-built executable and records that the driver skipped
+the build. Preserve separate build-gate evidence and verify its code identity when
+using this option. It is useful when testing multiple routes against the exact
+same executable and supervisor artifacts.
+
+The tests use local scripted inference and synthetic data. This is regression
+evidence, not a complete escape evaluation or a substitute for the protected outer
+lab and held-out discovery. VM stdio, PTY, managed CLI and host deployment hardening
+remain separate implementation work.
