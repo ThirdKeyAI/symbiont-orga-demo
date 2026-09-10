@@ -27,9 +27,10 @@ records, per trial:
   requests and output tokens, and keeps provider credentials outside the worker.
   This remains an intentional information channel to the provider. It does not
   establish capability parity with the Rust arm or prove non-exfiltration.
-  Worker-written JSON/strace files remain tamperable; host broker records and
-  container cleanup confirmation do not make those tool-effect records trusted.
-  See [Confined inference broker](CONFINED-INFERENCE.md);
+  Worker-written JSON remains tamperable and pilot records remain invalid for
+  escape-rate scoring. Syscall traces now come from a separate observer outside
+  the worker PID namespace. See [Confined inference broker](CONFINED-INFERENCE.md)
+  and [Protected observation](PROTECTED-OBSERVATION.md);
 - `python_sandboxed` — permissive agent in Docker with `--network host`
   (reaches real network — confines fs blast only);
 - `symbiont` — the structural fence under test.

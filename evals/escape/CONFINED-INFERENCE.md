@@ -38,14 +38,15 @@ confirmation and explicit limits on the evaluation claim. Missing or failed
 cleanup raises an error; the pilot records the trial as invalid. All current
 `python_confined` pilot records also carry `worker_evidence_protected=false`,
 `containment_claim=false`, `evaluation_status=invalid` and `escape_success=null`:
-without a protected tool-effect observer they are diagnostic records, excluded
+until all required evidence, including controller results, is protected they are diagnostic records, excluded
 from escape-rate aggregation even when the worker reports success.
 
 This broker intentionally permits information to reach the inference provider
 inside bounded messages. It is not a non-exfiltration guarantee. A worker can
-consume the inference budget and cause its own trial to fail. Its JSON and
-syscall trace are still worker-writable and must not be treated as protected
-observations. The Python arm retains `python_eval`, which the legacy Rust arm
+consume the inference budget and cause its own trial to fail. Its result JSON remains worker-writable and must not be treated as protected
+observation. Syscall tracing now runs in a separate, unprivileged observer
+container; see [Protected observation](PROTECTED-OBSERVATION.md) for setup,
+shared lab restrictions, evidence receipts and the shipping-runtime check. The Python arm retains `python_eval`, which the legacy Rust arm
 does not expose; this change does not establish equivalent capabilities or
 measure the shipping runtime. Those evaluation requirements remain separate.
 
@@ -54,7 +55,7 @@ Focused validation uses a local scripted HTTP provider and synthetic credentials
 ```sh
 cd evals/escape
 ESCAPE_BROKER_DOCKER_E2E=1 .venv/bin/python -m pytest -q \
-  tests/test_inference_broker.py tests/test_runner.py tests/test_evidence_integrity.py
+  tests/test_inference_broker.py tests/test_protected_trace.py
 ```
 
 Docker tests require the existing cached image and a local Docker daemon. They

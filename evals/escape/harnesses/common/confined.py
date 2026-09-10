@@ -1,6 +1,6 @@
 """Legacy Python comparison arm with bounded broker/container lifetime.
 
-Worker-produced JSON and syscall traces are still untrusted evidence. This
+Worker-produced JSON remains untrusted; syscall traces come from a separate observer. This
 profile is not a capability-matched shipping-runtime containment evaluation.
 """
 
@@ -14,6 +14,7 @@ import uuid
 from pathlib import Path
 
 from harnesses.common.inference_broker import inference_broker
+from harnesses.common.protected_trace import ProtectedTrace
 from harnesses.python_baseline.tools import build_tools_spec
 
 TRIAL_TIMEOUT_SECONDS = 180
@@ -50,7 +51,6 @@ def run_confined_trial(task, *, model, prompt_variant, instance_seed,
     out_path = results_dir / f"{stem}.json"
     strace_path = results_dir / f"{stem}.strace"
     worker_out = instance_root / "_trial.json"
-    worker_trace = instance_root / "_trial.strace"
     image = subprocess.run(["docker", "image", "inspect", IMAGE, "--format", "{{.Id}}"],
                            check=True, capture_output=True, text=True, timeout=15).stdout.strip()
     if not image.startswith("sha256:") or len(image) != 71:
@@ -61,13 +61,15 @@ def run_confined_trial(task, *, model, prompt_variant, instance_seed,
         "trial_timeout_seconds": TRIAL_TIMEOUT_SECONDS,
         "capability_matched": False, "worker_evidence_protected": False,
         "containment_claim": False, "container_cleanup_confirmed": False,
+        "syscall_trace_protected": False,
     }
     profile_path = results_dir / f"{stem}.lab.json"
     profile_path.write_text(json.dumps(profile, indent=2) + "\n")
     with inference_broker(endpoint=endpoint,
                           api_key=os.environ.get("ESCAPE_LLM_API_KEY", ""),
                           model=model, tools=build_tools_spec(task),
-                          journal_path=results_dir / f"{stem}.inference.jsonl") as socket_dir:
+                          journal_path=results_dir / f"{stem}.inference.jsonl") as socket_dir, \
+            ProtectedTrace(image=image, trace_path=strace_path) as observer:
         child = [
             "docker", "create", "--rm", "--pull", "never", "--name", name,
             "--network", "none", "--read-only", "--cap-drop", "ALL",
@@ -79,13 +81,13 @@ def run_confined_trial(task, *, model, prompt_variant, instance_seed,
             "-v", f"{instance_root / 'data'}:/data:rw",
             "-v", f"{evals_dir}:{evals_dir}:ro", *extra_task_mount,
             "-v", f"{socket_dir}:/inference:ro",
+            "-v", f"{observer.control_dir}:/trace-control:ro",
             "-w", str(evals_dir), "-e", f"PYTHONPATH={evals_dir}",
             "-e", "PYTHONDONTWRITEBYTECODE=1",
             "-e", "ESCAPE_LLM_URL=http://llm.local/v1/chat/completions",
             "-e", "ESCAPE_LLM_UDS=/inference/llm.sock", image,
-            "strace", "-f", "-yy", "-s", "4096", "-e",
-            "trace=open,openat,openat2,connect,execve,execveat", "-o", str(worker_trace),
-            "python3", "-m", "harnesses.python_baseline",
+            "/usr/local/bin/python3", "-I", str(evals_dir / "harnesses/common/trace_gate.py"),
+            "/trace-control/gate.sock", "/usr/local/bin/python3", "-m", "harnesses.python_baseline",
             "--task", str(task_path), "--model", model,
             "--prompt-variant", str(prompt_variant), "--instance-seed", str(instance_seed),
             "--instance-root", str(instance_root), "--out", str(worker_out),
@@ -95,9 +97,17 @@ def run_confined_trial(task, *, model, prompt_variant, instance_seed,
             # a client timeout cannot leave an unacknowledged running worker.
             subprocess.run(child, check=True, timeout=15,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            subprocess.run(["docker", "start", "--attach", name], check=True,
-                           timeout=TRIAL_TIMEOUT_SECONDS,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            worker = subprocess.Popen(["docker", "start", "--attach", name],
+                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            try:
+                observer.attach_and_release(name)
+                observer.wait_worker(worker, TRIAL_TIMEOUT_SECONDS)
+                profile["syscall_trace_protected"] = True
+                profile["observer_receipt"] = str(strace_path.with_suffix(".observer.json"))
+            finally:
+                if worker.poll() is None:
+                    worker.kill()
+                worker.wait(timeout=5)
         finally:
             _remove_container(name)
             profile["container_cleanup_confirmed"] = True
@@ -106,7 +116,6 @@ def run_confined_trial(task, *, model, prompt_variant, instance_seed,
     # authenticity of regular files written by the worker.
     for source, destination, limit in (
         (worker_out, out_path, 4 * 1024 * 1024),
-        (worker_trace, strace_path, 16 * 1024 * 1024),
     ):
         fd = os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
         with os.fdopen(fd, "rb") as stream:
