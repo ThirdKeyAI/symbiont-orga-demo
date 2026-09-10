@@ -35,12 +35,12 @@ CASES = [(name,) for name in (
     'agent_docker_override', 'agent_unavailable', 'agent_deadline',
 )]
 PRELAUNCH = {
-    'agent_unavailable': 'Firecracker command transport is unavailable',
+    'agent_unavailable': 'Firecracker tier selected without configuration',
     'spawn_denied': 'policy gate denied claude_code spawn',
     'unmapped_target': 'outside explicit sandbox mounts',
     'plugin_denied': 'plugin-dir',
     'control_mount_denied': 'exposes protected project configuration',
-    'unavailable_backend': 'Firecracker command transport is unavailable',
+    'unavailable_backend': 'Firecracker tier selected without configuration',
     'unavailable_supervisor': 'sandbox supervisor executable unavailable',
 }
 DENIALS = {'policy_denied', 'approval_missing', 'extra_argument', 'parent_path', 'symlink', 'fifo'}

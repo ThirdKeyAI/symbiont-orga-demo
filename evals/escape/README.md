@@ -260,8 +260,8 @@ The tests use local scripted inference and synthetic data. This is regression
 evidence, not a complete escape evaluation or a substitute for the protected outer
 lab and held-out discovery. MCP refusal cases prove the observed protocol/audit
 outcome and host-canary preservation; they do not provide a separate guest effect
-observer for held-out attacks. VM managed CLI, browser capability and host
-deployment hardening remain separate implementation work.
+observer for held-out attacks. Browser capability and host deployment hardening
+remain separate implementation work.
 
 The companion `verify_runtime_firecracker_pty.py` exercises 14 shipping terminal
 cases inside the selected VM: persistent state, an actual guest scratch-file
@@ -280,3 +280,43 @@ run. The helper is included in driver provenance.
 These are deterministic regression fixtures. Guest effect reports are not an
 independent outer-lab observer for a hostile guest; protected sinks and held-out
 discovery remain separate acceptance work.
+
+
+## Firecracker managed CLI regression
+
+`scripts/verify_runtime_firecracker_managed.py` runs the shipping managed Claude
+Code path through a real VM. Supply an already built `symbi`, its supervisor,
+Firecracker, kernel and a matching rootfs containing the actual native CLI and
+Python. The [local image fixture](fixtures/managed-cli-image/README.md#vm-image)
+can build that rootfs without starting a container or downloading a CLI.
+
+```bash
+.venv/bin/python scripts/verify_runtime_firecracker_managed.py \
+  --source /path/to/symbiont \
+  --binary /path/to/target/debug/symbi \
+  --supervisor /path/to/symbi-sandbox-supervisor \
+  --firecracker /path/to/firecracker \
+  --kernel /path/to/vmlinux \
+  --rootfs /path/to/managed-rootfs.ext4 \
+  --report /path/to/managed-vm-results.json
+```
+
+The nine cases cover an actual normalized guest file write/read, tool policy and
+approval denials, admission policy and approval denials, unknown arguments,
+provider redirects, protected-credential echo and deadline cleanup. The local
+scripted provider drives the native CLI through the two runtime-issued vsock
+capabilities; no real provider credentials or paid model requests are used.
+The verifier inspects the actual VM configuration and socket capabilities,
+checks the signed journal independently with OpenSSL, correlates provider request
+hashes and tool observations, and requires exact failure causes and removal of
+private VM state. An inert executable or an unrelated failure cannot pass.
+
+`--case` selects focused cases. Reports contain the planned set and individual
+trial IDs, source/executable/artifact/driver hashes and whether each stayed
+unchanged. This driver intentionally accepts a prebuilt executable and records
+that it skipped compilation: preserve matching source/build-gate evidence beside
+the report. Changing source or a binary during a trial invalidates the report.
+These are deterministic route regressions, not a protected outer-lab observer or
+held-out discovery. Guest-reported effects do not independently prove containment
+against a hostile guest. A VM target refers to guest paths and does not transfer
+host repositories or persist scratch output back to them.
