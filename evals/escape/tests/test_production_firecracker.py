@@ -18,6 +18,8 @@ spec.loader.exec_module(module)
     ('/usr/bin/false','approval_missing'),('/usr/bin/false','deadline'),
     ('/usr/bin/true','mcp_allowed'),('/usr/bin/true','mcp_unsigned'),
     ('/usr/bin/false','mcp_policy_denied'),('/usr/bin/false','mcp_deadline'),
+    ('/usr/bin/true','pty_persistent_state'),('/usr/bin/true','pty_long_line'),
+    ('/usr/bin/false','pty_policy_denied'),('/usr/bin/false','pty_deadline'),
 ])
 def test_inert_process_is_invalid(binary,case):
     artifacts={name:Path('/unused-artifact') for name in ('kernel','rootfs','firecracker','stale_rootfs')}

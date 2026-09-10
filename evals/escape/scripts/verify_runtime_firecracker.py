@@ -18,13 +18,14 @@ import time
 import uuid
 import verify_runtime_dispatch as common
 import verify_runtime_audit as audit
+import verify_runtime_firecracker_pty as terminal
 
 CASES = ["normalized_allowed", "literal_allowed", "guest_isolation", "parser_allowed",
          "policy_denied", "unadvertised", "extra_argument", "approval_missing",
          "nonzero_exit", "output_overflow", "missing_init", "stale_guest", "deadline",
          "mcp_allowed", "mcp_unsigned", "mcp_tampered", "mcp_wrong_key",
          "mcp_policy_denied", "mcp_approval_missing", "mcp_unadvertised",
-         "mcp_output_overflow", "mcp_deadline"]
+         "mcp_output_overflow", "mcp_deadline"] + terminal.CASES
 
 
 def identity(path):
@@ -43,6 +44,8 @@ def signed_echo_schema():
 
 
 def run_case(binary, name, artifacts):
+    if name in terminal.CASES:
+        return terminal.run_case(binary, name, artifacts)
     result = {"case":name, "trial_id":str(uuid.uuid4()), "valid":False, "passed":False}
     with tempfile.TemporaryDirectory(prefix="fcli-", dir="/tmp") as directory:
         root=Path(directory)
@@ -143,12 +146,7 @@ OUTPUT'''.replace('APPROVAL',str(name=='approval_missing').lower()).replace('ARG
         try:
             assert intact and not remaining and not errors
             reference=audit.reference(completed,root)
-            if name=='missing_init':
-                assert completed.returncode==1 and len(requests)==2 and len(messages)==1
-                assert messages[0].get('tool_call_id')=='fixture-call' and messages[0]['content'].startswith('[Error]')
-                expected_error={'Error':{'message':'Required worker cleanup failed: VMM exited before explicit release: Some(0)'}}
-                result['audit']=audit.verify(reference,expected_error)
-            elif name in ('deadline', 'mcp_deadline'):
+            if name in ('deadline', 'mcp_deadline'):
                 assert completed.returncode==1 and 'Timeout' in completed.stderr and len(requests)==1 and not messages
                 result['audit']=audit.verify(reference,'Timeout')
             else:
@@ -172,6 +170,7 @@ OUTPUT'''.replace('APPROVAL',str(name=='approval_missing').lower()).replace('ARG
                     try: envelope=json.loads(content)
                     except ValueError: envelope={}
                     assert envelope.get('status')!='success' and (envelope.get('status')=='error' or content.startswith('[Error]')),content
+                    if name=='missing_init':assert 'Firecracker guest did not become ready before startup deadline' in content,content
                     if name=='stale_guest':assert 'protocol mismatch' in content,content
                 else:
                     envelope=json.loads(content);assert envelope['status']=='success',content
@@ -196,7 +195,7 @@ def main():
     report={'suite':'shipping-firecracker','run_id':str(uuid.uuid4()),'started_at':datetime.now(timezone.utc).isoformat(),
             'planned_cases':CASES,'containment_claim':False,'source':before,'artifacts':{k:identity(p) for k,p in artifacts.items()},
             'driver':identity(Path(__file__)),'trials':[],'build_executed':not args.no_build,'status':'invalid'}
-    report['companion_drivers']={str(Path(module.__file__).resolve()):identity(Path(module.__file__).resolve()) for module in [common,audit,audit.audit_driver]}
+    report['companion_drivers']={str(Path(module.__file__).resolve()):identity(Path(module.__file__).resolve()) for module in [common,audit,audit.audit_driver,terminal]}
     args.report.parent.mkdir(parents=True,exist_ok=True)
     def save():args.report.write_text(json.dumps(report,indent=2)+'\n')
     save()

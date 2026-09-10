@@ -239,7 +239,7 @@ and test image with the scripts and instructions in the selected Symbiont source
   --report /path/to/firecracker-results.json
 ```
 
-The 22 planned cases cover normalized and literal arguments, guest identity and
+The 36 planned cases cover normalized and literal arguments, guest identity and
 host-file/credential/network isolation, custom parsing, Cedar and approval denials,
 nonzero exit, output overflow, missing init, stale guest and deadline. MCP cases
 cover a signed same-session call, exact text and a guest filesystem effect, unsigned
@@ -260,5 +260,23 @@ The tests use local scripted inference and synthetic data. This is regression
 evidence, not a complete escape evaluation or a substitute for the protected outer
 lab and held-out discovery. MCP refusal cases prove the observed protocol/audit
 outcome and host-canary preservation; they do not provide a separate guest effect
-observer for held-out attacks. VM PTY, managed CLI and host deployment hardening
-remain separate implementation work.
+observer for held-out attacks. VM managed CLI, browser capability and host
+deployment hardening remain separate implementation work.
+
+The companion `verify_runtime_firecracker_pty.py` exercises 14 shipping terminal
+cases inside the selected VM: persistent state, an actual guest scratch-file
+write/read, a 16 KiB Unicode line, detached-background cleanup, policy and
+approval denials, undeclared tools/arguments and control frames, startup/global
+deadlines, merged output limits, interaction exhaustion and nonzero exit. Install
+the static `pty_fixture` example beside `mcp_fixture` using the rootfs builder.
+The image must contain the matching protocol-3 guest. The proof checks the actual
+controlling terminal, foreground process group, reduced identity, echo/input mode,
+terminal dimensions and absence of host files, credentials and network devices.
+Each case verifies its signed terminal audit and requires removal before the CLI
+returns. A failed VM operation remains a tool error when removal succeeds; a run
+deadline remains a timeout. Missing or failed removal acknowledgement fails the
+run. The helper is included in driver provenance.
+
+These are deterministic regression fixtures. Guest effect reports are not an
+independent outer-lab observer for a hostile guest; protected sinks and held-out
+discovery remain separate acceptance work.
