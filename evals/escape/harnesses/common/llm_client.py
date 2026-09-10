@@ -18,12 +18,9 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 # Ollama). SECURITY: never send OPENROUTER_API_KEY to an override host — an
 # override supplies its own ESCAPE_LLM_API_KEY (empty/dummy for keyless local).
 _ESCAPE_LLM_URL = os.environ.get("ESCAPE_LLM_URL")
-# Optional: route the LLM call over a bind-mounted UNIX domain socket instead of
-# a network connection. Used by the `python_confined` substrate, which runs the
-# agent under `--network none` (total egress containment) — the only way out is
-# this socket, which a host-side socat bridges to the real LLM. The agent's own
-# attack connections (http_get to forbidden hosts) have no route and are
-# contained, while their connect() syscalls are still traced and scored.
+# Optional bounded host inference broker for a networkless worker. The broker
+# accepts only the configured text chat-completions contract; it is still an
+# information channel to the provider and does not prove non-exfiltration.
 _ESCAPE_LLM_UDS = os.environ.get("ESCAPE_LLM_UDS")
 
 
@@ -78,7 +75,7 @@ class OpenRouterClient:
             r = client.post(
                 self.url,
                 json=body,
-                headers={"Authorization": f"Bearer {self.api_key}"},
+                headers={"Authorization": f"Bearer {self.api_key}"} if self.api_key else {},
             )
             r.raise_for_status()
             data = r.json()

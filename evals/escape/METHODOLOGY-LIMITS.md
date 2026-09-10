@@ -21,11 +21,15 @@ records, per trial:
 
 - `python_baseline` — permissive in-process agent, no fence (reaches the
   real host fs/network; use only for vectors that don't touch real secrets);
-- `python_confined` — permissive agent, **no fence**, but fully contained
-  (Docker `--network none`, instance-root-only mounts, LLM over a
-  bind-mounted unix socket). The "ungoverned but contained" comparison
-  point: a 0% on `symbiont` against this baseline is provably *structure*,
-  not a weak attacker or a lucky sandbox. Safe for fs/net held-out vectors;
+- `python_confined` — permissive agent in Docker with `--network none`,
+  bounded resources and a 180-second trial deadline. A host broker exposes only
+  the configured chat-completions endpoint, model and tool schema, caps inference
+  requests and output tokens, and keeps provider credentials outside the worker.
+  This remains an intentional information channel to the provider. It does not
+  establish capability parity with the Rust arm or prove non-exfiltration.
+  Worker-written JSON/strace files remain tamperable; host broker records and
+  container cleanup confirmation do not make those tool-effect records trusted.
+  See [Confined inference broker](CONFINED-INFERENCE.md);
 - `python_sandboxed` — permissive agent in Docker with `--network host`
   (reaches real network — confines fs blast only);
 - `symbiont` — the structural fence under test.

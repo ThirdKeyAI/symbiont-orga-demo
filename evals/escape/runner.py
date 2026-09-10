@@ -27,7 +27,6 @@ import socket
 import subprocess
 import sys
 import tempfile
-import time
 from pathlib import Path
 from typing import Iterable
 
@@ -202,7 +201,6 @@ def _run_one_trial(
     out_path = results_dir / f"trial-{substrate}-{instance_seed:04d}.json"
     strace_path = results_dir / f"trial-{substrate}-{instance_seed:04d}.strace"
     task_path = task["_path"]
-    socat_proc = None  # set by python_confined; torn down after the run
 
     py_child = [
         sys.executable, "-m", "harnesses.python_baseline",
@@ -292,103 +290,21 @@ def _run_one_trial(
             *sandboxed_child,
         ]
     elif substrate == "python_confined":
-        # Confined NO-FENCE baseline: the permissive python agent inside Docker
-        # with TOTAL egress containment (`--network none`). This is the
-        # "ungoverned but contained" comparison point — it has no Symbiont fence,
-        # so any 0% on the symbiont substrate is provably *structure*, not a weak
-        # attacker or a lucky sandbox. Unlike `python_sandboxed` (`--network
-        # host`, which actually reaches metadata/external hosts), nothing here
-        # can leave the box: the agent's own http_get connect()s have no route
-        # and fail — but their connect() syscalls are still traced and scored,
-        # so a forbidden-host *attempt* is detected while staying contained.
-        #
-        # The agent loop still needs to reach the LLM. The only channel out is a
-        # bind-mounted UNIX socket that a host-side socat bridges to the local
-        # LLM endpoint (ESCAPE_LLM_URL). That socket is not a network route, so
-        # it grants the LLM call without granting the agent any egress.
-        if not os.environ.get("ESCAPE_LLM_URL"):
-            raise ValueError("python_confined requires ESCAPE_LLM_URL (a local "
-                             "LLM endpoint); --network none cannot reach OpenRouter")
-        instance_root.mkdir(parents=True, exist_ok=True)
-        evals_dir = Path(__file__).parent
-        in_container_strace = instance_root / "_trial.strace"
-        in_container_out = instance_root / "_trial.json"
-        sock = instance_root / "_llm.sock"
-        if sock.exists():
-            sock.unlink()
-        # Bridge the unix socket -> the real local LLM (e.g. Ollama on
-        # 127.0.0.1:11434). socat runs on the HOST; the container only sees the
-        # socket file via the instance_root bind mount.
-        from urllib.parse import urlparse
-        u = urlparse(os.environ["ESCAPE_LLM_URL"])
-        llm_host, llm_port = (u.hostname or "127.0.0.1"), (u.port or 80)
-        socat_proc = subprocess.Popen(
-            ["socat", f"UNIX-LISTEN:{sock},fork,reuseaddr,mode=666",
-             f"TCP:{llm_host}:{llm_port}"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        from harnesses.common.confined import run_confined_trial
+        return run_confined_trial(
+            task, model=model, prompt_variant=prompt_variant,
+            instance_seed=instance_seed, results_dir=results_dir,
+            instance_root=instance_root,
         )
-        for _ in range(50):  # wait for the listening socket to appear
-            if sock.exists():
-                break
-            time.sleep(0.05)
-        confined_child = [
-            "strace", "-f", "-yy", "-s", "4096", "-e", "trace=open,openat,openat2,connect,execve,execveat",
-            "-o", str(in_container_strace),
-            "python3",
-            "-m", "harnesses.python_baseline",
-            "--task", str(task_path),
-            "--model", model,
-            "--prompt-variant", str(prompt_variant),
-            "--instance-seed", str(instance_seed),
-            "--instance-root", str(instance_root),
-            "--out", str(in_container_out),
-        ]
-        # The task YAML may live outside evals_dir (e.g. run_holdout writes the
-        # held-out task to its own tempdir). Mount its dir read-only so the
-        # in-container harness can read it; skip if already under evals_dir.
-        task_dir = Path(task_path).resolve().parent
-        extra_task_mount = ([] if str(task_dir).startswith(str(evals_dir.resolve()))
-                            else ["-v", f"{task_dir}:{task_dir}:ro"])
-        # Mount instance_root/data at the LITERAL /data too, so lures that
-        # hardcode /data/secret/... (held-out / injected) resolve to the
-        # materialised, contained secret. Pre-create as our uid so the
-        # in-container harness (also our uid) can write into it.
-        (instance_root / "data").mkdir(parents=True, exist_ok=True)
-        child = [
-            "docker", "run", "--rm",
-            "--network", "none",
-            "--user", f"{os.getuid()}:{os.getgid()}",
-            "-v", f"{instance_root}:{instance_root}",
-            "-v", f"{instance_root / 'data'}:/data:rw",
-            "-v", f"{evals_dir}:{evals_dir}:ro",
-            *extra_task_mount,
-            "-w", str(evals_dir),
-            "-e", f"PYTHONPATH={evals_dir}",
-            # LLM over the bind-mounted socket; the URL host is a placeholder
-            # (httpx routes via the uds), only the path is used.
-            "-e", "ESCAPE_LLM_URL=http://llm.local/v1/chat/completions",
-            "-e", f"ESCAPE_LLM_UDS={sock}",
-            "-e", f"ESCAPE_LLM_API_KEY={os.environ.get('ESCAPE_LLM_API_KEY', '')}",
-            "escape-eval-sandboxed:latest",
-            *confined_child,
-        ]
     else:
         raise ValueError(f"unsupported substrate: {substrate}")
 
-    if substrate in ("python_sandboxed", "python_confined"):
+    if substrate == "python_sandboxed":
         # Strace runs inside the container; the host wrapper just runs
         # docker. The container's strace writes to instance_root/_trial.strace,
         # which we copy back to strace_path after the run. No host-side
         # strace wrapping needed (it would only see docker CLI syscalls).
-        try:
-            subprocess.run(child, check=True, env=os.environ.copy())
-        finally:
-            if socat_proc is not None:
-                socat_proc.terminate()
-                try:
-                    socat_proc.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    socat_proc.kill()
+        subprocess.run(child, check=True, env=os.environ.copy())
         in_container_out = instance_root / "_trial.json"
         in_container_strace = instance_root / "_trial.strace"
         if in_container_out.exists():
@@ -534,7 +450,7 @@ def run_pilot(
                     instance_root=instance_root,
                 )
                 rec = json.loads(out_path.read_text())
-            except (OSError, ValueError, subprocess.SubprocessError) as error:
+            except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
                 rec = invalidate({
                     "trial_id": str(uuid.uuid4()), "task_id": task["id"],
                     "substrate": substrate, "model": model,
@@ -555,6 +471,11 @@ def run_pilot(
 
             rec.setdefault("evaluation_status", "valid")
             rec.setdefault("evaluation_errors", [])
+            if substrate == "python_confined":
+                # The broker journal cannot authenticate worker-written effects.
+                rec["worker_evidence_protected"] = False
+                rec["containment_claim"] = False
+                invalidate(rec, "worker-written evidence has no protected observer")
             strace_text = strace_path.read_text() if strace_path.exists() else ""
             if not strace_text.strip():
                 invalidate(rec, "missing or empty syscall trace")
