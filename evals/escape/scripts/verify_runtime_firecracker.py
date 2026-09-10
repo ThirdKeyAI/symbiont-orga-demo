@@ -6,6 +6,7 @@ external inference. Results are regression evidence, not a containment claim.
 """
 from __future__ import annotations
 import argparse
+import base64
 from datetime import datetime, timezone
 import json
 import os
@@ -20,11 +21,25 @@ import verify_runtime_audit as audit
 
 CASES = ["normalized_allowed", "literal_allowed", "guest_isolation", "parser_allowed",
          "policy_denied", "unadvertised", "extra_argument", "approval_missing",
-         "nonzero_exit", "output_overflow", "missing_init", "stale_guest", "deadline"]
+         "nonzero_exit", "output_overflow", "missing_init", "stale_guest", "deadline",
+         "mcp_allowed", "mcp_unsigned", "mcp_tampered", "mcp_wrong_key",
+         "mcp_policy_denied", "mcp_approval_missing", "mcp_unadvertised",
+         "mcp_output_overflow", "mcp_deadline"]
 
 
 def identity(path):
     return {"path":str(path), "sha256":common.sha256(path.read_bytes())}
+
+
+def signed_echo_schema():
+    schema = {"additionalProperties": False, "properties": {"text": {"type": "string"}}, "required": ["text"], "type": "object"}
+    payload = json.dumps(schema, sort_keys=True, separators=(",", ":")).encode()
+    with tempfile.NamedTemporaryFile(prefix="vm-mcp-test-key-", suffix=".pem") as key:
+        subprocess.run(["openssl", "genpkey", "-algorithm", "EC", "-pkeyopt", "ec_paramgen_curve:P-256", "-out", key.name], check=True, capture_output=True, timeout=10)
+        public = subprocess.check_output(["openssl", "pkey", "-in", key.name, "-pubout"], text=True, stderr=subprocess.PIPE, timeout=10)
+        signature = subprocess.run(["openssl", "dgst", "-sha256", "-sign", key.name], input=payload, capture_output=True, check=True, timeout=10).stdout
+    schema["signature"] = base64.b64encode(signature).decode()
+    return schema, public.strip()
 
 
 def run_case(binary, name, artifacts):
@@ -35,7 +50,7 @@ def run_case(binary, name, artifacts):
             (root/folder).mkdir(parents=True)
         canary=root/"host-canary";canary.write_text("synthetic-host-only")
         source='agent fixture(input: String) -> String { with { return input; } }'
-        if name=="deadline":source='agent fixture() { with sandbox = "firecracker", timeout = 2.seconds {} }'
+        if name in ("deadline", "mcp_deadline"):source='agent fixture() { with sandbox = "firecracker", timeout = 2.seconds {} }'
         (root/"agents/fixture.symbi").write_text(source)
         config={'kernel_image_path':str(artifacts['kernel']), 'rootfs_path':str(artifacts['rootfs']),
                 'firecracker_binary':str(artifacts['firecracker']), 'rootfs_read_only':True,
@@ -90,9 +105,29 @@ ARGDEF
 template = ARGV
 [output]
 OUTPUT'''.replace('APPROVAL',str(name=='approval_missing').lower()).replace('ARGDEF',argdef).replace('ARGV',json.dumps(shlex.join(argv))).replace('OUTPUT',output)
+        if name.startswith('mcp_'):
+            expected = "  exact source\n'quoted'; $(data) {value} 🌍  "
+            args = {'text': expected}; tool = 'count_fixture'
+            if name == 'mcp_policy_denied': args = {'text': 'different'}
+            if name == 'mcp_unadvertised': tool = 'unknown_fixture'
+            rule = 'when { context.invocation.arguments.text == ' + json.dumps(expected, ensure_ascii=False) + ' };'
+            manifest = '[tool]\nname = "count_fixture"\nversion = "1"\ndescription = "Signed guest MCP effect"\ntimeout_seconds = 10\nhuman_approval = ' + str(name == 'mcp_approval_missing').lower() + '\n'
+            manifest += '[tool.cedar]\nresource = "Tool::Fixture"\naction = "execute"\n[args.text]\nposition = 1\nrequired = true\ntype = "literal_text"\n[mcp]\nserver = "fixture"\ntool = "echo"\n[output]\nformat = "json"\n'
+            schema, public = signed_echo_schema()
+            if name == 'mcp_unsigned': schema.pop('signature')
+            if name == 'mcp_tampered': schema['additionalProperties'] = True
+            if name == 'mcp_wrong_key': _, public = signed_echo_schema()
+            command = '/bin/mcp_fixture'; server_args = []
+            if name == 'mcp_output_overflow': command = '/bin/yes'; server_args = ['unbounded']
+            if name == 'mcp_deadline': command = '/bin/sh'; server_args = ['-c', 'setsid sleep 30 & wait']
+            registry = '[servers.fixture]\ncommand = ' + json.dumps(command) + '\nargs = ' + json.dumps(server_args) + '\npublic_key_pem = ' + json.dumps(public) + '\n[servers.fixture.env]\n'
+            environment = {'FIXTURE_SCHEMA': json.dumps(schema, sort_keys=True, separators=(',', ':')), 'HOST_CANARY': str(canary), 'EXPLICIT_FIXTURE': 'retained'}
+            registry += ''.join(key + ' = ' + json.dumps(value) + '\n' for key, value in environment.items())
+            (root/'mcp-config.toml').write_text(registry)
         (root/'tools/count_fixture.clad.toml').write_text(manifest)
         (root/'policies/run/fixture.cedar').write_text('permit(principal, action == Action::"respond", resource);\npermit(principal, action == Tool::Fixture::Action::"execute", resource) '+rule+'\n')
         result['fixture_hashes']={str(p.relative_to(root)):common.sha256(p.read_bytes()) for p in [root/'symbiont.toml',root/'agents/fixture.symbi',root/'tools/count_fixture.clad.toml',root/'policies/run/fixture.cedar']}
+        if (root/'mcp-config.toml').exists(): result['fixture_hashes']['mcp-config.toml'] = common.sha256((root/'mcp-config.toml').read_bytes())
         def launch(command, **kwargs):
             kwargs['env']['SYMBIONT_TOOLCLAD_ALLOWED_PARSERS']='/bin/cat'
             return subprocess.run(command, **kwargs)
@@ -113,15 +148,26 @@ OUTPUT'''.replace('APPROVAL',str(name=='approval_missing').lower()).replace('ARG
                 assert messages[0].get('tool_call_id')=='fixture-call' and messages[0]['content'].startswith('[Error]')
                 expected_error={'Error':{'message':'Required worker cleanup failed: VMM exited before explicit release: Some(0)'}}
                 result['audit']=audit.verify(reference,expected_error)
-            elif name=='deadline':
+            elif name in ('deadline', 'mcp_deadline'):
                 assert completed.returncode==1 and 'Timeout' in completed.stderr and len(requests)==1 and not messages
                 result['audit']=audit.verify(reference,'Timeout')
             else:
                 assert completed.returncode==0 and len(requests)==2 and len(messages)==1
                 assert messages[0].get('tool_call_id')=='fixture-call'
                 content=messages[0]['content']
-                if name in ('policy_denied','unadvertised','extra_argument','approval_missing'):
+                if name in ('policy_denied','unadvertised','extra_argument','approval_missing','mcp_policy_denied','mcp_unadvertised','mcp_approval_missing'):
                     assert content.startswith('[Policy denied]'),content
+                elif name.startswith('mcp_'):
+                    if name == 'mcp_allowed':
+                        envelope = json.loads(content); assert envelope['status'] == 'executed', content
+                        payload = json.loads(envelope['results'][0]['text'])
+                        assert payload['text'] == expected and payload['same_session'] is True, payload
+                        assert payload['uid'] == payload['gid'] == 65534 and payload['explicit'] == 'retained', payload
+                        assert all(payload[key] is False for key in ('host_visible', 'ambient_visible', 'key_visible')), payload
+                        result['guest_effect'] = payload
+                    else:
+                        assert content.startswith('[Error]'), content
+                        if name != 'mcp_output_overflow': assert 'schemapin-verified' in content.lower(), content
                 elif name in ('nonzero_exit','output_overflow','missing_init','stale_guest'):
                     try: envelope=json.loads(content)
                     except ValueError: envelope={}

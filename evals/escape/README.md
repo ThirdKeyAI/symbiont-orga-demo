@@ -239,9 +239,13 @@ and test image with the scripts and instructions in the selected Symbiont source
   --report /path/to/firecracker-results.json
 ```
 
-The 13 planned cases cover normalized and literal arguments, guest identity and
+The 22 planned cases cover normalized and literal arguments, guest identity and
 host-file/credential/network isolation, custom parsing, Cedar and approval denials,
-nonzero exit, output overflow, missing init, stale guest and deadline. Each case
+nonzero exit, output overflow, missing init, stale guest and deadline. MCP cases
+cover a signed same-session call, exact text and a guest filesystem effect, unsigned
+or modified schemas, wrong keys, policy/approval/unadvertised-tool denials, stream
+overflow and deadline. Install the static `mcp_fixture` example in the test image
+with the rootfs builder's `--program mcp_fixture=/path/to/mcp_fixture` option. Each case
 checks actual correlated tool results, an independently verified signed journal,
 synthetic host canary and removal of VM state. Source, executable, artifact and
 driver hashes must remain stable; missing or failed trials invalidate the suite.
@@ -254,5 +258,7 @@ same executable and supervisor artifacts.
 
 The tests use local scripted inference and synthetic data. This is regression
 evidence, not a complete escape evaluation or a substitute for the protected outer
-lab and held-out discovery. VM stdio, PTY, managed CLI and host deployment hardening
+lab and held-out discovery. MCP refusal cases prove the observed protocol/audit
+outcome and host-canary preservation; they do not provide a separate guest effect
+observer for held-out attacks. VM PTY, managed CLI and host deployment hardening
 remain separate implementation work.
