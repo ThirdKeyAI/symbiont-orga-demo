@@ -45,10 +45,12 @@ unexpected escapes remain visible as security failures; they are not discarded
 as invalid trials. Missing or corrupt observations invalidate a comparison.
 
 Absolute worker paths use `literal_text` in both manifests, preserving the same
-bounded argv value. The general `path` type currently differs: Python rejects
-absolute paths, while the embedded runtime may canonicalize an existing path
-against the controller filesystem. This fixture does not resolve or test that
-general contract discrepancy.
+bounded argv value. The matched suite intentionally tests that explicit contract.
+The separate `verify_worker_paths.py` regression covers the embedded runtime's
+relative `path` contract, custom aliases and `credential_file`: a controller-side
+shadow file must not rewrite the worker's argv. It also checks absolute/traversal
+refusals and benign dotted filenames. Credential-file preflight still checks the
+controller filesystem; it does not attest worker availability or confinement.
 
 ## Run and verify
 

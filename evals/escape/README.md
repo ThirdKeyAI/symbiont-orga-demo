@@ -329,3 +329,18 @@ measured sandbox capabilities. It includes protected file/HTTP observations,
 forged-output and write-and-restore controls, and offline evidence-integrity
 checks. This deterministic suite does not change the legacy confined pilot's
 invalid status or establish model escape rates.
+
+## Relative worker-path regression
+
+With a verified prebuilt Symbi binary, run the focused shipping regression:
+
+```sh
+.venv/bin/python scripts/verify_worker_paths.py \
+  --binary /path/to/built/symbi --source /path/to/symbiont \
+  --output /path/to/new-evidence-directory
+```
+
+The eight-operation sequence checks relative worker reads despite a different
+controller-side file, custom path aliases, credential preflight, ordinary dotted
+filenames, and refusal of absolute and traversal paths. It retains the scripted
+inference transcript and protected worker observations with source/binary hashes.
