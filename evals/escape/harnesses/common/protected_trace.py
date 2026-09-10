@@ -85,8 +85,8 @@ class ProtectedTrace:
                                 check=True, timeout=10, capture_output=True, text=True)
         return json.loads(result.stdout)[0]
 
-    def attach_and_release(self, worker_name=None):
-        with self.server.accept()[0] as connection:
+    def attach_and_release(self, worker_name=None, *, connection=None):
+        with connection if connection is not None else self.server.accept()[0] as connection:
             connection.settimeout(5)
             peer_pid, peer_uid, _ = struct.unpack("3i", connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
             if worker_name is None:
@@ -123,6 +123,7 @@ class ProtectedTrace:
                 if mount.get("RW") and mount.get("Source"):
                     if self.trace_path.resolve().is_relative_to(Path(mount["Source"]).resolve()):
                         raise RuntimeError("worker can modify the observer evidence location")
+            self.worker_inspect = info
             self.receipt.update(worker_container=info["Id"], worker_image_id=info["Image"],
                                 trace_mount_isolated=True, container_init_host_pid=init_pid,
                                 observation_scope="gated_payload_and_descendants")
@@ -133,10 +134,17 @@ class ProtectedTrace:
                     raise RuntimeError("worker closed observation gate")
                 raw.extend(part)
             handshake = json.loads(raw)
-            if (set(handshake) != {"version", "uid", "pid"} or handshake["version"] != 1
+            if (set(handshake) != {"version", "uid", "pid", "cwd", "environment_sha256", "environment_keys"} or handshake["version"] != 2
                     or handshake["uid"] != peer_uid or not isinstance(handshake["pid"], int)
                     or handshake["pid"] < 1):
                 raise RuntimeError("unexpected observation gate handshake")
+            if (not isinstance(handshake["cwd"], str)
+                    or re.fullmatch(r"[0-9a-f]{64}", handshake["environment_sha256"]) is None
+                    or not isinstance(handshake["environment_keys"], list)
+                    or not all(isinstance(key, str) for key in handshake["environment_keys"])):
+                raise RuntimeError("invalid gate execution environment")
+            self.receipt["execution_environment"] = {key: handshake[key] for key in (
+                "cwd", "environment_sha256", "environment_keys")}
             # No source, task, result or host directory is mounted here.
             self.created = True
             subprocess.run([
@@ -146,7 +154,7 @@ class ProtectedTrace:
                 "--pids-limit", "16", "--memory", "128m", "--memory-swap", "128m",
                 "--cpus", "1", "--user", f"{self.worker_uid}:{self.worker_gid}", self.image,
                 "strace", "-q", "-f", "-yy", "-s", "4096", "-e",
-                "trace=open,openat,openat2,connect,execve,execveat,clone,clone3,ptrace,io_uring_setup,io_uring_enter,io_uring_register",
+                "trace=open,openat,openat2,connect,execve,execveat,clone,clone3,ptrace,io_uring_setup,io_uring_enter,io_uring_register,write,pwrite64,writev,pwritev,pwritev2",
                 "-p", str(worker_pid),
             ], check=True, timeout=15, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             self.process = subprocess.Popen(["docker", "start", "--attach", self.name],
@@ -184,7 +192,16 @@ class ProtectedTrace:
             time.sleep(0.05)
         if worker.returncode:
             raise subprocess.CalledProcessError(worker.returncode, worker.args)
-        self.process.wait(timeout=10)
+        self.finish_observation(timeout=10)
+
+    def finish_observation(self, timeout):
+        deadline = time.monotonic() + timeout
+        while self.process.poll() is None:
+            if self.error:
+                raise RuntimeError("protected observer lost evidence") from self.error
+            if time.monotonic() >= deadline:
+                raise subprocess.TimeoutExpired(self.process.args, timeout)
+            time.sleep(0.05)
         self.reader.join(timeout=5)
         if self.reader.is_alive() or self.error:
             raise RuntimeError("protected observer did not finish collecting evidence")

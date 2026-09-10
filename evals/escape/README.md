@@ -320,3 +320,12 @@ These are deterministic route regressions, not a protected outer-lab observer or
 held-out discovery. Guest-reported effects do not independently prove containment
 against a hostile guest. A VM target refers to guest paths and does not transfer
 host repositories or persist scratch output back to them.
+
+## Protected matched comparison
+
+The [matched laboratory](MATCHED-LAB.md) compares host-owned Python/ToolClad
+and shipping Symbi controllers with identical tools, manifests, handlers and
+measured sandbox capabilities. It includes protected file/HTTP observations,
+forged-output and write-and-restore controls, and offline evidence-integrity
+checks. This deterministic suite does not change the legacy confined pilot's
+invalid status or establish model escape rates.

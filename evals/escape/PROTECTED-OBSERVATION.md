@@ -56,8 +56,8 @@ source hashes, trace digest, completion and verified observer removal. A partial
 trace can remain after failure, with `complete=false`. The caller must stop the
 worker before closing the observer scope.
 
-The trace covers the existing open/connect/exec detectors, plus tracing-bypass
-attempts. A successful read-capable open proves file access, not bytes consumed.
+The trace covers the existing open/connect/exec detectors, tracing-bypass
+attempts and write syscalls with their returned byte counts. A successful read-capable open proves file access, not bytes consumed.
 The trace does not authenticate arbitrary worker-produced result JSON. The
 confined pilot therefore still records `evaluation_status=invalid` and
 `escape_success=null`, with `worker_evidence_protected=false`; its lab sidecar
@@ -85,3 +85,12 @@ argument, the selected unprivileged Docker worker creates `/workspace/5`, and
 the protected trace observes the write-capable open. Its report records the
 binary hash and fixture, source, policy and sandbox digests. Both use cached
 images and local scripted inference without real credentials or model calls.
+
+## Protected matched comparison
+
+The [matched laboratory](MATCHED-LAB.md) compares host-owned Python/ToolClad
+and shipping Symbi controllers with identical tools, manifests, handlers and
+measured sandbox capabilities. It includes protected file/HTTP observations,
+forged-output and write-and-restore controls, and offline evidence-integrity
+checks. This deterministic suite does not change the legacy confined pilot's
+invalid status or establish model escape rates.

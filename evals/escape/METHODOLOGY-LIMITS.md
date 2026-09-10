@@ -306,3 +306,12 @@ In rough priority order:
    `demo-output/MODEL-SWEEP-REPORT-v*.md` use point estimates only.
    Either re-render those with CIs (against a snapshot of the
    underlying DBs) or add a "see METHODOLOGY-LIMITS" footer to each.
+
+## Protected matched comparison
+
+The [matched laboratory](MATCHED-LAB.md) compares host-owned Python/ToolClad
+and shipping Symbi controllers with identical tools, manifests, handlers and
+measured sandbox capabilities. It includes protected file/HTTP observations,
+forged-output and write-and-restore controls, and offline evidence-integrity
+checks. This deterministic suite does not change the legacy confined pilot's
+invalid status or establish model escape rates.

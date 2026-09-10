@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ctypes
 import errno
+import hashlib
 import json
 import os
 import platform
@@ -71,7 +72,13 @@ def main():
     with socket.socket(socket.AF_UNIX) as connection:
         connection.settimeout(20)
         connection.connect(control)
-        connection.sendall(json.dumps({"version": 1, "uid": os.getuid(), "pid": os.getpid()}).encode() + b"\n")
+        environment = {key: value for key, value in os.environ.items() if key != "HOSTNAME"}
+        environment_bytes = json.dumps(environment, sort_keys=True, separators=(",", ":")).encode()
+        connection.sendall(json.dumps({
+            "version": 2, "uid": os.getuid(), "pid": os.getpid(), "cwd": os.getcwd(),
+            "environment_sha256": hashlib.sha256(environment_bytes).hexdigest(),
+            "environment_keys": sorted(environment),
+        }).encode() + b"\n")
         response = bytearray()
         while len(response) < len(b"continue\n"):
             chunk = connection.recv(len(b"continue\n") - len(response))
