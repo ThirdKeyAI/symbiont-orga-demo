@@ -28,7 +28,7 @@ If you want a clone-and-build flow with no sibling checkout,
 edit the workspace `Cargo.toml` to use a git-dep instead:
 
 ```toml
-symbi-runtime = { git = "https://github.com/ThirdKeyAI/symbiont", rev = "cbddea16e787fbb9562a24a7cc69ed011769acb4", default-features = false, features = [
+symbi-runtime = { git = "https://github.com/ThirdKeyAI/symbiont", rev = "650eb4daa5f28e5516dd39d4bf77cddb6cd68a6d", default-features = false, features = [
     "cloud-llm",
     "orga-adaptive",
     "cedar",
