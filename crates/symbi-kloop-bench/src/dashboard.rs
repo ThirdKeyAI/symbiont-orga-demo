@@ -77,13 +77,14 @@ pub async fn render(ctx: &Ctx, limit: usize) -> anyhow::Result<()> {
             RunKind::Task => format!("{:.2}", r.score),
             RunKind::Reflect => format!("{} stored", r.score as i64),
             RunKind::Delegate => {
-                if r.score >= 0.5 { "picked".into() } else { "(none)".into() }
+                if r.score >= 0.5 {
+                    "picked".into()
+                } else {
+                    "(none)".into()
+                }
             }
         };
-        let latency_s = (r.completed_at - r.started_at)
-            .num_milliseconds()
-            .max(0) as f64
-            / 1000.0;
+        let latency_s = (r.completed_at - r.started_at).num_milliseconds().max(0) as f64 / 1000.0;
         let cost_s = if r.est_cost >= 0.01 {
             format!("{:.3}", r.est_cost)
         } else if r.est_cost > 0.0 {

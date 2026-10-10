@@ -75,6 +75,17 @@ pub struct Instance {
     pub policy_file: String,
     #[serde(default)]
     pub policy_initial_contents: String,
+    /// A-02 indirect injection: attacker-controlled ingested document. Its
+    /// content carries the injection; the user prompt stays benign. Read via
+    /// the read_doc tool; {DOC_PATH} in the prompt resolves to its location.
+    #[serde(default)]
+    pub doc_content: String,
+    #[serde(default = "default_doc_file")]
+    pub doc_file: String,
+}
+
+fn default_doc_file() -> String {
+    "data/inbox/ticket.txt".to_string()
 }
 
 pub fn load(path: &Path) -> Result<Task> {

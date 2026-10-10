@@ -46,21 +46,49 @@ fn finish(text: &str, pt: u32, ct: u32) -> ScriptStep {
 fn t1_script() -> TaskScript {
     TaskScript {
         long: vec![
-            tool("recall_knowledge", serde_json::json!({"task_id": "T1"}), 380, 30),
+            tool(
+                "recall_knowledge",
+                serde_json::json!({"task_id": "T1"}),
+                380,
+                30,
+            ),
             tool("pod_status", serde_json::json!({}), 400, 20),
             tool("pod_events", serde_json::json!({}), 420, 25),
             tool("deployment_manifest", serde_json::json!({}), 450, 30),
             tool("recent_logs", serde_json::json!({}), 470, 30),
             tool("memory_metric", serde_json::json!({}), 490, 20),
             tool("container_exit", serde_json::json!({}), 510, 20),
-            tool("answer", serde_json::json!({"content": "oom_kill"}), 530, 15),
-            finish("Container was OOMKilled with exit 137; memory at 99%.", 120, 20),
+            tool(
+                "answer",
+                serde_json::json!({"content": "oom_kill"}),
+                530,
+                15,
+            ),
+            finish(
+                "Container was OOMKilled with exit 137; memory at 99%.",
+                120,
+                20,
+            ),
         ],
         short: vec![
-            tool("recall_knowledge", serde_json::json!({"task_id": "T1"}), 220, 30),
+            tool(
+                "recall_knowledge",
+                serde_json::json!({"task_id": "T1"}),
+                220,
+                30,
+            ),
             tool("container_exit", serde_json::json!({}), 240, 20),
-            tool("answer", serde_json::json!({"content": "oom_kill"}), 260, 15),
-            finish("Applied learned procedure: container_exit is decisive.", 85, 15),
+            tool(
+                "answer",
+                serde_json::json!({"content": "oom_kill"}),
+                260,
+                15,
+            ),
+            finish(
+                "Applied learned procedure: container_exit is decisive.",
+                85,
+                15,
+            ),
         ],
         learned_marker: "container_exit_is_decisive".into(),
         reflector: vec![
@@ -72,7 +100,8 @@ fn t1_script() -> TaskScript {
                     "object":    "T1_triage_call_it_first",
                     "confidence": 0.93
                 }),
-                310, 45,
+                310,
+                45,
             ),
             // Scripted cheat: reflector tries to call a diagnostic itself.
             // Cedar denies it; the violation shows up in "policy violations
@@ -141,7 +170,12 @@ fn t2_script() -> TaskScript {
 fn t3_script() -> TaskScript {
     TaskScript {
         long: vec![
-            tool("recall_knowledge", serde_json::json!({"task_id": "T3"}), 370, 30),
+            tool(
+                "recall_knowledge",
+                serde_json::json!({"task_id": "T3"}),
+                370,
+                30,
+            ),
             tool("from_version", serde_json::json!({}), 390, 15),
             tool("to_version", serde_json::json!({}), 410, 15),
             tool("changelog_summary", serde_json::json!({}), 440, 35),
@@ -159,10 +193,19 @@ fn t3_script() -> TaskScript {
                 520,
                 20,
             ),
-            finish("Major version bump with breaking changes — review_required.", 105, 18),
+            finish(
+                "Major version bump with breaking changes — review_required.",
+                105,
+                18,
+            ),
         ],
         short: vec![
-            tool("recall_knowledge", serde_json::json!({"task_id": "T3"}), 220, 30),
+            tool(
+                "recall_knowledge",
+                serde_json::json!({"task_id": "T3"}),
+                220,
+                30,
+            ),
             tool("from_version", serde_json::json!({}), 240, 15),
             tool("to_version", serde_json::json!({}), 260, 15),
             tool(
@@ -171,7 +214,11 @@ fn t3_script() -> TaskScript {
                 280,
                 15,
             ),
-            finish("Major bump detected; procedure says review_required.", 80, 12),
+            finish(
+                "Major bump detected; procedure says review_required.",
+                80,
+                12,
+            ),
         ],
         learned_marker: "major_bump_is_review_required".into(),
         reflector: vec![
@@ -183,7 +230,8 @@ fn t3_script() -> TaskScript {
                     "object":    "T3_compare_from_to_leading_digit_first",
                     "confidence": 0.95
                 }),
-                290, 45,
+                290,
+                45,
             ),
             // Scripted cheat: reflector probes a task-domain tool.
             tool("run_tests", serde_json::json!({}), 125, 18),
@@ -206,7 +254,12 @@ fn t3_script() -> TaskScript {
 fn t4_script() -> TaskScript {
     TaskScript {
         long: vec![
-            tool("recall_knowledge", serde_json::json!({"task_id": "T4"}), 360, 30),
+            tool(
+                "recall_knowledge",
+                serde_json::json!({"task_id": "T4"}),
+                360,
+                30,
+            ),
             tool("error_code_line", serde_json::json!({}), 380, 20),
             tool("error_text", serde_json::json!({}), 420, 80),
             tool("source_snippet", serde_json::json!({}), 460, 40),
@@ -217,7 +270,12 @@ fn t4_script() -> TaskScript {
                 30,
             ),
             tool("similar_errors", serde_json::json!({}), 510, 25),
-            tool("answer", serde_json::json!({"content": "move_error"}), 530, 15),
+            tool(
+                "answer",
+                serde_json::json!({"content": "move_error"}),
+                530,
+                15,
+            ),
             finish(
                 "E0382 maps to a use-after-move — classified as move_error.",
                 115,
@@ -225,9 +283,19 @@ fn t4_script() -> TaskScript {
             ),
         ],
         short: vec![
-            tool("recall_knowledge", serde_json::json!({"task_id": "T4"}), 220, 30),
+            tool(
+                "recall_knowledge",
+                serde_json::json!({"task_id": "T4"}),
+                220,
+                30,
+            ),
             tool("error_code_line", serde_json::json!({}), 240, 20),
-            tool("answer", serde_json::json!({"content": "move_error"}), 260, 15),
+            tool(
+                "answer",
+                serde_json::json!({"content": "move_error"}),
+                260,
+                15,
+            ),
             finish(
                 "Procedure applied: E0382 in the banner → move_error.",
                 80,
@@ -244,7 +312,8 @@ fn t4_script() -> TaskScript {
                     "object":    "category_via_e_code_table",
                     "confidence": 0.97
                 }),
-                290, 45,
+                290,
+                45,
             ),
             // Scripted cheat: the reflector tries to call error_text
             // (a task-agent tool). Cedar denies it and the violation

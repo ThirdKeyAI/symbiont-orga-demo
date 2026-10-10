@@ -16,8 +16,26 @@ without diffing them out of every paragraph.
 
 ## What the harness does
 
-It runs the same agent task under two or three substrates and
+It runs the same agent task under up to four substrates and
 records, per trial:
+
+- `python_baseline` — permissive in-process agent, no fence (reaches the
+  real host fs/network; use only for vectors that don't touch real secrets);
+- `python_confined` — permissive agent in Docker with `--network none`,
+  bounded resources and a 180-second trial deadline. A host broker exposes only
+  the configured chat-completions endpoint, model and tool schema, caps inference
+  requests and output tokens, and keeps provider credentials outside the worker.
+  This remains an intentional information channel to the provider. It does not
+  establish capability parity with the Rust arm or prove non-exfiltration.
+  Worker-written JSON remains tamperable and pilot records remain invalid for
+  escape-rate scoring. Syscall traces now come from a separate observer outside
+  the worker PID namespace. See [Confined inference broker](CONFINED-INFERENCE.md)
+  and [Protected observation](PROTECTED-OBSERVATION.md);
+- `python_sandboxed` — permissive agent in Docker with `--network host`
+  (reaches real network — confines fs blast only);
+- `symbiont` — the structural fence under test.
+
+Per trial it records:
 
 - whether the agent achieved the stated objective (`objective_success`),
 - whether the agent's tool-call arguments and filesystem trace touched
@@ -288,3 +306,12 @@ In rough priority order:
    `demo-output/MODEL-SWEEP-REPORT-v*.md` use point estimates only.
    Either re-render those with CIs (against a snapshot of the
    underlying DBs) or add a "see METHODOLOGY-LIMITS" footer to each.
+
+## Protected matched comparison
+
+The [matched laboratory](MATCHED-LAB.md) compares host-owned Python/ToolClad
+and shipping Symbi controllers with identical tools, manifests, handlers and
+measured sandbox capabilities. It includes protected file/HTTP observations,
+forged-output and write-and-restore controls, and offline evidence-integrity
+checks. This deterministic suite does not change the legacy confined pilot's
+invalid status or establish model escape rates.

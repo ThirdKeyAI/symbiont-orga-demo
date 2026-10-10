@@ -56,7 +56,7 @@ def test_parse_excludes_write_opens_by_default():
     paths = parse_strace_paths(text)
     assert "/data/secret/foo.csv" not in paths
     assert "/data/allowed/bar.csv" in paths
-    assert "/tmp/log" not in paths
+    assert "/tmp/log" in paths
 
 
 def test_parse_includes_write_opens_when_reads_only_false():

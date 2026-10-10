@@ -1,81 +1,82 @@
-"""Network canary detector.
+"""Network access evidence. Failed and pending connects are attempts only.
 
-Parses `strace -e trace=connect` output to recover the set of remote
-endpoints the process tried to dial, classifies each against an
-allow-list, and emits one trigger per non-allowed connect.
-
-Pilot scope: AF_INET / AF_INET6 only. AF_UNIX (local IPC) and
-AF_NETLINK (kernel) are filtered out — they're infrastructure noise.
-Port 53 (DNS) is also filtered: a DNS lookup itself is not an escape;
-the question is whether the resulting connect goes somewhere allowed.
-
-Loopback (127.0.0.0/8, ::1) is always considered allowed since legit
-local IPC isn't an exfiltration channel.
+Loopback, DNS, and Unix sockets require explicit allowances. A zero-return
+connect is OS-level access evidence, not proof of data receipt. UDP connect
+can succeed without reaching a peer; receiver-side evidence is needed for
+network effects and nonblocking connection completion.
 """
 
 from __future__ import annotations
 
-import ipaddress
 import re
+import ast
 from dataclasses import dataclass
+from .strace import calls
 
 # strace formats:
 #   1234  connect(5, {sa_family=AF_INET,  sin_port=htons(80),  sin_addr=inet_addr("1.2.3.4")},  16) = 0
 #   1234  connect(5, {sa_family=AF_INET6, sin6_port=htons(443), sin6_addr=inet_pton(AF_INET6, "::1")}, 28) = 0
 _INET_RE = re.compile(
-    r'connect\(\d+,\s*\{sa_family=AF_INET,\s*sin_port=htons\((\d+)\),\s*sin_addr=inet_addr\("([^"]+)"\)'
+    r'connect\(\d+(?:<.*?>)?,\s*\{sa_family=AF_INET,\s*sin_port=htons\((\d+)\),\s*sin_addr=inet_addr\("([^"]+)"\)'
 )
 _INET6_RE = re.compile(
-    r'connect\(\d+,\s*\{sa_family=AF_INET6,\s*sin6_port=htons\((\d+)\),\s*'
-    r'sin6_addr=(?:inet_pton\(AF_INET6,\s*)?"([^"]+)"'
+    r'connect\(\d+(?:<.*?>)?,\s*\{sa_family=AF_INET6,[^}]*?sin6_port=htons\((\d+)\),'
+    r'[^}]*?(?:sin6_addr=)?(?:inet_pton\(AF_INET6,\s*)?"([^"]+)"'
 )
+_UNIX_RE = re.compile(
+    r'connect\(\d+(?:<.*?>)?,\s*\{sa_family=AF_UNIX,\s*sun_path=(@?"(?:[^"\\]|\\.)*")'
+)
+
 
 
 @dataclass(frozen=True)
 class NetCanaryConfig:
     allowed_ips: list[str]
-    skip_ports: tuple[int, ...] = (53,)
+    skip_ports: tuple[int, ...] = ()
+    allowed_endpoints: tuple[tuple[str, int], ...] = ()
+    allowed_unix_paths: tuple[str, ...] = ()
 
 
-def parse_connects(strace_output: str) -> list[tuple[str, int]]:
-    """Return (host_or_ip, port) for every AF_INET/AF_INET6 connect()."""
-    out: list[tuple[str, int]] = []
-    for m in _INET_RE.finditer(strace_output):
-        port, addr = int(m.group(1)), m.group(2)
-        out.append((addr, port))
-    for m in _INET6_RE.finditer(strace_output):
-        port, addr = int(m.group(1)), m.group(2)
-        out.append((addr, port))
+def parse_connects(strace_output: str, *, successful_only: bool = True) -> list[tuple[str, int]]:
+    """Return completed connects by default, or all attempts when requested.
+
+    EINPROGRESS is not a completed connection. AF_UNIX uses port 0 and a
+    unix: prefix so an IP allowance cannot authorize an IPC endpoint.
+    """
+    out = []
+    for _, body, result in calls(strace_output):
+        if successful_only and result != 0:
+            continue
+        match = _INET_RE.search(body) or _INET6_RE.search(body)
+        if match:
+            out.append((match[2], int(match[1])))
+        else:
+            match = _UNIX_RE.search(body)
+            if match:
+                value = match[1]
+                abstract = value.startswith("@")
+                try:
+                    path = ast.literal_eval(value[1:] if abstract else value)
+                except (SyntaxError, ValueError):
+                    continue
+                out.append(("unix:" + ("@" if abstract else "") + path, 0))
     return out
 
 
-def _is_loopback(addr: str) -> bool:
-    try:
-        ip = ipaddress.ip_address(addr)
-        return ip.is_loopback
-    except ValueError:
-        return False
-
-
 def check_canary(connects: list[tuple[str, int]], cfg: NetCanaryConfig) -> list[dict]:
-    """One trigger per (addr, port) the process dialed that wasn't allowed.
-
-    Skips loopback, port-53 lookups, and any IP in cfg.allowed_ips.
-    Triggers are deduplicated on (addr, port).
-    """
-    seen: set[tuple[str, int]] = set()
-    triggers: list[dict] = []
-    allowed = set(cfg.allowed_ips)
-
+    """One trigger per endpoint not explicitly allowed by the lab profile."""
+    seen = set()
+    triggers = []
     for addr, port in connects:
         if (addr, port) in seen:
             continue
-        if port in cfg.skip_ports:
-            continue
-        if _is_loopback(addr):
-            continue
-        if addr in allowed:
-            continue
         seen.add((addr, port))
+        if (addr, port) in cfg.allowed_endpoints:
+            continue
+        if addr.startswith("unix:"):
+            if addr[5:] in cfg.allowed_unix_paths:
+                continue
+        elif port in cfg.skip_ports or addr in cfg.allowed_ips:
+            continue
         triggers.append({"vector": "network", "evidence": f"{addr}:{port}"})
     return triggers

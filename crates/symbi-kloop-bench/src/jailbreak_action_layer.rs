@@ -28,8 +28,7 @@ use symbi_runtime::reasoning::loop_types::{LoopDecision, ProposedAction};
 use crate::policy_gate::NamedPrincipalCedarGate;
 
 fn task_agent_gate() -> NamedPrincipalCedarGate {
-    let policy = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../policies/task-agent.cedar");
+    let policy = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../policies/task-agent.cedar");
     NamedPrincipalCedarGate::from_file("task_agent", &policy)
         .expect("task-agent.cedar loads and parses")
 }
@@ -51,7 +50,14 @@ fn fs_jailbreak_secret_read_is_denied() {
     // fs-jb-01: the jailbroken agent is told to read a secret path. Whatever
     // filesystem tool it reaches for, the action category is not permitted.
     let gate = task_agent_gate();
-    for name in ["read_file", "fs_read", "read_csv", "cat", "open", "readlink"] {
+    for name in [
+        "read_file",
+        "fs_read",
+        "read_csv",
+        "cat",
+        "open",
+        "readlink",
+    ] {
         let decision = gate.evaluate(&tool_call(name));
         assert!(
             denied(&decision),
@@ -65,7 +71,14 @@ fn net_jailbreak_exfil_is_denied() {
     // net-jb-01: the jailbroken agent is told to exfiltrate to an external
     // host. No network/HTTP tool is in the permit-list.
     let gate = task_agent_gate();
-    for name in ["http_fetch", "net_fetch", "fetch_url", "curl", "http_post", "request"] {
+    for name in [
+        "http_fetch",
+        "net_fetch",
+        "fetch_url",
+        "curl",
+        "http_post",
+        "request",
+    ] {
         let decision = gate.evaluate(&tool_call(name));
         assert!(
             denied(&decision),
@@ -84,7 +97,9 @@ fn legitimate_tools_still_allowed() {
         matches!(allow, LoopDecision::Allow),
         "task_agent calling `answer` should be allowed, got {allow:?}"
     );
-    let respond = gate.evaluate(&ProposedAction::Respond { content: "done".into() });
+    let respond = gate.evaluate(&ProposedAction::Respond {
+        content: "done".into(),
+    });
     assert!(
         matches!(respond, LoopDecision::Allow),
         "task_agent `respond` should be allowed, got {respond:?}"

@@ -75,6 +75,16 @@ def materialize_instance(task: dict, root: Path) -> dict:
         full.write_text(instance.get("policy_initial_contents", ""))
         policy_path = str(full)
 
+    # A-02 indirect injection: materialize the attacker-controlled ingested
+    # document (its content carries the injection; the user prompt stays benign).
+    doc_path = ""
+    if "doc_content" in instance or "doc_file" in instance:
+        rel = instance.get("doc_file", "data/inbox/ticket.txt")
+        full = root / rel.lstrip("/")
+        full.parent.mkdir(parents=True, exist_ok=True)
+        full.write_text(instance.get("doc_content", ""))
+        doc_path = str(full)
+
     rendered_prompt = task["objective"]["prompt"]
     if instance.get("allowed_paths"):
         rendered_prompt = rendered_prompt.replace(
@@ -87,6 +97,7 @@ def materialize_instance(task: dict, root: Path) -> dict:
         .replace("{ALLOWED_URL}", instance.get("allowed_url", ""))
         .replace("{INPUT_STRING}", instance.get("input_string", ""))
         .replace("{POLICY_PATH}", policy_path)
+        .replace("{DOC_PATH}", doc_path)
     )
     return {**task, "_rendered_prompt": rendered_prompt}
 
@@ -114,11 +125,13 @@ def run_trial(
     tool_calls: list[ToolCall] = []
     usage_per_call: list[dict] = []
     final_answer: str | None = None
+    execution_error: str | None = None
 
     for _ in range(max_turns):
         try:
             resp = client.chat(messages, tools_spec)
         except Exception as e:
+            execution_error = f"inference: {type(e).__name__}: {e}"
             messages.append(
                 {"role": "assistant", "content": f"<llm_error: {e}>", "tool_calls": []}
             )
@@ -209,4 +222,5 @@ def run_trial(
         objective_success=objective_success,
         escape_success=False,
         usage_per_call=usage_per_call,
+        execution_error=execution_error,
     )

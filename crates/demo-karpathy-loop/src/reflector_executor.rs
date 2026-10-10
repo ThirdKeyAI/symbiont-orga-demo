@@ -107,11 +107,7 @@ pub struct RawArgsRecord {
 }
 
 impl ReflectorActionExecutor {
-    pub fn new(
-        task_id: impl Into<String>,
-        run_id: Option<i64>,
-        knowledge: KnowledgeStore,
-    ) -> Self {
+    pub fn new(task_id: impl Into<String>, run_id: Option<i64>, knowledge: KnowledgeStore) -> Self {
         Self {
             task_id: task_id.into(),
             run_id,
@@ -130,10 +126,7 @@ impl ReflectorActionExecutor {
     /// typed-argument bridge). `None` keeps the executor on its
     /// pre-v11 path. Refusals are counted and captured for the
     /// per-call sidecar; the LLM sees them as an error observation.
-    pub fn with_pre_validator(
-        mut self,
-        pv: crate::pre_validator::SharedPreValidator,
-    ) -> Self {
+    pub fn with_pre_validator(mut self, pv: crate::pre_validator::SharedPreValidator) -> Self {
         self.pre_validator = Some(pv);
         self
     }
@@ -145,9 +138,7 @@ impl ReflectorActionExecutor {
 
     /// Drain the captured pre-validator refusals (for the per-call
     /// JSONL sidecar). Cleared after read.
-    pub async fn drain_pre_validator_refusals(
-        &self,
-    ) -> Vec<PreValidationRefusalRecord> {
+    pub async fn drain_pre_validator_refusals(&self) -> Vec<PreValidationRefusalRecord> {
         let mut g = self.pre_validator_refusals.lock().await;
         let out = g.clone();
         g.clear();
@@ -189,11 +180,10 @@ impl ReflectorActionExecutor {
     pub fn tool_definition() -> ToolDefinition {
         ToolDefinition {
             name: "store_knowledge".into(),
-            description:
-                "Record a single concrete, actionable procedure the task agent \
+            description: "Record a single concrete, actionable procedure the task agent \
                  should remember for similar future tasks. Use subject-predicate-object \
                  form; keep each field under 60 characters."
-                    .into(),
+                .into(),
             parameters: serde_json::json!({
                 "type": "object",
                 "properties": {
@@ -268,15 +258,16 @@ impl ReflectorActionExecutor {
         if let Some(pv) = &self.pre_validator {
             if let Some(refusal) = pv.validate(name, arguments) {
                 *self.pre_validator_refused_count.lock().await += 1;
-                self.pre_validator_refusals.lock().await.push(
-                    PreValidationRefusalRecord {
+                self.pre_validator_refusals
+                    .lock()
+                    .await
+                    .push(PreValidationRefusalRecord {
                         call_id: call_id.clone(),
                         tool_name: name.clone(),
                         fence_type: refusal.fence_type.clone(),
                         field: refusal.field.clone(),
                         reason: refusal.reason.clone(),
-                    },
-                );
+                    });
                 return Some(Observation {
                     source: name.clone(),
                     content: format!(
@@ -374,9 +365,7 @@ impl ReflectorActionExecutor {
             }
             _ => Some(Observation {
                 source: "store_knowledge".into(),
-                content:
-                    "missing or empty subject/predicate/object; no knowledge stored"
-                        .into(),
+                content: "missing or empty subject/predicate/object; no knowledge stored".into(),
                 is_error: true,
                 call_id: Some(call_id.clone()),
                 metadata: Default::default(),
@@ -460,9 +449,7 @@ mod tests {
             let a = ProposedAction::ToolCall {
                 call_id: format!("c{i}"),
                 name: "store_knowledge".into(),
-                arguments: format!(
-                    r#"{{"subject":"s{i}","predicate":"p","object":"o"}}"#
-                ),
+                arguments: format!(r#"{{"subject":"s{i}","predicate":"p","object":"o"}}"#),
             };
             exec.handle_one(&a).await;
         }

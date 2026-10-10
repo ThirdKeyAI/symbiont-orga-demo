@@ -21,7 +21,7 @@ async fn drive(
     ctx: DefaultContextManager,
 ) {
     // Consumes the handle — `produce_output` takes `self` by value.
-    let _ = agent_loop.produce_output(&*provider, &ctx).await;
+    let _ = agent_loop.produce_output(&*provider, &ctx, false).await;
 
     // ILLEGAL: `agent_loop` was moved above. Re-reading any field on
     // it must fail with E0382 "use of moved value", proving the

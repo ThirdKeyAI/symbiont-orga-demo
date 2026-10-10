@@ -46,6 +46,13 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install escape harness test dependencies
+        run: python -m pip install -e './evals/escape[dev]'
+
+      - name: Escape harness regression tests
+        working-directory: evals/escape
+        run: python -m pytest -q
+
       - name: Cedar policy linter (homoglyph + invisible-char fence)
         run: scripts/lint-cedar-policies.py
 
@@ -84,7 +91,8 @@ jobs:
       # `Cargo.toml` declares the runtime as
       # `path = "../symbiont/crates/runtime"`. CI must place the
       # upstream side-by-side or the build fails on resolve. We pin
-      # to a specific Symbiont SHA in the public-release branch so a
+      # to a specific Symbiont 1.20.0 SHA with untrusted route grounding
+      # and the delegation-aware phase API, so a
       # main-branch refactor in the runtime cannot break this CI
       # without a deliberate bump here.
       - name: Check out Symbiont runtime side-by-side
@@ -92,7 +100,7 @@ jobs:
         with:
           repository: ThirdKeyAI/symbiont
           path: symbiont
-          ref: 57a8847c3f14d855086edaebb2d725babdc3e9d4
+          ref: 650eb4daa5f28e5516dd39d4bf77cddb6cd68a6d
 
       # v11+ — bridge crate path-deps on `../ToolClad/rust`. Without
       # this checkout, the workspace fails to resolve at cargo test
@@ -170,7 +178,7 @@ jobs:
         with:
           repository: ThirdKeyAI/symbiont
           path: symbiont
-          ref: 57a8847c3f14d855086edaebb2d725babdc3e9d4
+          ref: 650eb4daa5f28e5516dd39d4bf77cddb6cd68a6d
 
       # v11+ — bridge crate path-deps on `../ToolClad/rust`. Same SHA
       # pin as the rust-tests job above.

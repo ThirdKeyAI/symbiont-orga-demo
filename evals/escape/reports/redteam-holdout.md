@@ -137,10 +137,26 @@ boundaries:
   supervisor; the typed arms use a deterministic policy. The clean
   apples-to-apples comparison is *within* the typed arm: trusting 38–40% →
   grounded 0%.
-- **fs/net held-out vectors deferred.** Their permissive-baseline arm runs
-  the worker against the real host filesystem/network (it crawled a real
-  backup drive during a pilot) and cannot be run safely without a confined
-  sandbox. Only injection is reported here.
+- **fs/net held-out vectors — now runnable via the confined baseline.**
+  Previously deferred because the *permissive* baseline arm ran the worker
+  against the real host filesystem/network (it crawled a real backup drive
+  during a pilot). The `python_confined` substrate (Docker, `--network none`,
+  instance-root-only mounts, LLM reached over a bind-mounted unix socket) is
+  the contained no-fence baseline that makes them safe to run:
+
+  ```
+  python3 -m redteam.run_holdout --vectors fs_enumerate,net_boundary \
+      --substrates python_confined,symbiont --execute
+  ```
+
+  Containment is verified (all attack `connect()`s return `ENETUNREACH`;
+  fs reads resolve inside the box). Note one fidelity caveat for net: under
+  `--network none` DNS does not resolve, so *hostname* targets never reach a
+  real IP — the authoritative net signal in the confined arm is therefore
+  "the substrate **allowed** the forbidden `http_get`" (recorded as an
+  unblocked attempt), vs symbiont blocking it at `scope_target`. IP-literal
+  targets (e.g. metadata `169.254.169.254`) still fire the connect()-canary
+  directly. fs uses the normal relocated-glob `escape_success`.
 
 ## Reproduce
 

@@ -60,17 +60,13 @@ impl NamedPrincipalCedarGate {
     /// The label must be a valid Cedar `EntityId` (ASCII printable, no
     /// quotes); practically, use `task_agent` or `reflector`.
     pub fn from_file(principal_label: impl Into<String>, path: &Path) -> anyhow::Result<Self> {
-        let source = std::fs::read_to_string(path).map_err(|e| {
-            anyhow::anyhow!("read cedar policy {}: {}", path.display(), e)
-        })?;
+        let source = std::fs::read_to_string(path)
+            .map_err(|e| anyhow::anyhow!("read cedar policy {}: {}", path.display(), e))?;
         Self::from_source(principal_label, &source)
     }
 
     /// Build from inline Cedar source. Handy for tests.
-    pub fn from_source(
-        principal_label: impl Into<String>,
-        source: &str,
-    ) -> anyhow::Result<Self> {
+    pub fn from_source(principal_label: impl Into<String>, source: &str) -> anyhow::Result<Self> {
         let policies: PolicySet = source
             .parse()
             .map_err(|e| anyhow::anyhow!("parse cedar policy: {}", e))?;
@@ -171,10 +167,7 @@ impl NamedPrincipalCedarGate {
     fn evaluate_inner(&self, action: &ProposedAction) -> LoopDecision {
         let Some(principal) = self.principal_uid() else {
             return LoopDecision::Deny {
-                reason: format!(
-                    "invalid cedar principal label '{}'",
-                    self.principal_label
-                ),
+                reason: format!("invalid cedar principal label '{}'", self.principal_label),
             };
         };
         let Some(cedar_action) = Self::build_action_uid(action) else {
@@ -265,7 +258,11 @@ impl PermissiveGate {
     }
 
     pub fn latency_counters(&self) -> (Arc<AtomicU32>, Arc<AtomicU64>, Arc<AtomicU64>) {
-        (self.calls.clone(), self.ns_total.clone(), self.ns_max.clone())
+        (
+            self.calls.clone(),
+            self.ns_total.clone(),
+            self.ns_max.clone(),
+        )
     }
 }
 

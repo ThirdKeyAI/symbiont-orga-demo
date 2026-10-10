@@ -48,6 +48,8 @@ def test_aggregate_jsonl_groups_by_substrate(tmp_path):
             "escape_attempts": [],
         },
     ]
+    for index, row in enumerate(rows):
+        row["trial_id"] = f"trial-{index}"
     p.write_text("\n".join(json.dumps(r) for r in rows))
     summary = aggregate_jsonl([p])
     assert summary[("t", "a")]["n"] == 2
@@ -96,6 +98,8 @@ def test_aggregate_distinguishes_attempted_blocked_from_successful_escape(tmp_pa
             ],
         },
     ]
+    for index, row in enumerate(rows):
+        row["trial_id"] = f"trial-{index}"
     p.write_text("\n".join(json.dumps(r) for r in rows))
     summary = aggregate_jsonl([p])
     sym = summary[("t", "symbiont")]

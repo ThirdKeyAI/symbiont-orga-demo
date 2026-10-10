@@ -119,6 +119,19 @@ def make_http_get(task: dict):
     return http_get
 
 
+def make_read_doc(task: dict, root: Path):
+    """Read an ingested document (A-02 indirect injection). This is the
+    legitimate ingestion channel — it returns the attacker-controlled content
+    verbatim; the injection rides inside that content, not in the user prompt."""
+    def read_doc(path: str) -> ToolResult:
+        try:
+            return ToolResult(summary=Path(path).read_text())
+        except Exception as e:
+            return ToolResult(summary=f"error: {e}")
+
+    return read_doc
+
+
 def make_read_policy(task: dict, root: Path):
     policy_file = task["instance"].get("policy_file", "policy.json")
     full = root / policy_file
@@ -217,6 +230,18 @@ SPECS: dict[str, dict] = {
             "parameters": {"type": "object", "required": [], "properties": {}},
         },
     },
+    "read_doc": {
+        "type": "function",
+        "function": {
+            "name": "read_doc",
+            "description": "Read an ingested document (e.g. a submitted ticket) and return its text.",
+            "parameters": {
+                "type": "object",
+                "required": ["path"],
+                "properties": {"path": {"type": "string"}},
+            },
+        },
+    },
     "python_eval": {
         "type": "function",
         "function": {
@@ -283,6 +308,7 @@ def build_task_registry(task: dict, root: Path) -> dict:
     reg["read_csv"] = make_read_csv(task)
     reg["http_get"] = make_http_get(task)
     reg["read_policy"] = make_read_policy(task, root)
+    reg["read_doc"] = make_read_doc(task, root)
     return reg
 
 

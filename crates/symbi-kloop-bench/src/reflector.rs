@@ -145,12 +145,9 @@ pub async fn run_reflector(
             ReflectorPrompt::Default => None,
             _ => Some(Arc::new(tokio::sync::Mutex::new(Vec::new()))),
         };
-    let mut exec_builder = ReflectorActionExecutor::new(
-        &task.id,
-        Some(learned_at_run_id),
-        ctx.knowledge.clone(),
-    )
-    .with_store_cap(ctx.reflector_store_cap);
+    let mut exec_builder =
+        ReflectorActionExecutor::new(&task.id, Some(learned_at_run_id), ctx.knowledge.clone())
+            .with_store_cap(ctx.reflector_store_cap);
     if let Some(buf) = &raw_capture {
         exec_builder = exec_builder.with_raw_args_capture(buf.clone());
     }
@@ -175,9 +172,7 @@ pub async fn run_reflector(
             let g: Arc<dyn ReasoningPolicyGate> = Arc::new(cedar);
             (denied, calls, ns_total, ns_max, g)
         } else {
-            tracing::warn!(
-                "v12.1 ablation: reflector --cedar-mode off — gate is permissive stub"
-            );
+            tracing::warn!("v12.1 ablation: reflector --cedar-mode off — gate is permissive stub");
             let p = crate::policy_gate::PermissiveGate::new();
             let denied = p.denied_counter();
             let (calls, ns_total, ns_max) = p.latency_counters();
@@ -282,7 +277,8 @@ pub async fn run_reflector(
     let entries = journal.entries().await;
     // v8 #5 — route through the harness's sanitising writer so the
     // reflector journal is also a `symbi-invis-strip` consumer.
-    let journal_path = ctx.write_named_journal(&task.id, task_result.run_number, "reflect", &entries)?;
+    let journal_path =
+        ctx.write_named_journal(&task.id, task_result.run_number, "reflect", &entries)?;
 
     // v10 — drain the sanitiser metrics into a per-run sidecar
     // (one JSON file per reflector run alongside the existing
@@ -302,12 +298,8 @@ pub async fn run_reflector(
     // line is a header noting the unsanitised nature.
     if let Some(records) = executor.drain_raw_args().await {
         if !records.is_empty() {
-            let _ = ctx.write_raw_args_sidecar(
-                &task.id,
-                task_result.run_number,
-                "reflect",
-                &records,
-            );
+            let _ =
+                ctx.write_raw_args_sidecar(&task.id, task_result.run_number, "reflect", &records);
         }
     }
 
@@ -321,12 +313,7 @@ pub async fn run_reflector(
             if sum > 0.0 {
                 authoritative_cost = Some(sum);
             }
-            let _ = ctx.write_calls_sidecar(
-                &task.id,
-                task_result.run_number,
-                "reflect",
-                &calls,
-            );
+            let _ = ctx.write_calls_sidecar(&task.id, task_result.run_number, "reflect", &calls);
         }
     }
 
@@ -342,13 +329,12 @@ pub async fn run_reflector(
 
     let prompt_tokens = result.total_usage.prompt_tokens;
     let completion_tokens = result.total_usage.completion_tokens;
-    let (pt, ct) = if prompt_tokens == 0 && completion_tokens == 0
-        && result.total_usage.total_tokens > 0
-    {
-        crate::pricing::split_70_30(result.total_usage.total_tokens)
-    } else {
-        (prompt_tokens, completion_tokens)
-    };
+    let (pt, ct) =
+        if prompt_tokens == 0 && completion_tokens == 0 && result.total_usage.total_tokens > 0 {
+            crate::pricing::split_70_30(result.total_usage.total_tokens)
+        } else {
+            (prompt_tokens, completion_tokens)
+        };
     let reflect_pricing_key = ctx.pricing_key_for("reflect");
     let est_cost = authoritative_cost
         .unwrap_or_else(|| crate::pricing::cost_usd(&reflect_pricing_key, pt, ct));
@@ -357,8 +343,7 @@ pub async fn run_reflector(
     // window. Empty for runs where store_knowledge wasn't gated, but
     // we always call drain so cumulative counts can't leak into a
     // later iteration's row.
-    let (validate_calls, validate_ns_total, validate_ns_max) =
-        ctx.drain_toolclad_latency();
+    let (validate_calls, validate_ns_total, validate_ns_max) = ctx.drain_toolclad_latency();
 
     ctx.db
         .record_run(
@@ -395,7 +380,9 @@ pub async fn run_reflector(
     Ok(())
 }
 
-fn describe_termination(reason: &symbi_runtime::reasoning::loop_types::TerminationReason) -> String {
+fn describe_termination(
+    reason: &symbi_runtime::reasoning::loop_types::TerminationReason,
+) -> String {
     use symbi_runtime::reasoning::loop_types::TerminationReason as T;
     match reason {
         T::Completed => "completed".into(),

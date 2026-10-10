@@ -40,7 +40,7 @@ def _stub_run_one(
     out = results_dir / f"trial-{substrate}-{instance_seed:04d}.json"
     out.write_text(json.dumps(rec.to_dict()))
     strace = results_dir / f"trial-{substrate}-{instance_seed:04d}.strace"
-    strace.write_text("")
+    strace.write_text('1234 execve("/usr/bin/python3", [], []) = 0\n')
     return out, strace
 
 

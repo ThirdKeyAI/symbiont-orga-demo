@@ -29,10 +29,7 @@ impl ToolCladFence {
     /// Build a fence from a tool-name → manifest-path map. Any
     /// missing manifest path results in an error so misconfiguration
     /// surfaces immediately rather than at first call.
-    pub fn from_paths(
-        manifests_dir: &Path,
-        mappings: &[(&str, &str)],
-    ) -> Result<Self, String> {
+    pub fn from_paths(manifests_dir: &Path, mappings: &[(&str, &str)]) -> Result<Self, String> {
         let mut by_tool = HashMap::new();
         for (tool_name, file_name) in mappings {
             let path: PathBuf = manifests_dir.join(file_name);
@@ -69,37 +66,28 @@ impl ToolCladFence {
 }
 
 impl PreValidator for ToolCladFence {
-    fn validate(
-        &self,
-        tool_name: &str,
-        arguments_json: &str,
-    ) -> Option<PreValidationRefusal> {
+    fn validate(&self, tool_name: &str, arguments_json: &str) -> Option<PreValidationRefusal> {
         let loaded = self.by_tool.get(tool_name)?;
         // Best-effort JSON parse. If the LLM emitted unparseable JSON
         // (rare; the tool API normally hands us validated-shape JSON),
         // refuse — the call cannot proceed safely.
-        let parsed: serde_json::Value =
-            match serde_json::from_str(arguments_json) {
-                Ok(v) => v,
-                Err(e) => {
-                    return Some(PreValidationRefusal {
-                        fence_type: "toolclad-args".into(),
-                        field: None,
-                        reason: format!(
-                            "tool arguments are not valid JSON: {e}"
-                        ),
-                    });
-                }
-            };
+        let parsed: serde_json::Value = match serde_json::from_str(arguments_json) {
+            Ok(v) => v,
+            Err(e) => {
+                return Some(PreValidationRefusal {
+                    fence_type: "toolclad-args".into(),
+                    field: None,
+                    reason: format!("tool arguments are not valid JSON: {e}"),
+                });
+            }
+        };
         match validate_args_timed(loaded, &parsed, Some(&self.counters)) {
             Ok(FenceOutcome::Validated(_)) => None,
-            Ok(FenceOutcome::Refused { field, reason }) => {
-                Some(PreValidationRefusal {
-                    fence_type: "toolclad-args".into(),
-                    field: Some(field),
-                    reason,
-                })
-            }
+            Ok(FenceOutcome::Refused { field, reason }) => Some(PreValidationRefusal {
+                fence_type: "toolclad-args".into(),
+                field: Some(field),
+                reason,
+            }),
             // Shape errors (missing required, non-object) are also
             // refusals at the same fence layer — surface them with the
             // same fence_type so the report doesn't have to special-

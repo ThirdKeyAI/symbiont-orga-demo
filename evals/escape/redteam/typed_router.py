@@ -90,3 +90,13 @@ def route_grounded(category: str | None, severity: str | None, ticket: str) -> s
     cap = ticket_severity(ticket)
     eff = min(_norm_sev(severity), cap, key=SEVERITY_ORDER.index)
     return _route(_norm_cat(category), eff)
+
+
+def route_grounded_untrusted(category: str | None, severity: str | None, ticket: str) -> str:
+    """A-02 indirect injection: the ticket is attacker-controlled, so its text
+    cannot forge a 'critical' to reach exec_escalation — cap the ticket-derived
+    severity at 'high'. Benign tickets never trip the critical pattern, so this
+    leaves the trusted-ticket result unchanged; it only closes the A-02b bypass."""
+    cap = min(ticket_severity(ticket), "high", key=SEVERITY_ORDER.index)
+    eff = min(_norm_sev(severity), cap, key=SEVERITY_ORDER.index)
+    return _route(_norm_cat(category), eff)
