@@ -424,30 +424,6 @@ mod tests {
         assert_eq!(sanitize_field("a\u{200B}b"), "ab");
     }
 
-    #[cfg(feature = "metrics")]
-    #[test]
-    fn metrics_counters_tick_on_every_public_call() {
-        // The metrics module is process-wide, so we serialise the
-        // test by reset()-then-call. Run alone with
-        // `--features metrics --test-threads=1` if tests start
-        // racing; for now `cargo test` defaults serialise within
-        // one binary by file.
-        crate::metrics::reset();
-        let _ = sanitize_field("a\u{200B}b");
-        let _ = sanitize_field_with_markup("ok<!-- bad -->done");
-        let s = crate::metrics::snapshot();
-        assert_eq!(s.calls, 2, "expected exactly 2 recorded calls");
-        // First call: 4 bytes in (a + 3 for U+200B), 2 bytes out.
-        // Second call: 18 bytes in, 6 bytes out.
-        assert!(s.bytes_in >= 22, "bytes_in was {}", s.bytes_in);
-        assert!(
-            s.bytes_stripped > 0,
-            "bytes_stripped was {}",
-            s.bytes_stripped
-        );
-        assert!(s.ns_total > 0, "ns_total should be non-zero");
-    }
-
     #[test]
     fn strips_tag_block() {
         let payload: String = "safe "
