@@ -1,7 +1,5 @@
 /target
 /data
-.claude/
-docs/superpowers/
 docs/plans/
 evals/escape/results/*.jsonl
 evals/escape/results/*.json
@@ -19,7 +17,6 @@ evals/escape/.venv/
 evals/escape/.pytest_cache/
 evals/escape/**/__pycache__/
 evals/escape/**/*.egg-info/
-CLAUDE.md
 AGENTS.md
 GEMINI.md
 COPILOT.md

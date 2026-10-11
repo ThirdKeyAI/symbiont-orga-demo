@@ -360,7 +360,6 @@ the loop on this claim.
 
 ## 6. Pointers
 
-- **Design spec:** [`docs/superpowers/specs/2026-04-28-v12-ablation-and-conformance.md`](../docs/superpowers/specs/2026-04-28-v12-ablation-and-conformance.md)
 - **Conformance harness:** `scripts/v12-cross-impl-conformance.py`
 - **Conformance matrix:** [`demo-output/v12-cross-impl-matrix.md`](v12-cross-impl-matrix.md)
 - **Ablation flags:** `--cedar-mode {on,off}`, `--sanitiser-mode {on,off}` (CLI); `CEDAR=off`, `SANITISER=off` (sweep script); tag suffixes `-c0`, `-s0`

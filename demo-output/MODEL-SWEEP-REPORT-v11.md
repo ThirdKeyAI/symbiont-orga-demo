@@ -287,7 +287,6 @@ v11 spend (cap)                       :   $40
 
 ## Pointers
 
-- **Design spec:** `docs/superpowers/specs/2026-04-26-toolclad-benchmark-design.md`
 - **Bridge crate:** `crates/symbi-toolclad-bridge/`
 - **Manifests:** `manifests/store_knowledge.clad.toml`, `manifests/whois_lookup.clad.toml`
 - **Analyzer:** `scripts/analyze-v11-toolclad.py` → `demo-output/v11-bite-rate-matrix.md`
